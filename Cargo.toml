@@ -1,0 +1,16 @@
+[package]
+name = "wmi"
+version = "0.1.0"
+authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
+edition = "2018"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { git = "https://github.com/retep998/winapi-rs.git", branch = "0.3", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi"] }
+failure = "*"
+log = "*"
+env_logger = "*"
+base64 = "*"
+regex = "*"
+lazy_static = "*"
+simple_logger = "*"
+widestring = "*"
