@@ -9,9 +9,7 @@ use wmi::connection::{COMLibrary,
 fn main() -> Result<(), Error> {
     simple_logger::init_with_level(Level::Debug).unwrap();
 
-    debug!(
-        "Starting up"
-    );
+    debug!("Starting up");
 
     let com_con = COMLibrary::new()?;
     let wmi_con = WMIConnection::new(com_con.into())?;
@@ -19,7 +17,7 @@ fn main() -> Result<(), Error> {
     let enumerator = wmi_con.query("SELECT * FROM Win32_OperatingSystem")?;
 
     for name in enumerator {
-        debug!("I CAN HAS {}", name.unwrap());
+        debug!("I am {}", name.unwrap());
     }
 
     Ok(())

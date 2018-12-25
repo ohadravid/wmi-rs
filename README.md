@@ -10,7 +10,7 @@ Currently 🚧 WIP 🚧.
 let com_lib = COMLibrary::new().unwrap();
 let wmi_con = WMIConnection::new(com_lib.into()).unwrap();
 
-let enumerator = wmi_con.query("SELECT * FROM Win32_OperatingSystem")?;
+let enumerator = wmi_con.query("SELECT * FROM Win32_OperatingSystem").unwrap();
 
 for name in enumerator {
     println!("I am {}", name.unwrap());
