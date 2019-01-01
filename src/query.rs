@@ -68,7 +68,7 @@ impl<'a> Drop for QueryResultEnumerator<'a> {
 }
 
 pub struct IWbemClassWrapper {
-    inner: Option<Unique<IWbemClassObject>>,
+    pub inner: Option<Unique<IWbemClassObject>>,
 }
 
 impl IWbemClassWrapper {
