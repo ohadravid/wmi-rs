@@ -252,7 +252,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             {
                 if let Some(field) = self.fields.get(self.i) {
                     self.i += 1;
-                    seed.deserialize("Caption".into_deserializer()).map(Some)
+                    seed.deserialize(field.into_deserializer()).map(Some)
                 } else {
                     Ok(None)
                 }
@@ -342,7 +342,7 @@ mod tests {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
             pub Caption: String,
-//            pub Name: String,
+            pub Name: String,
         }
 
         let enumerator = wmi_con
@@ -356,7 +356,7 @@ mod tests {
 
             debug!("I am {:?}", w);
             assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
-//            assert_eq!(w.Name, "Microsoft Windows 10 Pro");
+            assert_eq!(w.Name, "Microsoft Windows 10 Pro|C:\\WINDOWS|\\Device\\Harddisk0\\Partition3");
         }
     }
 }
