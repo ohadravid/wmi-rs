@@ -1,27 +1,28 @@
 use crate::connection::WMIConnection;
+use crate::utils::check_hres;
 use failure::Error;
 use log::debug;
-use widestring::WideCString;
-use winapi::shared::ntdef::NULL;
+use std::mem;
 use std::ptr;
 use std::ptr::Unique;
-use winapi::um::wbemcli::{IWbemLocator, IWbemServices, IWbemClassObject, CLSID_WbemLocator, IID_IWbemLocator, IEnumWbemClassObject};
+use widestring::WideCStr;
+use widestring::WideCString;
+use winapi::shared::ntdef::NULL;
+use winapi::shared::rpcdce::RPC_C_AUTHN_LEVEL_CALL;
 use winapi::shared::rpcdce::RPC_C_AUTHN_WINNT;
 use winapi::shared::rpcdce::RPC_C_AUTHZ_NONE;
-use winapi::shared::rpcdce::RPC_C_AUTHN_LEVEL_CALL;
-use winapi::um::wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE};
-use crate::utils::check_hres;
-use widestring::WideCStr;
-use winapi::um::oaidl::{VARIANT, VARIANT_n3};
 use winapi::shared::wtypes::BSTR;
-use std::mem;
+use winapi::um::oaidl::{VARIANT_n3, VARIANT};
 use winapi::um::oleauto::VariantClear;
-
+use winapi::um::wbemcli::{
+    CLSID_WbemLocator, IEnumWbemClassObject, IID_IWbemLocator, IWbemClassObject, IWbemLocator,
+    IWbemServices,
+};
+use winapi::um::wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE};
 
 pub struct QueryResultEnumerator<'a> {
     wmi_con: &'a WMIConnection,
     p_enumerator: Option<Unique<IEnumWbemClassObject>>,
-
 }
 
 impl WMIConnection {
@@ -32,14 +33,13 @@ impl WMIConnection {
         let mut p_enumerator = NULL as *mut IEnumWbemClassObject;
 
         unsafe {
-            check_hres(
-                (*self.svc()).ExecQuery(
-                    query_language.as_ptr() as *mut _,
-                    query.as_ptr() as *mut _,
-                    (WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY) as i32,
-                    ptr::null_mut(),
-                    &mut p_enumerator)
-            )?;
+            check_hres((*self.svc()).ExecQuery(
+                query_language.as_ptr() as *mut _,
+                query.as_ptr() as *mut _,
+                (WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY) as i32,
+                ptr::null_mut(),
+                &mut p_enumerator,
+            ))?;
         }
 
         debug!("Got enumerator {:?}", p_enumerator);
@@ -73,9 +73,7 @@ pub struct IWbemClassWrapper {
 
 impl IWbemClassWrapper {
     pub fn new(ptr: Option<Unique<IWbemClassObject>>) -> Self {
-        Self {
-            inner: ptr
-        }
+        Self { inner: ptr }
     }
 }
 
@@ -83,12 +81,11 @@ impl Drop for IWbemClassWrapper {
     fn drop(&mut self) {
         if let Some(pcls_obj) = self.inner {
             unsafe {
-                (*pcls_obj).Release();
+                (*pcls_obj.as_ptr()).Release();
             }
         }
     }
 }
-
 
 impl<'a> Iterator for QueryResultEnumerator<'a> {
     type Item = Result<IWbemClassWrapper, Error>;
@@ -102,11 +99,12 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
         }
 
         let res = unsafe {
-            check_hres(
-                (*self.p_enumerator.unwrap().as_ptr()).Next(WBEM_INFINITE as i32, 1,
-                                                            &mut pcls_obj,
-                                                            &mut return_value)
-            )
+            check_hres((*self.p_enumerator.unwrap().as_ptr()).Next(
+                WBEM_INFINITE as i32,
+                1,
+                &mut pcls_obj,
+                &mut return_value,
+            ))
         };
 
         if let Err(e) = res {
@@ -117,9 +115,12 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             return None;
         }
 
-        debug!("Got enumerator {:?} and obj {:?}", self.p_enumerator, pcls_obj);
+        debug!(
+            "Got enumerator {:?} and obj {:?}",
+            self.p_enumerator, pcls_obj
+        );
 
-        let pcls_wrapper = IWbemClassWrapper::new(pcls_obj.into());
+        let pcls_wrapper = IWbemClassWrapper::new(Unique::new(pcls_obj));
 
         Some(Ok(pcls_wrapper))
     }

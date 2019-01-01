@@ -1,10 +1,9 @@
 #![feature(ptr_internals)]
 
-use failure::{Error, format_err};
-use log::{Level, debug, info, trace};
+use failure::{format_err, Error};
+use log::{debug, info, trace, Level};
 
-use wmi::connection::{COMLibrary,
-                      WMIConnection};
+use wmi::connection::{COMLibrary, WMIConnection};
 
 fn main() -> Result<(), Error> {
     simple_logger::init_with_level(Level::Debug).unwrap();
