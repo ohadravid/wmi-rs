@@ -14,3 +14,4 @@ regex = "*"
 lazy_static = "*"
 simple_logger = "*"
 widestring = "*"
+serde = { version = "*", features = ["derive"] }

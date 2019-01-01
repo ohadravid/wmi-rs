@@ -67,8 +67,31 @@ impl<'a> Drop for QueryResultEnumerator<'a> {
     }
 }
 
+pub struct IWbemClassWrapper {
+    inner: Option<Unique<IWbemClassObject>>,
+}
+
+impl IWbemClassWrapper {
+    pub fn new(ptr: Option<Unique<IWbemClassObject>>) -> Self {
+        Self {
+            inner: ptr
+        }
+    }
+}
+
+impl Drop for IWbemClassWrapper {
+    fn drop(&mut self) {
+        if let Some(pcls_obj) = self.inner {
+            unsafe {
+                (*pcls_obj).Release();
+            }
+        }
+    }
+}
+
+
 impl<'a> Iterator for QueryResultEnumerator<'a> {
-    type Item = Result<String, Error>;
+    type Item = Result<IWbemClassWrapper, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut pcls_obj = NULL as *mut IWbemClassObject;
@@ -81,8 +104,8 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
         let res = unsafe {
             check_hres(
                 (*self.p_enumerator.unwrap().as_ptr()).Next(WBEM_INFINITE as i32, 1,
-                                     &mut pcls_obj,
-                                     &mut return_value)
+                                                            &mut pcls_obj,
+                                                            &mut return_value)
             )
         };
 
@@ -96,36 +119,8 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
 
         debug!("Got enumerator {:?} and obj {:?}", self.p_enumerator, pcls_obj);
 
-        let name_prop = WideCString::from_str("Caption").unwrap();
-        let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
+        let pcls_wrapper = IWbemClassWrapper::new(pcls_obj.into());
 
-        unsafe {
-            (*pcls_obj).Get(
-                name_prop.as_ptr() as *mut _,
-                0,
-                &mut vt_prop,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
-        }
-
-        let p = unsafe { vt_prop.n1.n2().n3.bstrVal() };
-
-        let prop_val: &WideCStr = unsafe {
-            WideCStr::from_ptr_str(*p)
-        };
-
-        unsafe { VariantClear(&mut vt_prop) };
-
-        // TODO: Remove this unwrap.
-        let property_value_as_string = prop_val.to_string().unwrap();
-
-        debug!("Got {}", property_value_as_string);
-
-        unsafe {
-            (*pcls_obj).Release();
-        }
-
-        Some(Ok(property_value_as_string))
+        Some(Ok(pcls_wrapper))
     }
 }
