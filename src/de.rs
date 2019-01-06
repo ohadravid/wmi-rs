@@ -237,13 +237,13 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         println!("{:?} {:?}", fields, name);
 
-        struct MapAccessStab<'a, 'de> {
+        struct MapAccessStub<'a, 'de> {
             i: usize,
             fields: &'static [&'static str],
             de: &'a Deserializer<'de>,
         }
 
-        impl<'de, 'a> MapAccess<'de> for MapAccessStab<'a, 'de> {
+        impl<'de, 'a> MapAccess<'de> for MapAccessStub<'a, 'de> {
             type Error = serde_json::Error;
 
             fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
@@ -290,7 +290,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             }
         }
 
-        visitor.visit_map(MapAccessStab {
+        visitor.visit_map(MapAccessStub {
             i: 0,
             fields,
             de: &self,
