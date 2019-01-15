@@ -1,17 +1,18 @@
 use crate::query::IWbemClassWrapper;
-use failure::Error;
+use failure::{format_err};
 use log::{debug, info};
 use serde::de::{
-    self, Deserialize, DeserializeOwned, DeserializeSeed, Expected, IntoDeserializer, MapAccess,
+    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess,
     Unexpected, Visitor,
 };
-use std::collections::HashMap;
+use std::iter::Peekable;
 use std::mem;
 use std::ptr;
 use widestring::WideCStr;
 use widestring::WideCString;
 use winapi::um::oaidl::{VARIANT_n3, VARIANT};
 use winapi::um::oleauto::VariantClear;
+use crate::error::Error;
 
 pub struct Deserializer<'de> {
     // This string starts with the input data and characters are truncated off
@@ -35,22 +36,28 @@ where
     Ok(t)
 }
 
-
 struct WMIMapAccess<'a, 'de> {
-    i: usize,
-    fields: &'static [&'static str],
+    fields: Peekable<std::slice::Iter<'static, &'static str>>,
     de: &'a Deserializer<'de>,
 }
 
+impl<'a, 'de> WMIMapAccess<'a, 'de> {
+    pub fn new(fields: &'static [&'static str], de: &'a Deserializer<'de>) -> Self {
+        Self {
+            fields: fields.iter().peekable(),
+            de,
+        }
+    }
+}
+
 impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
-    type Error = serde_json::Error;
+    type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
-        where
-            K: DeserializeSeed<'de>,
+    where
+        K: DeserializeSeed<'de>,
     {
-        if let Some(field) = self.fields.get(self.i) {
-            self.i += 1;
+        if let Some(field) = self.fields.peek() {
             seed.deserialize(field.into_deserializer()).map(Some)
         } else {
             Ok(None)
@@ -58,10 +65,16 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
-        where
-            V: DeserializeSeed<'de>,
+    where
+        V: DeserializeSeed<'de>,
     {
-        let name_prop = WideCString::from_str(self.fields[self.i - 1]).unwrap();
+        let current_field = self
+            .fields
+            .next()
+            .ok_or(format_err!("Expected current field to not be None"))?;
+
+        let name_prop = WideCString::from_str(current_field).map_err(Error::from_err)?;
+
         let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
 
         unsafe {
@@ -80,8 +93,7 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
 
         unsafe { VariantClear(&mut vt_prop) };
 
-        // TODO: Remove this unwrap.
-        let property_value_as_string = prop_val.to_string().unwrap();
+        let property_value_as_string = prop_val.to_string().map_err(Error::from_err)?;
 
         debug!("Got {}", property_value_as_string);
 
@@ -89,9 +101,8 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
     }
 }
 
-
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
-    type Error = serde_json::Error;
+    type Error = Error;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
@@ -292,11 +303,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         println!("{:?} {:?}", fields, name);
 
-        visitor.visit_map(WMIMapAccess {
-            i: 0,
-            fields,
-            de: &self,
-        })
+        visitor.visit_map(WMIMapAccess::new(fields, &self))
     }
 
     fn deserialize_enum<V>(
@@ -358,7 +365,10 @@ mod tests {
 
             debug!("I am {:?}", w);
             assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
-            assert_eq!(w.Name, "Microsoft Windows 10 Pro|C:\\WINDOWS|\\Device\\Harddisk0\\Partition3");
+            assert_eq!(
+                w.Name,
+                "Microsoft Windows 10 Pro|C:\\WINDOWS|\\Device\\Harddisk0\\Partition3"
+            );
         }
     }
 }
