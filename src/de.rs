@@ -35,6 +35,61 @@ where
     Ok(t)
 }
 
+
+struct WMIMapAccess<'a, 'de> {
+    i: usize,
+    fields: &'static [&'static str],
+    de: &'a Deserializer<'de>,
+}
+
+impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
+    type Error = serde_json::Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+        where
+            K: DeserializeSeed<'de>,
+    {
+        if let Some(field) = self.fields.get(self.i) {
+            self.i += 1;
+            seed.deserialize(field.into_deserializer()).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+        where
+            V: DeserializeSeed<'de>,
+    {
+        let name_prop = WideCString::from_str(self.fields[self.i - 1]).unwrap();
+        let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
+
+        unsafe {
+            (*self.de.wbem_class_obj.inner.unwrap().as_ptr()).Get(
+                name_prop.as_ptr() as *mut _,
+                0,
+                &mut vt_prop,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            );
+        }
+
+        let p = unsafe { vt_prop.n1.n2().n3.bstrVal() };
+
+        let prop_val: &WideCStr = unsafe { WideCStr::from_ptr_str(*p) };
+
+        unsafe { VariantClear(&mut vt_prop) };
+
+        // TODO: Remove this unwrap.
+        let property_value_as_string = prop_val.to_string().unwrap();
+
+        debug!("Got {}", property_value_as_string);
+
+        seed.deserialize(property_value_as_string.into_deserializer())
+    }
+}
+
+
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = serde_json::Error;
 
@@ -237,60 +292,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         println!("{:?} {:?}", fields, name);
 
-        struct MapAccessStub<'a, 'de> {
-            i: usize,
-            fields: &'static [&'static str],
-            de: &'a Deserializer<'de>,
-        }
-
-        impl<'de, 'a> MapAccess<'de> for MapAccessStub<'a, 'de> {
-            type Error = serde_json::Error;
-
-            fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
-            where
-                K: DeserializeSeed<'de>,
-            {
-                if let Some(field) = self.fields.get(self.i) {
-                    self.i += 1;
-                    seed.deserialize(field.into_deserializer()).map(Some)
-                } else {
-                    Ok(None)
-                }
-            }
-
-            fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
-            where
-                V: DeserializeSeed<'de>,
-            {
-                let name_prop = WideCString::from_str(self.fields[self.i - 1]).unwrap();
-                let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
-
-                unsafe {
-                    (*self.de.wbem_class_obj.inner.unwrap().as_ptr()).Get(
-                        name_prop.as_ptr() as *mut _,
-                        0,
-                        &mut vt_prop,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                    );
-                }
-
-                let p = unsafe { vt_prop.n1.n2().n3.bstrVal() };
-
-                let prop_val: &WideCStr = unsafe { WideCStr::from_ptr_str(*p) };
-
-                unsafe { VariantClear(&mut vt_prop) };
-
-                // TODO: Remove this unwrap.
-                let property_value_as_string = prop_val.to_string().unwrap();
-
-                debug!("Got {}", property_value_as_string);
-
-                seed.deserialize(property_value_as_string.into_deserializer())
-            }
-        }
-
-        visitor.visit_map(MapAccessStub {
+        visitor.visit_map(WMIMapAccess {
             i: 0,
             fields,
             de: &self,
