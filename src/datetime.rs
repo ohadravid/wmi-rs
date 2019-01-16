@@ -2,21 +2,24 @@ use std::str::FromStr;
 use std::fmt;
 use chrono::prelude::*;
 use serde::de;
+use chrono::FixedOffset;
+use failure::Error;
 
 
 #[derive(Debug)]
-pub struct WMIDateTime(DateTime<Utc>);
+pub struct WMIDateTime(pub DateTime<FixedOffset>);
 
 impl FromStr for WMIDateTime {
-    type Err = chrono::format::ParseError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        println!("{}", s);
-
         let (datetime_part, tz_part) = s.split_at(21);
-        println!("{}", datetime_part);
 
-        let dt = Utc.datetime_from_str(datetime_part, "%Y%m%d%H%M%S.%f")?;
+        let tz_min: i32= tz_part.parse()?;
+
+        let tz = FixedOffset::east(tz_min * 60);
+
+        let dt = tz.datetime_from_str(datetime_part, "%Y%m%d%H%M%S.%f")?;
 
         Ok(Self(dt))
     }
@@ -59,7 +62,7 @@ mod tests {
     fn it_works_with_negative_offset() {
         let dt: WMIDateTime = "20190113200517.500000-180".parse().unwrap();
 
-        assert_eq!(dt.0.to_rfc3339(), "2019-01-13T20:05:17.000500-02:00");
+        assert_eq!(dt.0.to_rfc3339(), "2019-01-13T20:05:17.000500-03:00");
     }
 
     #[test]
