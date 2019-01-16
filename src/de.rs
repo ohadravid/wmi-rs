@@ -99,6 +99,7 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
             Variant::Null => unimplemented!(),
             Variant::String(s) => seed.deserialize(s.into_deserializer()),
             Variant::I2(n) => seed.deserialize(n.into_deserializer()),
+            Variant::I4(n) => seed.deserialize(n.into_deserializer()),
             Variant::Bool(b) => seed.deserialize(b.into_deserializer()),
         }
     }
@@ -336,6 +337,8 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 }
 
+#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
 mod tests {
     use super::*;
     use crate::connection::COMLibrary;
@@ -357,7 +360,9 @@ mod tests {
             Name: String,
             CurrentTimeZone: i16,
             Debug: bool,
-//            EncryptionLevel: u32,
+
+            // This actually returns as an i32 from COM.
+            EncryptionLevel: u32,
 //            ForegroundApplicationBoost: u8,
 //            FreePhysicalMemory: u64,
 //            LastBootUpTime: DateTime<Utc>,
@@ -381,6 +386,7 @@ mod tests {
             );
             assert_eq!(w.CurrentTimeZone, 60);
             assert_eq!(w.Debug, false);
+            assert_eq!(w.EncryptionLevel, 256);
         }
     }
 }
