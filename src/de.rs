@@ -99,6 +99,7 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
             Variant::Null => unimplemented!(),
             Variant::String(s) => seed.deserialize(s.into_deserializer()),
             Variant::I2(n) => seed.deserialize(n.into_deserializer()),
+            Variant::Bool(b) => seed.deserialize(b.into_deserializer()),
         }
     }
 }
@@ -355,7 +356,7 @@ mod tests {
             Caption: String,
             Name: String,
             CurrentTimeZone: i16,
-//            Debug: bool,
+            Debug: bool,
 //            EncryptionLevel: u32,
 //            ForegroundApplicationBoost: u8,
 //            FreePhysicalMemory: u64,
@@ -379,7 +380,7 @@ mod tests {
                 "Microsoft Windows 10 Pro|C:\\WINDOWS|\\Device\\Harddisk0\\Partition3"
             );
             assert_eq!(w.CurrentTimeZone, 60);
-
+            assert_eq!(w.Debug, false);
         }
     }
 }
