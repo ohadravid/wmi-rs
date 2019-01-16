@@ -1,9 +1,10 @@
 use crate::query::IWbemClassWrapper;
-use failure::{format_err};
+use chrono::prelude::*;
+use failure::{bail, format_err};
 use log::{debug, info};
+use serde::de::Error as _;
 use serde::de::{
-    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess,
-    Unexpected, Visitor,
+    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Unexpected, Visitor,
 };
 use std::iter::Peekable;
 use std::mem;
@@ -12,9 +13,9 @@ use widestring::WideCStr;
 use widestring::WideCString;
 use winapi::um::oaidl::{VARIANT_n3, VARIANT};
 use winapi::um::oleauto::VariantClear;
-use chrono::prelude::*;
 
 use crate::error::Error;
+use crate::variant::Variant;
 use winapi::shared::wtypes::VARTYPE;
 
 pub struct Deserializer<'de> {
@@ -90,21 +91,15 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
             );
         }
 
-        let variant_type: VARTYPE = unsafe { vt_prop.n1.n2().vt };
-
-        println!("{:?}", variant_type);
-
-        let p = unsafe { vt_prop.n1.n2().n3.bstrVal() };
-
-        let prop_val: &WideCStr = unsafe { WideCStr::from_ptr_str(*p) };
+        let property_value = Variant::from_variant(vt_prop)?;
 
         unsafe { VariantClear(&mut vt_prop) };
 
-        let property_value_as_string = prop_val.to_string().map_err(Error::from_err)?;
-
-        debug!("Got {}", property_value_as_string);
-
-        seed.deserialize(property_value_as_string.into_deserializer())
+        match property_value {
+            Variant::Null => unimplemented!(),
+            Variant::String(s) => seed.deserialize(s.into_deserializer()),
+            Variant::I2(n) => seed.deserialize(n.into_deserializer()),
+        }
     }
 }
 
@@ -360,12 +355,12 @@ mod tests {
             Caption: String,
             Name: String,
             CurrentTimeZone: i16,
-            Debug: bool,
-            EncryptionLevel: u32,
-            ForegroundApplicationBoost: u8,
-            FreePhysicalMemory: u64,
-            LastBootUpTime: DateTime<Utc>,
-            ServicePackMinorVersion: u16,
+//            Debug: bool,
+//            EncryptionLevel: u32,
+//            ForegroundApplicationBoost: u8,
+//            FreePhysicalMemory: u64,
+//            LastBootUpTime: DateTime<Utc>,
+//            ServicePackMinorVersion: u16,
         }
 
         let enumerator = wmi_con
@@ -377,12 +372,14 @@ mod tests {
 
             let w: Win32_OperatingSystem = from_wbem_class_obj(&w).unwrap();
 
-            debug!("I am {:?}", w);
+            println!("I am {:?}", w);
             assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
             assert_eq!(
                 w.Name,
                 "Microsoft Windows 10 Pro|C:\\WINDOWS|\\Device\\Harddisk0\\Partition3"
             );
+            assert_eq!(w.CurrentTimeZone, 60);
+
         }
     }
 }
