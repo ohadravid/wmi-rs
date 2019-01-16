@@ -12,6 +12,8 @@ use widestring::WideCStr;
 use widestring::WideCString;
 use winapi::um::oaidl::{VARIANT_n3, VARIANT};
 use winapi::um::oleauto::VariantClear;
+use chrono::prelude::*;
+
 use crate::error::Error;
 
 pub struct Deserializer<'de> {
@@ -350,8 +352,15 @@ mod tests {
 
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
-            pub Caption: String,
-            pub Name: String,
+            Caption: String,
+            Name: String,
+            CurrentTimeZone: i16,
+            Debug: bool,
+            EncryptionLevel: u32,
+            ForegroundApplicationBoost: u8,
+            FreePhysicalMemory: u64,
+            LastBootUpTime: DateTime<Utc>,
+            ServicePackMinorVersion: u16,
         }
 
         let enumerator = wmi_con

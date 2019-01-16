@@ -15,3 +15,4 @@ lazy_static = "*"
 simple_logger = "*"
 widestring = "*"
 serde = { version = "*", features = ["derive"] }
+chrono = { version = "*", features = ["serde"] }
