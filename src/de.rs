@@ -16,7 +16,9 @@ use winapi::um::oleauto::VariantClear;
 
 use crate::error::Error;
 use crate::variant::Variant;
+use std::fmt;
 use winapi::shared::wtypes::VARTYPE;
+use std::str::FromStr;
 
 pub struct Deserializer<'de> {
     // This string starts with the input data and characters are truncated off
@@ -102,7 +104,6 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
             Variant::I4(n) => seed.deserialize(n.into_deserializer()),
             Variant::Bool(b) => seed.deserialize(b.into_deserializer()),
             Variant::UI1(n) => seed.deserialize(n.into_deserializer()),
-
         }
     }
 }
@@ -346,6 +347,7 @@ mod tests {
     use crate::connection::COMLibrary;
     use crate::connection::WMIConnection;
     use serde::Deserialize;
+    use crate::datetime::WMIDateTime;
 
     #[test]
     fn it_works() {
@@ -366,9 +368,8 @@ mod tests {
             // This actually returns as an i32 from COM.
             EncryptionLevel: u32,
             ForegroundApplicationBoost: u8,
-//            FreePhysicalMemory: u64,
-//            LastBootUpTime: DateTime<Utc>,
-//            ServicePackMinorVersion: u16,
+
+            LastBootUpTime: WMIDateTime,
         }
 
         let enumerator = wmi_con
