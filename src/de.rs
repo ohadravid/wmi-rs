@@ -15,6 +15,7 @@ use winapi::um::oleauto::VariantClear;
 use chrono::prelude::*;
 
 use crate::error::Error;
+use winapi::shared::wtypes::VARTYPE;
 
 pub struct Deserializer<'de> {
     // This string starts with the input data and characters are truncated off
@@ -88,6 +89,10 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
                 ptr::null_mut(),
             );
         }
+
+        let variant_type: VARTYPE = unsafe { vt_prop.n1.n2().vt };
+
+        println!("{:?}", variant_type);
 
         let p = unsafe { vt_prop.n1.n2().n3.bstrVal() };
 
