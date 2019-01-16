@@ -101,6 +101,8 @@ impl<'de, 'a> MapAccess<'de> for WMIMapAccess<'a, 'de> {
             Variant::I2(n) => seed.deserialize(n.into_deserializer()),
             Variant::I4(n) => seed.deserialize(n.into_deserializer()),
             Variant::Bool(b) => seed.deserialize(b.into_deserializer()),
+            Variant::UI1(n) => seed.deserialize(n.into_deserializer()),
+
         }
     }
 }
@@ -363,7 +365,7 @@ mod tests {
 
             // This actually returns as an i32 from COM.
             EncryptionLevel: u32,
-//            ForegroundApplicationBoost: u8,
+            ForegroundApplicationBoost: u8,
 //            FreePhysicalMemory: u64,
 //            LastBootUpTime: DateTime<Utc>,
 //            ServicePackMinorVersion: u16,
@@ -387,6 +389,7 @@ mod tests {
             assert_eq!(w.CurrentTimeZone, 60);
             assert_eq!(w.Debug, false);
             assert_eq!(w.EncryptionLevel, 256);
+            assert_eq!(w.ForegroundApplicationBoost, 2);
         }
     }
 }

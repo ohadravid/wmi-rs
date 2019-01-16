@@ -21,6 +21,9 @@ pub enum Variant {
     I4(i32),
 
     Bool(bool),
+
+
+    UI1(u8),
 }
 
 impl Variant {
@@ -41,28 +44,33 @@ impl Variant {
                 let property_value_as_string = prop_val.to_string()?;
 
                 Variant::String(property_value_as_string)
-            }
+            },
             VT_I2 => {
                 let num: &i16 = unsafe { vt.n1.n2().n3.iVal() };
 
                 Variant::I2(*num)
-            }
+            },
             VT_I4 => {
                 let num: &i32 = unsafe { vt.n1.n2().n3.lVal() };
 
                 Variant::I4(*num)
-            }
+            },
             VT_BOOL => {
                 let value: &i16 = unsafe { vt.n1.n2().n3.boolVal() };
 
                 match *value {
                     VARIANT_FALSE => Variant::Bool(false),
                     VARIANT_TRUE => Variant::Bool(true),
-                    _ => bail!("Invalid bool value: {}", value),
+                    _ => bail!("Invalid bool value: {:#X}", value),
                 }
+            },
+            VT_UI1 => {
+                let num: &i8 = unsafe { vt.n1.n2().n3.cVal() };
+
+                Variant::UI1(*num as u8)
             }
             _ => bail!(
-                "Converting from variant type {} is not implemented yet",
+                "Converting from variant type {:#X} is not implemented yet",
                 variant_type
             ),
         };
