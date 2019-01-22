@@ -9,6 +9,7 @@ use winapi::shared::wtypes::*;
 use winapi::um::oaidl::{VARIANT_n3, VARIANT};
 use serde::Deserialize;
 use std::fmt;
+use winapi::um::oaidl::wirePSAFEARRAY;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
@@ -29,6 +30,8 @@ pub enum Variant {
 
     UI1(u8),
     UI8(u64),
+
+    Array(Vec<Variant>)
 }
 
 impl Variant {
@@ -36,6 +39,13 @@ impl Variant {
         let variant_type: VARTYPE = unsafe { vt.n1.n2().vt };
 
         println!("{:?}", variant_type);
+
+        if variant_type as u32 & VT_ARRAY == VT_ARRAY {
+//            let array_ptr: &wirePSAFEARRAY = unsafe { vt.n1.n2().n3.pparray() };
+            unimplemented!()
+
+        }
+
 
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.
         // Rust can infer the return type of `vt.*Val()` calls,

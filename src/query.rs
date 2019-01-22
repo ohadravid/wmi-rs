@@ -25,6 +25,9 @@ use winapi::um::wbemcli::{
     IWbemServices,
 };
 use winapi::um::wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE};
+use crate::safearray::get_string_array;
+use crate::consts::WBEM_FLAG_ALWAYS;
+use crate::consts::WBEM_FLAG_NONSYSTEM_ONLY;
 
 pub struct QueryResultEnumerator<'a> {
     wmi_con: &'a WMIConnection,
@@ -77,30 +80,6 @@ pub struct IWbemClassWrapper {
     pub inner: Option<Unique<IWbemClassObject>>,
 }
 
-const WBEM_FLAG_ALWAYS: i32 = 0;
-const WBEM_FLAG_ONLY_IF_TRUE: i32 = 0x1;
-const WBEM_FLAG_ONLY_IF_FALSE: i32 = 0x2;
-const WBEM_FLAG_ONLY_IF_IDENTICAL: i32 = 0x3;
-const WBEM_MASK_PRIMARY_CONDITION: i32 = 0x3;
-const WBEM_FLAG_KEYS_ONLY: i32 = 0x4;
-const WBEM_FLAG_REFS_ONLY: i32 = 0x8;
-const WBEM_FLAG_LOCAL_ONLY: i32 = 0x10;
-const WBEM_FLAG_PROPAGATED_ONLY: i32 = 0x20;
-const WBEM_FLAG_SYSTEM_ONLY: i32 = 0x30;
-const WBEM_FLAG_NONSYSTEM_ONLY: i32 = 0x40;
-const WBEM_MASK_CONDITION_ORIGIN: i32 = 0x70;
-const WBEM_FLAG_CLASS_OVERRIDES_ONLY: i32 = 0x100;
-const WBEM_FLAG_CLASS_LOCAL_AND_OVERRIDES: i32 = 0x200;
-const WBEM_MASK_CLASS_CONDITION: i32 = 0x30;
-
-extern "system" {
-    pub fn SafeArrayGetLBound(psa: *mut SAFEARRAY, nDim: UINT, plLbound: *mut LONG) -> HRESULT;
-
-    pub fn SafeArrayGetUBound(psa: *mut SAFEARRAY, nDim: UINT, plUbound: *mut LONG) -> HRESULT;
-
-    pub fn SafeArrayDestroy(psa: *mut SAFEARRAY) -> HRESULT;
-}
-
 impl IWbemClassWrapper {
     pub fn new(ptr: Option<Unique<IWbemClassObject>>) -> Self {
         Self { inner: ptr }
@@ -118,39 +97,7 @@ impl IWbemClassWrapper {
             ))
         }?;
 
-        let mut p_data = NULL; // as *mut BSTR;
-        let mut lstart: i32 = 0;
-        let mut lend: i32 = 0;
-
-        unsafe {
-            check_hres(SafeArrayGetLBound(p_names, 1, &mut lstart as _))?;
-            check_hres(SafeArrayGetUBound(p_names, 1, &mut lend as _))?;
-            check_hres(SafeArrayAccessData(p_names, &mut p_data))?;
-        }
-
-        // We have no data, return an empty vec.
-        if lend == -1 {
-            return Ok(vec![]);
-        }
-
-        let mut p_data: *mut BSTR = p_data as _;
-
-        let mut data_slice = unsafe { slice::from_raw_parts(p_data, lend as usize + 1) };
-
-        let mut props = vec![];
-
-        for prop_name_bstr in data_slice[(lstart as usize)..].iter() {
-            let prop_name: &WideCStr = unsafe { WideCStr::from_ptr_str(*prop_name_bstr) };
-
-            props.push(prop_name.to_string()?)
-        }
-
-        unsafe {
-            check_hres(SafeArrayUnaccessData(p_names))?;
-            check_hres(SafeArrayDestroy(p_names))?;
-        }
-
-        Ok(props)
+        get_string_array(p_names)
     }
 }
 

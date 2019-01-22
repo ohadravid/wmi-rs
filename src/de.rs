@@ -110,6 +110,7 @@ where
         unsafe { VariantClear(&mut vt_prop) };
 
         match property_value {
+            // TODO: Implememt these two.
             Variant::Null => seed.deserialize("".into_deserializer()),
             Variant::Empty => seed.deserialize("".into_deserializer()),
             Variant::String(s) => seed.deserialize(s.into_deserializer()),
@@ -119,6 +120,7 @@ where
             Variant::Bool(b) => seed.deserialize(b.into_deserializer()),
             Variant::UI1(n) => seed.deserialize(n.into_deserializer()),
             Variant::UI8(n) => seed.deserialize(n.into_deserializer()),
+            Variant::Array(v) => unimplemented!(), //seed.deserialize(v.into_deserializer())
         }
     }
 }
