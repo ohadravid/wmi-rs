@@ -112,7 +112,7 @@ impl IWbemClassWrapper {
         unsafe {
             check_hres((*self.inner.unwrap().as_ptr()).GetNames(
                 ptr::null(),
-                WBEM_FLAG_ALWAYS,
+                WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY,
                 ptr::null_mut(),
                 &mut p_names,
             ))
@@ -128,22 +128,21 @@ impl IWbemClassWrapper {
             check_hres(SafeArrayAccessData(p_names, &mut p_data))?;
         }
 
-        dbg!(lstart);
-        dbg!(lend);
-        dbg!(p_data);
+        // We have no data, return an empty vec.
+        if lend == -1 {
+            return Ok(vec![]);
+        }
 
         let mut p_data: *mut BSTR = p_data as _;
 
-        let mut data_slice = unsafe {
-             slice::from_raw_parts(p_data, lend as usize)
-        };
+        let mut data_slice = unsafe { slice::from_raw_parts(p_data, lend as usize + 1) };
 
-        for prop_name_bstr in data_slice {
+        let mut props = vec![];
+
+        for prop_name_bstr in data_slice[(lstart as usize)..].iter() {
             let prop_name: &WideCStr = unsafe { WideCStr::from_ptr_str(*prop_name_bstr) };
 
-            let prop_name = prop_name.to_string()?;
-
-            dbg!(prop_name);
+            props.push(prop_name.to_string()?)
         }
 
         unsafe {
@@ -151,7 +150,7 @@ impl IWbemClassWrapper {
             check_hres(SafeArrayDestroy(p_names))?;
         }
 
-        unimplemented!();
+        Ok(props)
     }
 }
 
@@ -229,8 +228,13 @@ mod tests {
 
         for res in enumerator {
             let w = res.unwrap();
+            let mut props = w.list_properties().unwrap();
 
-            assert_eq!(w.list_properties().unwrap(), vec!["Name"]);
+            props.sort();
+
+            assert_eq!(props.len(), 64);
+            assert_eq!(props[..2], ["BootDevice", "BuildNumber"]);
+            assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"])
         }
     }
 }
