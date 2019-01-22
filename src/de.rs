@@ -76,7 +76,8 @@ where
         K: DeserializeSeed<'de>,
     {
         if let Some(field) = self.fields.peek() {
-            seed.deserialize(field.as_ref().into_deserializer()).map(Some)
+            seed.deserialize(field.as_ref().into_deserializer())
+                .map(Some)
         } else {
             Ok(None)
         }
@@ -110,9 +111,9 @@ where
         unsafe { VariantClear(&mut vt_prop) };
 
         match property_value {
-            // TODO: Implememt these two.
-            Variant::Null => seed.deserialize("".into_deserializer()),
-            Variant::Empty => seed.deserialize("".into_deserializer()),
+            // TODO: Implement these two.
+            Variant::Null => seed.deserialize("{Null}".into_deserializer()),
+            Variant::Empty => seed.deserialize("{Empty}".into_deserializer()),
             Variant::String(s) => seed.deserialize(s.into_deserializer()),
             Variant::I2(n) => seed.deserialize(n.into_deserializer()),
             Variant::I4(n) => seed.deserialize(n.into_deserializer()),
@@ -120,7 +121,12 @@ where
             Variant::Bool(b) => seed.deserialize(b.into_deserializer()),
             Variant::UI1(n) => seed.deserialize(n.into_deserializer()),
             Variant::UI8(n) => seed.deserialize(n.into_deserializer()),
-            Variant::Array(v) => unimplemented!(), //seed.deserialize(v.into_deserializer())
+            Variant::Array(v) => {
+                dbg!(v);
+
+                // TODO: Implement
+                seed.deserialize("[]".into_deserializer())
+            }
         }
     }
 }
@@ -436,17 +442,18 @@ mod tests {
 
             let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
 
-            println!("I am {:?}", w);
-            //            assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
-            //            assert_eq!(
-            //                w.Name,
-            //                "Microsoft Windows 10 Pro|C:\\WINDOWS|\\Device\\Harddisk0\\Partition3"
-            //            );
-            //            assert_eq!(w.CurrentTimeZone, 60);
-            //            assert_eq!(w.Debug, false);
-            //            assert_eq!(w.EncryptionLevel, 256);
-            //            assert_eq!(w.ForegroundApplicationBoost, 2);
-            //            assert_eq!(w.LastBootUpTime.0.timezone().local_minus_utc() / 60, w.CurrentTimeZone as i32);
+            println!("I am {:#?}", w);
+
+            assert_eq!(
+                *w.get("Caption").unwrap(),
+                Variant::String("Microsoft Windows 10 Pro".into())
+            );
+            assert_eq!(*w.get("Debug").unwrap(), Variant::Bool(false));
+
+            assert_eq!(
+                *w.get("MUILanguages").unwrap(),
+                Variant::Array(vec![Variant::String("en-US".into())])
+            );
         }
     }
 }

@@ -5,16 +5,17 @@ use widestring::WideCStr;
 use serde::de;
 use serde::de::IntoDeserializer;
 
-use winapi::shared::wtypes::*;
-use winapi::um::oaidl::{VARIANT_n3, VARIANT};
+use crate::safearray::get_string_array;
 use serde::Deserialize;
 use std::fmt;
-use winapi::um::oaidl::wirePSAFEARRAY;
+use winapi::shared::wtypes::*;
+use winapi::um::oaidl::SAFEARRAY;
+use winapi::um::oaidl::{VARIANT_n3, VARIANT};
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Hash)]
 pub enum Variant {
     Empty,
     Null,
@@ -27,11 +28,10 @@ pub enum Variant {
 
     Bool(bool),
 
-
     UI1(u8),
     UI8(u64),
 
-    Array(Vec<Variant>)
+    Array(Vec<Variant>),
 }
 
 impl Variant {
@@ -41,11 +41,26 @@ impl Variant {
         println!("{:?}", variant_type);
 
         if variant_type as u32 & VT_ARRAY == VT_ARRAY {
-//            let array_ptr: &wirePSAFEARRAY = unsafe { vt.n1.n2().n3.pparray() };
+            let array_ptr: &*mut *mut SAFEARRAY = unsafe { vt.n1.n2().n3.pparray() };
+
+            let item_type = variant_type as u32 & 0xff;
+
+            dbg!(item_type);
+
+            if item_type == VT_BSTR {
+                let arr = unsafe { *array_ptr };
+
+                dbg!(arr);
+
+                let data = get_string_array(arr as _)?;
+
+                return Ok(Variant::Array(
+                    data.into_iter().map(|s| Variant::String(s)).collect(),
+                ));
+            }
+
             unimplemented!()
-
         }
-
 
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.
         // Rust can infer the return type of `vt.*Val()` calls,
@@ -59,17 +74,17 @@ impl Variant {
                 let property_value_as_string = prop_val.to_string()?;
 
                 Variant::String(property_value_as_string)
-            },
+            }
             VT_I2 => {
                 let num: &i16 = unsafe { vt.n1.n2().n3.iVal() };
 
                 Variant::I2(*num)
-            },
+            }
             VT_I4 => {
                 let num: &i32 = unsafe { vt.n1.n2().n3.lVal() };
 
                 Variant::I4(*num)
-            },
+            }
             VT_BOOL => {
                 let value: &i16 = unsafe { vt.n1.n2().n3.boolVal() };
 
@@ -78,18 +93,14 @@ impl Variant {
                     VARIANT_TRUE => Variant::Bool(true),
                     _ => bail!("Invalid bool value: {:#X}", value),
                 }
-            },
+            }
             VT_UI1 => {
                 let num: &i8 = unsafe { vt.n1.n2().n3.cVal() };
 
                 Variant::UI1(*num as u8)
-            },
-            VT_EMPTY => {
-                Variant::Empty
-            },
-            VT_NULL => {
-                Variant::Null
-            },
+            }
+            VT_EMPTY => Variant::Empty,
+            VT_NULL => Variant::Null,
             _ => bail!(
                 "Converting from variant type {:#X} is not implemented yet",
                 variant_type
@@ -102,14 +113,12 @@ impl Variant {
     }
 }
 
-
 impl<'de> Deserialize<'de> for Variant {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Variant, D::Error>
-        where
-            D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
-
         struct VariantVisitor;
 
         impl<'de> de::Visitor<'de> for VariantVisitor {
@@ -141,8 +150,8 @@ impl<'de> Deserialize<'de> for Variant {
 
             #[inline]
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
+            where
+                E: serde::de::Error,
             {
                 self.visit_string(String::from(value))
             }
@@ -159,8 +168,8 @@ impl<'de> Deserialize<'de> for Variant {
 
             #[inline]
             fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-                where
-                    D: serde::Deserializer<'de>,
+            where
+                D: serde::Deserializer<'de>,
             {
                 Deserialize::deserialize(deserializer)
             }
@@ -172,8 +181,8 @@ impl<'de> Deserialize<'de> for Variant {
 
             #[inline]
             fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-                where
-                    V: de::SeqAccess<'de>,
+            where
+                V: de::SeqAccess<'de>,
             {
                 unimplemented!();
 
@@ -189,8 +198,8 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-                where
-                    V: de::MapAccess<'de>,
+            where
+                V: de::MapAccess<'de>,
             {
                 unimplemented!()
             }
@@ -199,4 +208,3 @@ impl<'de> Deserialize<'de> for Variant {
         deserializer.deserialize_any(VariantVisitor)
     }
 }
-

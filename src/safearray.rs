@@ -26,14 +26,20 @@ pub fn get_string_array(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
     let mut lstart: i32 = 0;
     let mut lend: i32 = 0;
 
+
     unsafe {
         check_hres(SafeArrayGetLBound(arr, 1, &mut lstart as _))?;
         check_hres(SafeArrayGetUBound(arr, 1, &mut lend as _))?;
         check_hres(SafeArrayAccessData(arr, &mut p_data))?;
     }
 
+    dbg!(lstart);
+    dbg!(lend);
+    dbg!(unsafe { (*arr).cbElements });
+
+
     // We have no data, return an empty vec.
-    if lend == -1 {
+    if lend == -1 || lend == 0 {
         return Ok(vec![]);
     }
 
