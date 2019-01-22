@@ -1,4 +1,4 @@
-#![feature(ptr_internals)]
+#![feature(ptr_internals, custom_attribute)]
 
 pub mod connection;
 pub mod de;

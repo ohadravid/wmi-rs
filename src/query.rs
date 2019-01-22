@@ -5,14 +5,20 @@ use log::debug;
 use std::mem;
 use std::ptr;
 use std::ptr::Unique;
+use std::slice;
 use widestring::WideCStr;
 use widestring::WideCString;
+use winapi::shared::minwindef::UINT;
+use winapi::shared::ntdef::LONG;
 use winapi::shared::ntdef::NULL;
 use winapi::shared::rpcdce::RPC_C_AUTHN_LEVEL_CALL;
 use winapi::shared::rpcdce::RPC_C_AUTHN_WINNT;
 use winapi::shared::rpcdce::RPC_C_AUTHZ_NONE;
+use winapi::shared::winerror::HRESULT;
 use winapi::shared::wtypes::BSTR;
-use winapi::um::oaidl::{VARIANT_n3, VARIANT};
+use winapi::um::oaidl::{VARIANT_n3, SAFEARRAY, VARIANT};
+use winapi::um::oleauto::SafeArrayAccessData;
+use winapi::um::oleauto::SafeArrayUnaccessData;
 use winapi::um::oleauto::VariantClear;
 use winapi::um::wbemcli::{
     CLSID_WbemLocator, IEnumWbemClassObject, IID_IWbemLocator, IWbemClassObject, IWbemLocator,
@@ -71,9 +77,81 @@ pub struct IWbemClassWrapper {
     pub inner: Option<Unique<IWbemClassObject>>,
 }
 
+const WBEM_FLAG_ALWAYS: i32 = 0;
+const WBEM_FLAG_ONLY_IF_TRUE: i32 = 0x1;
+const WBEM_FLAG_ONLY_IF_FALSE: i32 = 0x2;
+const WBEM_FLAG_ONLY_IF_IDENTICAL: i32 = 0x3;
+const WBEM_MASK_PRIMARY_CONDITION: i32 = 0x3;
+const WBEM_FLAG_KEYS_ONLY: i32 = 0x4;
+const WBEM_FLAG_REFS_ONLY: i32 = 0x8;
+const WBEM_FLAG_LOCAL_ONLY: i32 = 0x10;
+const WBEM_FLAG_PROPAGATED_ONLY: i32 = 0x20;
+const WBEM_FLAG_SYSTEM_ONLY: i32 = 0x30;
+const WBEM_FLAG_NONSYSTEM_ONLY: i32 = 0x40;
+const WBEM_MASK_CONDITION_ORIGIN: i32 = 0x70;
+const WBEM_FLAG_CLASS_OVERRIDES_ONLY: i32 = 0x100;
+const WBEM_FLAG_CLASS_LOCAL_AND_OVERRIDES: i32 = 0x200;
+const WBEM_MASK_CLASS_CONDITION: i32 = 0x30;
+
+extern "system" {
+    pub fn SafeArrayGetLBound(psa: *mut SAFEARRAY, nDim: UINT, plLbound: *mut LONG) -> HRESULT;
+
+    pub fn SafeArrayGetUBound(psa: *mut SAFEARRAY, nDim: UINT, plUbound: *mut LONG) -> HRESULT;
+
+    pub fn SafeArrayDestroy(psa: *mut SAFEARRAY) -> HRESULT;
+}
+
 impl IWbemClassWrapper {
     pub fn new(ptr: Option<Unique<IWbemClassObject>>) -> Self {
         Self { inner: ptr }
+    }
+
+    pub fn list_properties(&self) -> Result<Vec<String>, Error> {
+        let mut p_names = NULL as *mut SAFEARRAY;
+
+        unsafe {
+            check_hres((*self.inner.unwrap().as_ptr()).GetNames(
+                ptr::null(),
+                WBEM_FLAG_ALWAYS,
+                ptr::null_mut(),
+                &mut p_names,
+            ))
+        }?;
+
+        let mut p_data = NULL; // as *mut BSTR;
+        let mut lstart: i32 = 0;
+        let mut lend: i32 = 0;
+
+        unsafe {
+            check_hres(SafeArrayGetLBound(p_names, 1, &mut lstart as _))?;
+            check_hres(SafeArrayGetUBound(p_names, 1, &mut lend as _))?;
+            check_hres(SafeArrayAccessData(p_names, &mut p_data))?;
+        }
+
+        dbg!(lstart);
+        dbg!(lend);
+        dbg!(p_data);
+
+        let mut p_data: *mut BSTR = p_data as _;
+
+        let mut data_slice = unsafe {
+             slice::from_raw_parts(p_data, lend as usize)
+        };
+
+        for prop_name_bstr in data_slice {
+            let prop_name: &WideCStr = unsafe { WideCStr::from_ptr_str(*prop_name_bstr) };
+
+            let prop_name = prop_name.to_string()?;
+
+            dbg!(prop_name);
+        }
+
+        unsafe {
+            check_hres(SafeArrayUnaccessData(p_names))?;
+            check_hres(SafeArrayDestroy(p_names))?;
+        }
+
+        unimplemented!();
     }
 }
 
@@ -123,5 +201,36 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
         let pcls_wrapper = IWbemClassWrapper::new(Unique::new(pcls_obj));
 
         Some(Ok(pcls_wrapper))
+    }
+}
+
+#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
+mod tests {
+    use super::*;
+    use crate::connection::COMLibrary;
+    use crate::connection::WMIConnection;
+    use crate::datetime::WMIDateTime;
+    use serde::Deserialize;
+    use std::collections::HashMap;
+
+    #[test]
+    fn it_works() {
+        let com_con = COMLibrary::new().unwrap();
+        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+
+        let p_svc = wmi_con.svc();
+
+        assert_eq!(p_svc.is_null(), false);
+
+        let enumerator = wmi_con
+            .query("SELECT * FROM Win32_OperatingSystem")
+            .unwrap();
+
+        for res in enumerator {
+            let w = res.unwrap();
+
+            assert_eq!(w.list_properties().unwrap(), vec!["Name"]);
+        }
     }
 }

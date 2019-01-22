@@ -7,12 +7,14 @@ use serde::de::IntoDeserializer;
 
 use winapi::shared::wtypes::*;
 use winapi::um::oaidl::{VARIANT_n3, VARIANT};
+use serde::Deserialize;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
 
 #[derive(Debug)]
 pub enum Variant {
+    Empty,
     Null,
 
     String(String),
@@ -68,7 +70,10 @@ impl Variant {
                 let num: &i8 = unsafe { vt.n1.n2().n3.cVal() };
 
                 Variant::UI1(*num as u8)
-            }
+            },
+            VT_EMPTY => {
+                Variant::Empty
+            },
             _ => bail!(
                 "Converting from variant type {:#X} is not implemented yet",
                 variant_type
