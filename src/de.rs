@@ -110,13 +110,15 @@ where
         unsafe { VariantClear(&mut vt_prop) };
 
         match property_value {
-            Variant::Null => unimplemented!(),
-            Variant::Empty => unimplemented!(),
+            Variant::Null => seed.deserialize("".into_deserializer()),
+            Variant::Empty => seed.deserialize("".into_deserializer()),
             Variant::String(s) => seed.deserialize(s.into_deserializer()),
             Variant::I2(n) => seed.deserialize(n.into_deserializer()),
             Variant::I4(n) => seed.deserialize(n.into_deserializer()),
+            Variant::I8(n) => seed.deserialize(n.into_deserializer()),
             Variant::Bool(b) => seed.deserialize(b.into_deserializer()),
             Variant::UI1(n) => seed.deserialize(n.into_deserializer()),
+            Variant::UI8(n) => seed.deserialize(n.into_deserializer()),
         }
     }
 }

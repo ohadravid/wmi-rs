@@ -8,6 +8,7 @@ use serde::de::IntoDeserializer;
 use winapi::shared::wtypes::*;
 use winapi::um::oaidl::{VARIANT_n3, VARIANT};
 use serde::Deserialize;
+use std::fmt;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
@@ -21,11 +22,13 @@ pub enum Variant {
 
     I2(i16),
     I4(i32),
+    I8(i64),
 
     Bool(bool),
 
 
     UI1(u8),
+    UI8(u64),
 }
 
 impl Variant {
@@ -74,6 +77,9 @@ impl Variant {
             VT_EMPTY => {
                 Variant::Empty
             },
+            VT_NULL => {
+                Variant::Null
+            },
             _ => bail!(
                 "Converting from variant type {:#X} is not implemented yet",
                 variant_type
@@ -85,3 +91,102 @@ impl Variant {
         Ok(variant_value)
     }
 }
+
+
+impl<'de> Deserialize<'de> for Variant {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Variant, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+    {
+
+        struct VariantVisitor;
+
+        impl<'de> de::Visitor<'de> for VariantVisitor {
+            type Value = Variant;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("any valid variant value")
+            }
+
+            #[inline]
+            fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+                Ok(Variant::Bool(value))
+            }
+
+            #[inline]
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+                Ok(Variant::I8(value))
+            }
+
+            #[inline]
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+                Ok(Variant::UI8(value))
+            }
+
+            #[inline]
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+                unimplemented!();
+            }
+
+            #[inline]
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                where
+                    E: serde::de::Error,
+            {
+                self.visit_string(String::from(value))
+            }
+
+            #[inline]
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+                Ok(Variant::String(value))
+            }
+
+            #[inline]
+            fn visit_none<E>(self) -> Result<Self::Value, E> {
+                Ok(Variant::Null)
+            }
+
+            #[inline]
+            fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+                where
+                    D: serde::Deserializer<'de>,
+            {
+                Deserialize::deserialize(deserializer)
+            }
+
+            #[inline]
+            fn visit_unit<E>(self) -> Result<Self::Value, E> {
+                Ok(Variant::Null)
+            }
+
+            #[inline]
+            fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+                where
+                    V: de::SeqAccess<'de>,
+            {
+                unimplemented!();
+
+                /*
+                let mut vec = Vec::new();
+
+                while let Some(elem) = try!(visitor.next_element()) {
+                    vec.push(elem);
+                }
+
+                Ok(Value::Array(vec))
+                */
+            }
+
+            fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+                where
+                    V: de::MapAccess<'de>,
+            {
+                unimplemented!()
+            }
+        }
+
+        deserializer.deserialize_any(VariantVisitor)
+    }
+}
+
