@@ -108,6 +108,30 @@ impl Variant {
     }
 }
 
+struct SeqAccess {
+    data: Vec<Variant>,
+    i: usize,
+}
+
+impl<'de> de::SeqAccess<'de> for SeqAccess {
+    type Error = crate::error::Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        if self.i >= self.data.len() {
+            return Ok(None);
+        }
+
+        let res: Variant = self.data.swap_remove(self.i);
+
+        self.i += 1;
+
+        seed.deserialize(res).map(Some)
+    }
+}
+
 impl<'de> serde::Deserializer<'de> for Variant {
     type Error = crate::error::Error;
 
@@ -125,7 +149,7 @@ impl<'de> serde::Deserializer<'de> for Variant {
             Variant::Bool(b) => visitor.visit_bool(b),
             Variant::UI1(n) => visitor.visit_u8(n),
             Variant::UI8(n) => visitor.visit_u64(n),
-            Variant::Array(v) => visitor.visit_none(), // TODO: visitor.visit_seq(v),
+            Variant::Array(v) => visitor.visit_seq(SeqAccess { data: v, i: 0 }),
         }
     }
 
@@ -207,17 +231,13 @@ impl<'de> Deserialize<'de> for Variant {
             where
                 V: de::SeqAccess<'de>,
             {
-                unimplemented!();
-
-                /*
                 let mut vec = Vec::new();
 
-                while let Some(elem) = try!(visitor.next_element()) {
+                while let Some(elem) = visitor.next_element()? {
                     vec.push(elem);
                 }
 
-                Ok(Value::Array(vec))
-                */
+                Ok(Variant::Array(vec))
             }
 
             fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
