@@ -33,20 +33,10 @@ pub fn get_string_array(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
         check_hres(SafeArrayAccessData(arr, &mut p_data))?;
     }
 
-    dbg!(lstart);
-    dbg!(lend);
-    dbg!(unsafe { (*arr).cbElements });
+    let p_data: *mut BSTR = p_data as _;
 
-
-    // We have no data, return an empty vec.
-    if lend == -1  {
-        return Ok(vec![]);
-    }
-
-    let mut p_data: *mut BSTR = p_data as _;
-
-    let mut data_slice = unsafe { slice::from_raw_parts(p_data, lend as usize + 1) };
-
+    // lend can be -1, in which case the array is empty and we will do nothing.
+    let data_slice = unsafe { slice::from_raw_parts(p_data, (lend + 1) as usize) };
 
     let mut props = vec![];
 
@@ -57,6 +47,7 @@ pub fn get_string_array(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
         props.push(prop_name.to_string()?)
     }
 
+    // TODO: Make sure this happens even on errors.
     unsafe {
         check_hres(SafeArrayUnaccessData(arr))?;
     }

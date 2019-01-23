@@ -44,8 +44,6 @@ impl Variant {
 
             let item_type = variant_type as u32 & 0xff;
 
-            dbg!(item_type);
-
             if item_type == VT_BSTR {
                 let data = get_string_array(*array)?;
 
@@ -54,6 +52,7 @@ impl Variant {
                 ));
             }
 
+            // TODO: Add support for all other types of arrays.
             unimplemented!()
         }
 
@@ -101,8 +100,6 @@ impl Variant {
                 variant_type
             ),
         };
-
-        debug!("Got {:?}", variant_value);
 
         Ok(variant_value)
     }
