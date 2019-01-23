@@ -39,7 +39,7 @@ pub fn get_string_array(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
 
 
     // We have no data, return an empty vec.
-    if lend == -1 || lend == 0 {
+    if lend == -1  {
         return Ok(vec![]);
     }
 
@@ -47,9 +47,11 @@ pub fn get_string_array(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
 
     let mut data_slice = unsafe { slice::from_raw_parts(p_data, lend as usize + 1) };
 
+
     let mut props = vec![];
 
     for prop_name_bstr in data_slice[(lstart as usize)..].iter() {
+
         let prop_name: &WideCStr = unsafe { WideCStr::from_ptr_str(*prop_name_bstr) };
 
         props.push(prop_name.to_string()?)
@@ -57,7 +59,6 @@ pub fn get_string_array(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
 
     unsafe {
         check_hres(SafeArrayUnaccessData(arr))?;
-        check_hres(SafeArrayDestroy(arr))?;
     }
 
     Ok(props)

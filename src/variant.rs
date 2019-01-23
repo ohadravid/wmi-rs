@@ -38,21 +38,16 @@ impl Variant {
     pub fn from_variant(vt: VARIANT) -> Result<Variant, Error> {
         let variant_type: VARTYPE = unsafe { vt.n1.n2().vt };
 
-        println!("{:?}", variant_type);
 
         if variant_type as u32 & VT_ARRAY == VT_ARRAY {
-            let array_ptr: &*mut *mut SAFEARRAY = unsafe { vt.n1.n2().n3.pparray() };
+            let array : &*mut SAFEARRAY = unsafe { vt.n1.n2().n3.parray() };
 
             let item_type = variant_type as u32 & 0xff;
 
             dbg!(item_type);
 
             if item_type == VT_BSTR {
-                let arr = unsafe { *array_ptr };
-
-                dbg!(arr);
-
-                let data = get_string_array(arr as _)?;
+                let data = get_string_array(*array)?;
 
                 return Ok(Variant::Array(
                     data.into_iter().map(|s| Variant::String(s)).collect(),

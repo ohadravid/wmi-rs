@@ -1,4 +1,8 @@
 use crate::connection::WMIConnection;
+use crate::consts::WBEM_FLAG_ALWAYS;
+use crate::consts::WBEM_FLAG_NONSYSTEM_ONLY;
+use crate::safearray::get_string_array;
+use crate::safearray::SafeArrayDestroy;
 use crate::utils::check_hres;
 use failure::Error;
 use log::debug;
@@ -25,9 +29,6 @@ use winapi::um::wbemcli::{
     IWbemServices,
 };
 use winapi::um::wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE};
-use crate::safearray::get_string_array;
-use crate::consts::WBEM_FLAG_ALWAYS;
-use crate::consts::WBEM_FLAG_NONSYSTEM_ONLY;
 
 pub struct QueryResultEnumerator<'a> {
     wmi_con: &'a WMIConnection,
@@ -97,7 +98,13 @@ impl IWbemClassWrapper {
             ))
         }?;
 
-        get_string_array(p_names)
+        let res = get_string_array(p_names);
+
+        unsafe {
+            check_hres(SafeArrayDestroy(p_names))?;
+        }
+
+        res
     }
 }
 
