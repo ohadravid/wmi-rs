@@ -3,9 +3,10 @@ use log::debug;
 use widestring::WideCStr;
 
 use serde::de;
-use serde::de::IntoDeserializer;
+use serde::forward_to_deserialize_any;
 
 use crate::safearray::get_string_array;
+use serde::de::IntoDeserializer;
 use serde::Deserialize;
 use std::fmt;
 use winapi::shared::wtypes::*;
@@ -38,9 +39,8 @@ impl Variant {
     pub fn from_variant(vt: VARIANT) -> Result<Variant, Error> {
         let variant_type: VARTYPE = unsafe { vt.n1.n2().vt };
 
-
         if variant_type as u32 & VT_ARRAY == VT_ARRAY {
-            let array : &*mut SAFEARRAY = unsafe { vt.n1.n2().n3.parray() };
+            let array: &*mut SAFEARRAY = unsafe { vt.n1.n2().n3.parray() };
 
             let item_type = variant_type as u32 & 0xff;
 
@@ -105,6 +105,34 @@ impl Variant {
         debug!("Got {:?}", variant_value);
 
         Ok(variant_value)
+    }
+}
+
+impl<'de> serde::Deserializer<'de> for Variant {
+    type Error = crate::error::Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        match self {
+            Variant::Null => visitor.visit_none(),
+            Variant::Empty => visitor.visit_none(),
+            Variant::String(s) => visitor.visit_string(s),
+            Variant::I2(n) => visitor.visit_i16(n),
+            Variant::I4(n) => visitor.visit_i32(n),
+            Variant::I8(n) => visitor.visit_i64(n),
+            Variant::Bool(b) => visitor.visit_bool(b),
+            Variant::UI1(n) => visitor.visit_u8(n),
+            Variant::UI8(n) => visitor.visit_u64(n),
+            Variant::Array(v) => visitor.visit_none(), // TODO: visitor.visit_seq(v),
+        }
+    }
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple
+        tuple_struct map struct enum identifier ignored_any
     }
 }
 

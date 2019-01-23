@@ -110,24 +110,7 @@ where
 
         unsafe { VariantClear(&mut vt_prop) };
 
-        match property_value {
-            // TODO: Implement these two.
-            Variant::Null => seed.deserialize("{Null}".into_deserializer()),
-            Variant::Empty => seed.deserialize("{Empty}".into_deserializer()),
-            Variant::String(s) => seed.deserialize(s.into_deserializer()),
-            Variant::I2(n) => seed.deserialize(n.into_deserializer()),
-            Variant::I4(n) => seed.deserialize(n.into_deserializer()),
-            Variant::I8(n) => seed.deserialize(n.into_deserializer()),
-            Variant::Bool(b) => seed.deserialize(b.into_deserializer()),
-            Variant::UI1(n) => seed.deserialize(n.into_deserializer()),
-            Variant::UI8(n) => seed.deserialize(n.into_deserializer()),
-            Variant::Array(v) => {
-                dbg!(v);
-
-                // TODO: Implement
-                seed.deserialize("[]".into_deserializer())
-            }
-        }
+        seed.deserialize(property_value)
     }
 }
 
