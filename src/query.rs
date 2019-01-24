@@ -64,6 +64,9 @@ impl<'a> Drop for QueryResultEnumerator<'a> {
     }
 }
 
+/// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
+/// the object when dropped.
+///
 #[derive(Debug)]
 pub struct IWbemClassWrapper {
     pub inner: Option<Unique<IWbemClassObject>>,
@@ -74,11 +77,16 @@ impl IWbemClassWrapper {
         Self { inner: ptr }
     }
 
+    /// Return the names of all the properties of the given object.
+    ///
     pub fn list_properties(&self) -> Result<Vec<String>, Error> {
+        // This will store the properties names from the GetNames call.
         let mut p_names = NULL as *mut SAFEARRAY;
 
+        let ptr = self.inner.unwrap().as_ptr();
+
         unsafe {
-            check_hres((*self.inner.unwrap().as_ptr()).GetNames(
+            check_hres((*ptr).GetNames(
                 ptr::null(),
                 WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY,
                 ptr::null_mut(),
@@ -99,8 +107,10 @@ impl IWbemClassWrapper {
 impl Drop for IWbemClassWrapper {
     fn drop(&mut self) {
         if let Some(pcls_obj) = self.inner {
+            let ptr = pcls_obj.as_ptr();
+
             unsafe {
-                (*pcls_obj.as_ptr()).Release();
+                (*ptr).Release();
             }
         }
     }
@@ -117,8 +127,10 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             return None;
         }
 
+        let raw_enumerator_prt = self.p_enumerator.unwrap().as_ptr();
+
         let res = unsafe {
-            check_hres((*self.p_enumerator.unwrap().as_ptr()).Next(
+            check_hres((*raw_enumerator_prt).Next(
                 WBEM_INFINITE as i32,
                 1,
                 &mut pcls_obj,
