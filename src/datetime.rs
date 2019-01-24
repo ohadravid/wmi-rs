@@ -1,5 +1,4 @@
 use chrono::prelude::*;
-use chrono::FixedOffset;
 use failure::{bail, Error};
 use serde::de;
 use std::fmt;

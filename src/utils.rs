@@ -1,5 +1,4 @@
-use failure::{Error, Fail};
-use std::io;
+use failure::{Fail};
 use winapi::shared::ntdef::HRESULT;
 
 #[derive(Debug, Fail)]

@@ -1,16 +1,13 @@
+use crate::safearray::get_string_array;
 use failure::{bail, Error};
 use log::debug;
-use widestring::WideCStr;
-
-use serde::de;
-use serde::forward_to_deserialize_any;
-
-use crate::safearray::get_string_array;
-use serde::Deserialize;
+use serde::{de, forward_to_deserialize_any, Deserialize};
 use std::fmt;
-use winapi::shared::wtypes::*;
-use winapi::um::oaidl::SAFEARRAY;
-use winapi::um::oaidl::{VARIANT_n3, VARIANT};
+use widestring::WideCStr;
+use winapi::{
+    shared::wtypes::*,
+    um::{oaidl::SAFEARRAY, oaidl::VARIANT},
+};
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;

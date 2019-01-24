@@ -1,34 +1,21 @@
-use crate::connection::WMIConnection;
-use crate::consts::WBEM_FLAG_ALWAYS;
-use crate::consts::WBEM_FLAG_NONSYSTEM_ONLY;
-use crate::safearray::get_string_array;
-use crate::safearray::SafeArrayDestroy;
-use crate::utils::check_hres;
+use crate::{
+    connection::WMIConnection,
+    consts::{WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY},
+    safearray::{get_string_array, SafeArrayDestroy},
+    utils::check_hres,
+};
 use failure::Error;
 use log::debug;
-use std::mem;
-use std::ptr;
-use std::ptr::Unique;
-use std::slice;
-use widestring::WideCStr;
+use std::{ptr, ptr::Unique};
 use widestring::WideCString;
-use winapi::shared::minwindef::UINT;
-use winapi::shared::ntdef::LONG;
-use winapi::shared::ntdef::NULL;
-use winapi::shared::rpcdce::RPC_C_AUTHN_LEVEL_CALL;
-use winapi::shared::rpcdce::RPC_C_AUTHN_WINNT;
-use winapi::shared::rpcdce::RPC_C_AUTHZ_NONE;
-use winapi::shared::winerror::HRESULT;
-use winapi::shared::wtypes::BSTR;
-use winapi::um::oaidl::{VARIANT_n3, SAFEARRAY, VARIANT};
-use winapi::um::oleauto::SafeArrayAccessData;
-use winapi::um::oleauto::SafeArrayUnaccessData;
-use winapi::um::oleauto::VariantClear;
-use winapi::um::wbemcli::{
-    CLSID_WbemLocator, IEnumWbemClassObject, IID_IWbemLocator, IWbemClassObject, IWbemLocator,
-    IWbemServices,
+use winapi::{
+    shared::ntdef::{NULL},
+    um::{
+        oaidl::SAFEARRAY,
+        wbemcli::{IEnumWbemClassObject, IWbemClassObject},
+        wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE},
+    },
 };
-use winapi::um::wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE};
 
 pub struct QueryResultEnumerator<'a> {
     wmi_con: &'a WMIConnection,

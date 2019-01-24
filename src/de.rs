@@ -1,26 +1,19 @@
 use crate::query::IWbemClassWrapper;
-use chrono::prelude::*;
-use failure::{bail, format_err};
-use log::{debug, info};
-use serde::de::Error as _;
+use failure::{format_err};
 use serde::de::{
-    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Unexpected, Visitor,
+    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Visitor,
 };
 use std::{
     iter::Peekable,
     mem,
     ptr,
-    fmt,
-    str::FromStr
 };
 use widestring::{
-    WideCStr,
     WideCString
 };
 use winapi::{
-    um::oaidl::{VARIANT_n3, VARIANT},
+    um::oaidl::{VARIANT},
     um::oleauto::VariantClear,
-    shared::wtypes::VARTYPE
 };
 
 use crate::error::Error;

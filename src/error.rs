@@ -1,13 +1,10 @@
 use std::error;
 use std::fmt::{self, Debug, Display};
-use std::io;
-use std::result;
 
 use serde::de;
 use serde::ser;
 
 use failure::format_err;
-use failure::Fail;
 
 pub struct Error {
     err: failure::Error,
