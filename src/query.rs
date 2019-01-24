@@ -213,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn it_query_struct() {
+    fn it_can_query_a_struct() {
         let com_con = COMLibrary::new().unwrap();
         let wmi_con = WMIConnection::new(com_con.into()).unwrap();
 
