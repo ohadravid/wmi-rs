@@ -315,7 +315,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("{:?} {:?}", fields, name);
 
         visitor.visit_map(WMIMapAccess::new(fields.iter(), &self))
     }
@@ -362,10 +361,6 @@ mod tests {
         let com_con = COMLibrary::new().unwrap();
         let wmi_con = WMIConnection::new(com_con.into()).unwrap();
 
-        let p_svc = wmi_con.svc();
-
-        assert_eq!(p_svc.is_null(), false);
-
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
             Caption: String,
@@ -381,7 +376,7 @@ mod tests {
         }
 
         let enumerator = wmi_con
-            .raw_query("SELECT * FROM Win32_OperatingSystem")
+            .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
@@ -389,7 +384,6 @@ mod tests {
 
             let w: Win32_OperatingSystem = from_wbem_class_obj(&w).unwrap();
 
-            println!("I am {:?}", w);
             assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
             assert_eq!(
                 w.Name,
@@ -411,20 +405,14 @@ mod tests {
         let com_con = COMLibrary::new().unwrap();
         let wmi_con = WMIConnection::new(com_con.into()).unwrap();
 
-        let p_svc = wmi_con.svc();
-
-        assert_eq!(p_svc.is_null(), false);
-
         let enumerator = wmi_con
-            .raw_query("SELECT * FROM Win32_OperatingSystem")
+            .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
             let w = res.unwrap();
 
             let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
-
-            println!("I am {:#?}", w);
 
             assert_eq!(
                 *w.get("Caption").unwrap(),
@@ -436,6 +424,28 @@ mod tests {
                 *w.get("MUILanguages").unwrap(),
                 Variant::Array(vec![Variant::String("en-US".into())])
             );
+        }
+    }
+
+    #[test]
+    fn it_desr_into_map_with_selected_fields() {
+        let com_con = COMLibrary::new().unwrap();
+        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+
+        let enumerator = wmi_con
+            .exec_query_native_wrapper("SELECT Caption FROM Win32_OperatingSystem")
+            .unwrap();
+
+        for res in enumerator {
+            let w = res.unwrap();
+
+            let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
+
+            assert_eq!(
+                *w.get("Caption").unwrap(),
+                Variant::String("Microsoft Windows 10 Pro".into())
+            );
+            assert_eq!(w.get("Debug"), None);
         }
     }
 }

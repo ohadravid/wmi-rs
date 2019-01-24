@@ -9,6 +9,7 @@ use crate::{
 use failure::Error;
 use log::debug;
 use serde::de;
+use std::collections::HashMap;
 use std::{ptr, ptr::Unique};
 use widestring::WideCString;
 use winapi::{
@@ -20,14 +21,71 @@ use winapi::{
     },
 };
 
+pub enum FilterValue {
+    Bool(bool),
+    Number(i64),
+    Str(&'static str),
+    String(String),
+}
+
+fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> String
+where
+    T: de::Deserialize<'de>,
+{
+    let (name, fields) = struct_name_and_fields::<T>();
+
+    let optional_where_clause = match filters {
+        None => String::new(),
+        Some(filters) => {
+            if filters.is_empty() {
+                String::new()
+            } else {
+                let mut conditions = vec![];
+
+                for (field, filter) in filters {
+                    let value = match filter {
+                        FilterValue::Bool(b) => {
+                            if *b {
+                                "true".to_owned()
+                            } else {
+                                "false".to_owned()
+                            }
+                        }
+                        FilterValue::Number(n) => format!("{}", n),
+                        FilterValue::Str(s) => format!("\"{}\"", s),
+                        FilterValue::String(s) => format!("\"{}\"", s),
+                    };
+
+                    conditions.push(format!("{} = {}", field, value));
+                }
+
+                // Just to make testing easier.
+                conditions.sort();
+
+                format!("WHERE {}", conditions.join(" AND "))
+            }
+        }
+    };
+
+    let query_text = format!(
+        "SELECT {} FROM {} {}",
+        fields.join(","),
+        name,
+        optional_where_clause
+    );
+
+    query_text
+}
+
 pub struct QueryResultEnumerator<'a> {
     wmi_con: &'a WMIConnection,
     p_enumerator: Option<Unique<IEnumWbemClassObject>>,
 }
 
 impl WMIConnection {
-    /// Execute the given query and return n iterator for the results.
-    pub fn raw_query(&self, query: impl AsRef<str>) -> Result<QueryResultEnumerator, Error> {
+    /// Execute the given query and return an iterator of WMI pointers.
+    /// It's better to use the other query methods, since this is relatively low level.
+    pub fn exec_query_native_wrapper(&self, query: impl AsRef<str>) -> Result<QueryResultEnumerator, Error> {
         let query_language = WideCString::from_str("WQL")?;
         let query = WideCString::from_str(query)?;
 
@@ -51,25 +109,60 @@ impl WMIConnection {
         })
     }
 
+    /// Execute a free-text query and deserialize the results.
+    /// Can be used either with a struct (like `query` and `filtered_query`),
+    /// but also with a generic map.
+    ///
+    /// ```edition2018
+    /// #
+    /// con.raw_query::<HashMap<String, Variant>>("SELECT Name FROM Win32_OperatingSystem");
+    /// #
+    pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
+        where
+            T: de::DeserializeOwned,
+    {
+        let enumerator = self.exec_query_native_wrapper(query)?;
+
+        enumerator
+            .map(|item| match item {
+                Ok(wbem_class_obj) => {
+                    let value = from_wbem_class_obj(&wbem_class_obj);
+
+                    value.map_err(Error::from)
+                }
+                Err(e) => Err(e),
+            })
+            .collect()
+    }
+
+    /// Query all the objects of type T.
+    ///
+    /// ```edition2018
+    /// #
+    /// struct Win32_OperatingSystem {
+    ///     Name: String,
+    /// }
+    /// con.query::<Win32_OperatingSystem>();
+    /// #
     pub fn query<T>(&self) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
     {
-        let (name, fields) = struct_name_and_fields::<T>();
+        let query_text = build_query::<T>(None);
 
-        let query_text = format!("SELECT {} FROM {}", fields.join(","), name);
-
-        let enumerator = self.raw_query(query_text)?;
-
-        enumerator.map(|item| match item {
-            Ok(wbem_class_obj) => {
-                let value = from_wbem_class_obj(&wbem_class_obj);
-
-                value.map_err(Error::from)
-            }
-            Err(e) => Err(e),
-        }).collect()
+        self.raw_query(&query_text)
     }
+
+    /// Query all the objects of type T, while filtering according to `filters`.
+    pub fn filtered_query<T>(&self, filters: &HashMap<String, FilterValue>) -> Result<Vec<T>, Error>
+    where
+        T: de::DeserializeOwned,
+    {
+        let query_text = build_query::<T>(Some(&filters));
+
+        self.raw_query(&query_text)
+    }
+
 }
 
 impl<'a> QueryResultEnumerator<'a> {
@@ -190,6 +283,7 @@ mod tests {
     use crate::datetime::WMIDateTime;
     use serde::Deserialize;
     use std::collections::HashMap;
+    use std::collections::hash_map::RandomState;
 
     #[test]
     fn it_works() {
@@ -197,7 +291,7 @@ mod tests {
         let wmi_con = WMIConnection::new(com_con.into()).unwrap();
 
         let enumerator = wmi_con
-            .raw_query("SELECT * FROM Win32_OperatingSystem")
+            .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
@@ -222,11 +316,68 @@ mod tests {
             Caption: String,
         }
 
-        let enumerator = wmi_con.query::<Win32_OperatingSystem>().unwrap();
+        let results = wmi_con.query::<Win32_OperatingSystem>().unwrap();
 
-        for w in enumerator {
-            assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
+        for os in results {
+            assert_eq!(os.Caption, "Microsoft Windows 10 Pro");
         }
     }
 
+    #[test]
+    fn it_builds_correct_query_without_filters() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            Caption: String,
+        }
+
+        let query = build_query::<Win32_OperatingSystem>(None);
+        let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
+
+        assert_eq!(query, select_part);
+    }
+
+
+    #[test]
+    fn it_builds_correct_query() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            Caption: String,
+        }
+
+        let mut filters = HashMap::new();
+
+        filters.insert("C1".to_string(), FilterValue::Str("a"));
+        filters.insert("C2".to_string(), FilterValue::String("b".to_string()));
+        filters.insert("C3".to_string(), FilterValue::Number(42));
+        filters.insert("C4".to_string(), FilterValue::Bool(false));
+
+        let query = build_query::<Win32_OperatingSystem>(Some(&filters));
+        let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false"#;
+
+        assert_eq!(query, select_part + where_part);
+    }
+
+    #[test]
+    fn it_can_filter() {
+        let com_con = COMLibrary::new().unwrap();
+        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_Process {
+            Name: String,
+        }
+
+        let mut filters = HashMap::new();
+
+        filters.insert("Name".to_owned(), FilterValue::Str("cargo.exe"));
+
+        let results = wmi_con.filtered_query::<Win32_Process>(&filters).unwrap();
+
+        assert!(results.len() >= 1);
+
+        for proc in results {
+            assert_eq!(proc.Name, "cargo.exe");
+        }
+    }
 }
