@@ -1,7 +1,7 @@
 use crate::query::IWbemClassWrapper;
 use failure::{format_err};
 use serde::de::{
-    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Visitor,
+    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Visitor, DeserializeOwned
 };
 use std::{
     iter::Peekable,
@@ -19,21 +19,21 @@ use winapi::{
 use crate::error::Error;
 use crate::variant::Variant;
 
-pub struct Deserializer<'de> {
+pub struct Deserializer<'a> {
     // This string starts with the input data and characters are truncated off
     // the beginning as data is parsed.
-    pub wbem_class_obj: &'de IWbemClassWrapper,
+    pub wbem_class_obj: &'a IWbemClassWrapper,
 }
 
-impl<'de> Deserializer<'de> {
-    pub fn from_wbem_class_obj(wbem_class_obj: &'de IWbemClassWrapper) -> Self {
+impl<'a> Deserializer<'a> {
+    pub fn from_wbem_class_obj(wbem_class_obj: &'a IWbemClassWrapper) -> Self {
         Deserializer { wbem_class_obj }
     }
 }
 
-pub fn from_wbem_class_obj<'a, T>(wbem_class_obj: &'a IWbemClassWrapper) -> Result<T, Error>
+pub fn from_wbem_class_obj<T>(wbem_class_obj: &IWbemClassWrapper) -> Result<T, Error>
 where
-    T: Deserialize<'a>,
+    T: DeserializeOwned,
 {
     let mut deserializer = Deserializer::from_wbem_class_obj(wbem_class_obj);
     let t = T::deserialize(&mut deserializer)?;

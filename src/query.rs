@@ -1,3 +1,4 @@
+use crate::from_wbem_class_obj;
 use crate::{
     connection::WMIConnection,
     consts::{WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY},
@@ -6,10 +7,11 @@ use crate::{
 };
 use failure::Error;
 use log::debug;
+use serde::de;
 use std::{ptr, ptr::Unique};
 use widestring::WideCString;
 use winapi::{
-    shared::ntdef::{NULL},
+    shared::ntdef::NULL,
     um::{
         oaidl::SAFEARRAY,
         wbemcli::{IEnumWbemClassObject, IWbemClassObject},
@@ -46,6 +48,26 @@ impl WMIConnection {
             wmi_con: self,
             p_enumerator: Unique::new(p_enumerator),
         })
+    }
+
+    pub fn query<T>(&self) -> Result<Vec<T>, Error>
+    where
+        T: de::DeserializeOwned,
+    {
+        let query_text = format!("SELECT * FROM {}", "Win32_OperatingSystem");
+
+        let enumerator = self.raw_query(query_text)?;
+
+        let parsing_iter = enumerator.map(|item| match item {
+            Ok(wbem_class_obj) => {
+                let value = from_wbem_class_obj(&wbem_class_obj);
+
+                value.map_err(Error::from)
+            },
+            Err(e) => Err(e),
+        });
+
+        parsing_iter.collect()
     }
 }
 
@@ -173,10 +195,6 @@ mod tests {
         let com_con = COMLibrary::new().unwrap();
         let wmi_con = WMIConnection::new(com_con.into()).unwrap();
 
-        let p_svc = wmi_con.svc();
-
-        assert_eq!(p_svc.is_null(), false);
-
         let enumerator = wmi_con
             .raw_query("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
@@ -192,4 +210,22 @@ mod tests {
             assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"])
         }
     }
+
+    #[test]
+    fn it_query_struct() {
+        let com_con = COMLibrary::new().unwrap();
+        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            Caption: String,
+        }
+
+        let enumerator = wmi_con.query::<Win32_OperatingSystem>().unwrap();
+
+        for w in enumerator {
+            assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
+        }
+    }
+
 }
