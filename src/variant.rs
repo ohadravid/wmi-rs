@@ -41,7 +41,7 @@ impl Variant {
         if variant_type as u32 & VT_ARRAY == VT_ARRAY {
             let array: &*mut SAFEARRAY = unsafe { vt.n1.n2().n3.parray() };
 
-            let item_type = variant_type as u32 & 0xff;
+            let item_type = variant_type as u32 & VT_TYPEMASK;
 
             if item_type == VT_BSTR {
                 let data = get_string_array(*array)?;
