@@ -59,15 +59,31 @@ mod tests {
     use super::*;
     use serde::Deserialize;
 
-    #[derive(Deserialize, Debug)]
-    struct Win32_OperatingSystem {
-        Caption: String,
-        Name: String,
+    #[test]
+    fn it_works() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            Caption: String,
+            Name: String,
+        }
+
+        let (name, fields) = struct_name_and_fields::<Win32_OperatingSystem>();
+
+        assert_eq!(name, "Win32_OperatingSystem");
+        assert_eq!(fields, ["Caption", "Name"]);
     }
 
     #[test]
-    fn it_works() {
-        let (name, fields) = struct_name_and_fields::<Win32_OperatingSystem>();
+    fn it_works_with_rename() {
+        #[derive(Deserialize, Debug)]
+        #[serde(rename = "Win32_OperatingSystem")]
+        #[serde(rename_all = "PascalCase")]
+        struct Win32OperatingSystem {
+            caption: String,
+            name: String,
+        }
+
+        let (name, fields) = struct_name_and_fields::<Win32OperatingSystem>();
 
         assert_eq!(name, "Win32_OperatingSystem");
         assert_eq!(fields, ["Caption", "Name"]);
