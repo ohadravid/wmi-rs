@@ -85,7 +85,10 @@ pub struct QueryResultEnumerator<'a> {
 impl WMIConnection {
     /// Execute the given query and return an iterator of WMI pointers.
     /// It's better to use the other query methods, since this is relatively low level.
-    pub fn exec_query_native_wrapper(&self, query: impl AsRef<str>) -> Result<QueryResultEnumerator, Error> {
+    pub fn exec_query_native_wrapper(
+        &self,
+        query: impl AsRef<str>,
+    ) -> Result<QueryResultEnumerator, Error> {
         let query_language = WideCString::from_str("WQL")?;
         let query = WideCString::from_str(query)?;
 
@@ -114,12 +117,15 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
-    /// #
-    /// con.raw_query::<HashMap<String, Variant>>("SELECT Name FROM Win32_OperatingSystem");
+    /// # use wmi::tests::fixtures::*;
+    /// # use std::collections::HashMap;
+    /// # use wmi::Variant;
+    /// # let con = wmi_con();
+    /// let results : Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem").unwrap();
     /// #
     pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
-        where
-            T: de::DeserializeOwned,
+    where
+        T: de::DeserializeOwned,
     {
         let enumerator = self.exec_query_native_wrapper(query)?;
 
@@ -138,7 +144,10 @@ impl WMIConnection {
     /// Query all the objects of type T.
     ///
     /// ```edition2018
-    /// #
+    /// # use wmi::tests::fixtures::*;
+    /// # use serde::Deserialize;
+    /// # let con = wmi_con();
+    /// #[derive(Deserialize)]
     /// struct Win32_OperatingSystem {
     ///     Name: String,
     /// }
@@ -162,7 +171,6 @@ impl WMIConnection {
 
         self.raw_query(&query_text)
     }
-
 }
 
 impl<'a> QueryResultEnumerator<'a> {
@@ -282,13 +290,14 @@ mod tests {
     use crate::connection::WMIConnection;
     use crate::datetime::WMIDateTime;
     use serde::Deserialize;
-    use std::collections::HashMap;
     use std::collections::hash_map::RandomState;
+    use std::collections::HashMap;
+
+    use crate::tests::fixtures::*;
 
     #[test]
     fn it_works() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+        let wmi_con = wmi_con();
 
         let enumerator = wmi_con
             .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
@@ -308,8 +317,7 @@ mod tests {
 
     #[test]
     fn it_can_query_a_struct() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+        let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
@@ -336,7 +344,6 @@ mod tests {
         assert_eq!(query, select_part);
     }
 
-
     #[test]
     fn it_builds_correct_query() {
         #[derive(Deserialize, Debug)]
@@ -360,8 +367,7 @@ mod tests {
 
     #[test]
     fn it_can_filter() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+        let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
         struct Win32_Process {

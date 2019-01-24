@@ -49,6 +49,14 @@ impl COMLibrary {
         Ok(instance)
     }
 
+    pub fn without_security() -> Result<Self, Error> {
+        unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
+
+        let instance = Self {};
+
+        Ok(instance)
+    }
+
     fn init_security(&self) -> Result<(), Error> {
         unsafe {
             check_hres(CoInitializeSecurity(

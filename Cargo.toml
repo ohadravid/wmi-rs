@@ -16,3 +16,6 @@ simple_logger = "*"
 widestring = "*"
 serde = { version = "*", features = ["derive"] }
 chrono = { version = "*", features = ["serde"] }
+
+[dev-dependencies]
+lazy_static = "1.2.0"

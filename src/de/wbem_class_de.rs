@@ -356,10 +356,11 @@ mod tests {
     use serde::Deserialize;
     use std::collections::HashMap;
 
+    use crate::tests::fixtures::*;
+
     #[test]
     fn it_works() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+        let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
@@ -402,8 +403,7 @@ mod tests {
 
     #[test]
     fn it_desr_into_map() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+        let wmi_con = wmi_con();
 
         let enumerator = wmi_con
             .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
@@ -429,8 +429,7 @@ mod tests {
 
     #[test]
     fn it_desr_into_map_with_selected_fields() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+        let wmi_con = wmi_con();
 
         let enumerator = wmi_con
             .exec_query_native_wrapper("SELECT Caption FROM Win32_OperatingSystem")
