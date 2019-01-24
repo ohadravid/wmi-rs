@@ -2,6 +2,7 @@ use crate::from_wbem_class_obj;
 use crate::{
     connection::WMIConnection,
     consts::{WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY},
+    de::meta::struct_name_and_fields,
     safearray::{get_string_array, SafeArrayDestroy},
     utils::check_hres,
 };
@@ -54,20 +55,20 @@ impl WMIConnection {
     where
         T: de::DeserializeOwned,
     {
-        let query_text = format!("SELECT * FROM {}", "Win32_OperatingSystem");
+        let (name, fields) = struct_name_and_fields::<T>();
+
+        let query_text = format!("SELECT {} FROM {}", fields.join(","), name);
 
         let enumerator = self.raw_query(query_text)?;
 
-        let parsing_iter = enumerator.map(|item| match item {
+        enumerator.map(|item| match item {
             Ok(wbem_class_obj) => {
                 let value = from_wbem_class_obj(&wbem_class_obj);
 
                 value.map_err(Error::from)
-            },
+            }
             Err(e) => Err(e),
-        });
-
-        parsing_iter.collect()
+        }).collect()
     }
 }
 

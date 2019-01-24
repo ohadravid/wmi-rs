@@ -4,7 +4,7 @@ use serde::forward_to_deserialize_any;
 /// Return the fields of a struct.
 /// Taken directly from https://github.com/serde-rs/serde/issues/1110
 ///
-fn struct_name_and_fields<'de, T>() -> (&'static str, &'static [&'static str])
+pub fn struct_name_and_fields<'de, T>() -> (&'static str, &'static [&'static str])
 where
     T: Deserialize<'de>,
 {
