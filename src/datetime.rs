@@ -4,7 +4,7 @@ use serde::de;
 use std::fmt;
 use std::str::FromStr;
 
-/// A wrapper type around chrono's DateTime, which supports parsing from VMI-format strings.
+/// A wrapper type around chrono's DateTime, which supports parsing from WMI-format strings.
 ///
 #[derive(Debug)]
 pub struct WMIDateTime(pub DateTime<FixedOffset>);
