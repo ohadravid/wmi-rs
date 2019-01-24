@@ -35,6 +35,9 @@ impl Variant {
     pub fn from_variant(vt: VARIANT) -> Result<Variant, Error> {
         let variant_type: VARTYPE = unsafe { vt.n1.n2().vt };
 
+        // variant_type has two 'forms':
+        // 1. A simple type like `VT_BSTR` .
+        // 2. An array of certain type like `VT_ARRAY | VT_BSTR`.
         if variant_type as u32 & VT_ARRAY == VT_ARRAY {
             let array: &*mut SAFEARRAY = unsafe { vt.n1.n2().n3.parray() };
 
