@@ -4,15 +4,16 @@ use serde::forward_to_deserialize_any;
 /// Return the fields of a struct.
 /// Taken directly from https://github.com/serde-rs/serde/issues/1110
 ///
-fn struct_fields<'de, T>() -> &'static [&'static str]
+fn struct_name_and_fields<'de, T>() -> (&'static str, &'static [&'static str])
 where
     T: Deserialize<'de>,
 {
-    struct StructFieldsDeserializer<'a> {
+    struct StructNameAndFieldsDeserializer<'a> {
+        name: &'a mut Option<&'static str>,
         fields: &'a mut Option<&'static [&'static str]>,
     }
 
-    impl<'de, 'a> Deserializer<'de> for StructFieldsDeserializer<'a> {
+    impl<'de, 'a> Deserializer<'de> for StructNameAndFieldsDeserializer<'a> {
         type Error = serde::de::value::Error;
 
         fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -24,13 +25,14 @@ where
 
         fn deserialize_struct<V>(
             self,
-            _name: &'static str,
+            name: &'static str,
             fields: &'static [&'static str],
             visitor: V,
         ) -> Result<V::Value, Self::Error>
         where
             V: Visitor<'de>,
         {
+            *self.name = Some(name);
             *self.fields = Some(fields);
             self.deserialize_any(visitor)
         }
@@ -42,11 +44,15 @@ where
         }
     }
 
+    let mut name = None;
     let mut fields = None;
-    let _ = T::deserialize(StructFieldsDeserializer {
+
+    let _ = T::deserialize(StructNameAndFieldsDeserializer {
+        name: &mut name,
         fields: &mut fields,
     });
-    fields.unwrap()
+
+    (name.unwrap(), fields.unwrap())
 }
 
 mod tests {
@@ -61,8 +67,9 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let fields = struct_fields::<Win32_OperatingSystem>();
+        let (name, fields) = struct_name_and_fields::<Win32_OperatingSystem>();
 
+        assert_eq!(name, "Win32_OperatingSystem");
         assert_eq!(fields, ["Caption", "Name"]);
     }
 }
