@@ -1,36 +1,38 @@
 use crate::utils::check_hres;
-use failure::{format_err, Error};
-use log::{debug, info, trace, Level};
-use std::io;
-use std::marker::PhantomData;
-use std::mem;
+use failure::{Error};
+use log::{debug};
 use std::ptr;
 use std::ptr::Unique;
 use std::rc::Rc;
-use widestring::{WideCStr, WideCString, WideString};
-use winapi::shared::ntdef::HRESULT;
-use winapi::shared::ntdef::NULL;
-use winapi::shared::rpcdce::RPC_C_AUTHN_LEVEL_CALL;
-use winapi::shared::rpcdce::RPC_C_AUTHN_LEVEL_DEFAULT;
-use winapi::shared::rpcdce::RPC_C_AUTHN_WINNT;
-use winapi::shared::rpcdce::RPC_C_AUTHZ_NONE;
-use winapi::shared::rpcdce::RPC_C_IMP_LEVEL_IMPERSONATE;
-use winapi::shared::wtypes::BSTR;
-use winapi::shared::wtypesbase::CLSCTX_INPROC_SERVER;
-use winapi::um::combaseapi::CoCreateInstance;
-use winapi::um::combaseapi::CoInitializeEx;
-use winapi::um::combaseapi::CoInitializeSecurity;
-use winapi::um::combaseapi::CoSetProxyBlanket;
-use winapi::um::combaseapi::CoUninitialize;
-use winapi::um::oaidl::{VARIANT_n3, VARIANT};
-use winapi::um::objbase::COINIT_MULTITHREADED;
-use winapi::um::objidl::EOAC_NONE;
-use winapi::um::oleauto::VariantClear;
-use winapi::um::wbemcli::{
-    CLSID_WbemLocator, IEnumWbemClassObject, IID_IWbemLocator, IWbemClassObject, IWbemLocator,
-    IWbemServices,
+use widestring::{WideCString};
+use winapi::{
+    shared::{
+        rpcdce::{
+            RPC_C_AUTHN_LEVEL_CALL,
+            RPC_C_AUTHN_LEVEL_DEFAULT,
+            RPC_C_AUTHN_WINNT,
+            RPC_C_AUTHZ_NONE,
+            RPC_C_IMP_LEVEL_IMPERSONATE
+        },
+        ntdef::NULL,
+        wtypesbase::CLSCTX_INPROC_SERVER
+    },
+    um::{
+        combaseapi::{
+            CoCreateInstance,
+            CoInitializeEx,
+            CoInitializeSecurity,
+            CoSetProxyBlanket,
+            CoUninitialize
+        },
+        objbase::COINIT_MULTITHREADED,
+        objidl::EOAC_NONE,
+        wbemcli::{
+            CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator,
+            IWbemServices,
+        }
+    }
 };
-use winapi::um::wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE};
 
 pub struct COMLibrary {}
 

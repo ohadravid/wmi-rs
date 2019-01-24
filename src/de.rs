@@ -6,19 +6,25 @@ use serde::de::Error as _;
 use serde::de::{
     self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Unexpected, Visitor,
 };
-use std::iter::Peekable;
-use std::mem;
-use std::ptr;
-use widestring::WideCStr;
-use widestring::WideCString;
-use winapi::um::oaidl::{VARIANT_n3, VARIANT};
-use winapi::um::oleauto::VariantClear;
+use std::{
+    iter::Peekable,
+    mem,
+    ptr,
+    fmt,
+    str::FromStr
+};
+use widestring::{
+    WideCStr,
+    WideCString
+};
+use winapi::{
+    um::oaidl::{VARIANT_n3, VARIANT},
+    um::oleauto::VariantClear,
+    shared::wtypes::VARTYPE
+};
 
 use crate::error::Error;
 use crate::variant::Variant;
-use std::fmt;
-use std::str::FromStr;
-use winapi::shared::wtypes::VARTYPE;
 
 pub struct Deserializer<'de> {
     // This string starts with the input data and characters are truncated off

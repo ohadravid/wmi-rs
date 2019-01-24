@@ -6,7 +6,6 @@ use serde::de;
 use serde::forward_to_deserialize_any;
 
 use crate::safearray::get_string_array;
-use serde::de::IntoDeserializer;
 use serde::Deserialize;
 use std::fmt;
 use winapi::shared::wtypes::*;

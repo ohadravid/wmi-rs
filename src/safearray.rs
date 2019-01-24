@@ -1,16 +1,16 @@
-use winapi::shared::ntdef::NULL;
 use crate::utils::check_hres;
-use std::slice;
-use winapi::um::oleauto::SafeArrayAccessData;
-use winapi::um::oleauto::SafeArrayUnaccessData;
-use widestring::WideCStr;
 use failure::Error;
-use winapi::shared::wtypes::BSTR;
-use winapi::shared::minwindef::UINT;
-use winapi::shared::ntdef::LONG;
-use winapi::shared::winerror::HRESULT;
-use winapi::um::oaidl::{SAFEARRAY};
-
+use std::slice;
+use widestring::WideCStr;
+use winapi::{
+    shared::{
+        minwindef::UINT,
+        ntdef::{LONG, NULL},
+        winerror::HRESULT,
+        wtypes::BSTR,
+    },
+    um::{oaidl::SAFEARRAY, oleauto::SafeArrayAccessData, oleauto::SafeArrayUnaccessData},
+};
 
 extern "system" {
     pub fn SafeArrayGetLBound(psa: *mut SAFEARRAY, nDim: UINT, plLbound: *mut LONG) -> HRESULT;
@@ -20,12 +20,10 @@ extern "system" {
     pub fn SafeArrayDestroy(psa: *mut SAFEARRAY) -> HRESULT;
 }
 
-
 pub fn get_string_array(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
     let mut p_data = NULL;
     let mut lstart: i32 = 0;
     let mut lend: i32 = 0;
-
 
     unsafe {
         check_hres(SafeArrayGetLBound(arr, 1, &mut lstart as _))?;
@@ -41,7 +39,6 @@ pub fn get_string_array(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
     let mut props = vec![];
 
     for prop_name_bstr in data_slice[(lstart as usize)..].iter() {
-
         let prop_name: &WideCStr = unsafe { WideCStr::from_ptr_str(*prop_name_bstr) };
 
         props.push(prop_name.to_string()?)

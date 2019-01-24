@@ -1,7 +1,7 @@
 #![feature(ptr_internals)]
 
-use failure::{format_err, Error};
-use log::{debug, info, trace, Level};
+use failure::{Error};
+use log::{debug, Level};
 
 use wmi::connection::{COMLibrary, WMIConnection};
 
@@ -16,7 +16,7 @@ fn main() -> Result<(), Error> {
     let enumerator = wmi_con.query("SELECT * FROM Win32_OperatingSystem")?;
 
     for name in enumerator {
-        debug!("I am {}", name.unwrap());
+        debug!("I am {:?}", name.unwrap());
     }
 
     Ok(())
