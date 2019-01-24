@@ -9,3 +9,8 @@ pub mod variant;
 pub mod datetime;
 pub mod safearray;
 pub mod consts;
+
+pub use de::wbem_class_de::from_wbem_class_obj;
+pub use connection::{COMLibrary, WMIConnection};
+pub use variant::Variant;
+pub use datetime::WMIDateTime;
