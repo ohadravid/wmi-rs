@@ -381,7 +381,7 @@ mod tests {
         }
 
         let enumerator = wmi_con
-            .query("SELECT * FROM Win32_OperatingSystem")
+            .raw_query("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
@@ -416,7 +416,7 @@ mod tests {
         assert_eq!(p_svc.is_null(), false);
 
         let enumerator = wmi_con
-            .query("SELECT * FROM Win32_OperatingSystem")
+            .raw_query("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {

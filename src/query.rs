@@ -23,7 +23,8 @@ pub struct QueryResultEnumerator<'a> {
 }
 
 impl WMIConnection {
-    pub fn query(&self, query: impl AsRef<str>) -> Result<QueryResultEnumerator, Error> {
+    /// Execute the given query and return n iterator for the results.
+    pub fn raw_query(&self, query: impl AsRef<str>) -> Result<QueryResultEnumerator, Error> {
         let query_language = WideCString::from_str("WQL")?;
         let query = WideCString::from_str(query)?;
 
@@ -177,7 +178,7 @@ mod tests {
         assert_eq!(p_svc.is_null(), false);
 
         let enumerator = wmi_con
-            .query("SELECT * FROM Win32_OperatingSystem")
+            .raw_query("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
