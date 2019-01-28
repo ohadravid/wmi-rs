@@ -26,7 +26,7 @@ extern "system" {
 }
 
 #[derive(Debug)]
-struct SafeArrayAccessor<T> {
+pub struct SafeArrayAccessor<T> {
     arr: *mut SAFEARRAY,
     p_data: *mut T,
     lower_bound: i32,

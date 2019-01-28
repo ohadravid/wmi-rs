@@ -67,12 +67,12 @@
 //! ```
 //!
 //! Because the name of the struct given to `serde` matches the [WMI class] name, the SQL query
-//! is inferred automatically.
+//! can be inferred automatically.
 //!
 //! [WMI]: https://docs.microsoft.com/en-us/windows/desktop/wmisdk/about-wmi
 //! [Creating a WMI Application Using C++]: https://docs.microsoft.com/en-us/windows/desktop/wmisdk/creating-a-wmi-application-using-c-
 //! [`VARIANT`]: https://docs.microsoft.com/en-us/windows/desktop/api/oaidl/ns-oaidl-tagvariant
-//! [WMI class] https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-operatingsystem
+//! [WMI class]: https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-operatingsystem
 //!
 //! # Internals
 //!
@@ -87,7 +87,7 @@
 //! [writing a data format] https://serde.rs/data-format.html
 //!
 //! There are two main data structures (other than pointers to object) which are deserialize into Rust:
-//! [`wmi::Variant`][Variant] and [`wmi::safearray::SafeArrayAccessor`][SafeArray].
+//! [`wmi::Variant`][Variant] and [`wmi::safearray::SafeArrayAccessor`][SafeArrayAccessor].
 //!
 #![feature(ptr_internals, custom_attribute)]
 
