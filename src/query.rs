@@ -316,6 +316,30 @@ mod tests {
     }
 
     #[test]
+    fn it_fails_gracefully() {
+        let wmi_con = wmi_con();
+
+        let enumerator = wmi_con
+            .exec_query_native_wrapper("SELECT NoSuchField FROM Win32_OperatingSystem")
+            .unwrap();
+
+        for res in enumerator {
+            assert!(res.is_err())
+        }
+    }
+
+    #[test]
+    fn it_fails_gracefully_with_invalid_sql() {
+        let wmi_con = wmi_con();
+
+        let enumerator = wmi_con.exec_query_native_wrapper("42").unwrap();
+
+        for res in enumerator {
+            assert!(res.is_err())
+        }
+    }
+
+    #[test]
     fn it_can_query_a_struct() {
         let wmi_con = wmi_con();
 
@@ -329,6 +353,20 @@ mod tests {
         for os in results {
             assert_eq!(os.Caption, "Microsoft Windows 10 Pro");
         }
+    }
+
+    #[test]
+    fn it_fails_gracefully_when_querying_a_struct() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            NoSuchField: String,
+        }
+
+        let result = wmi_con.query::<Win32_OperatingSystem>();
+
+        assert!(result.is_err());
     }
 
     #[test]
