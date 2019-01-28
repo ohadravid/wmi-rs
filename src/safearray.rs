@@ -1,9 +1,10 @@
-use std::iter::Iterator;
 use crate::utils::check_hres;
 use crate::Variant;
 use failure::Error;
+use std::iter::Iterator;
 use std::slice;
 use widestring::WideCStr;
+use winapi::ctypes::c_void;
 use winapi::{
     shared::wtypes::*,
     shared::{
@@ -12,7 +13,7 @@ use winapi::{
         winerror::HRESULT,
         wtypes::BSTR,
     },
-    um::{oaidl::SAFEARRAY, oleauto::SafeArrayAccessData, oleauto::SafeArrayUnaccessData}
+    um::{oaidl::SAFEARRAY, oleauto::SafeArrayAccessData, oleauto::SafeArrayUnaccessData},
 };
 
 // TODO: This should be part of winapi-rs.
@@ -24,35 +25,71 @@ extern "system" {
     pub fn SafeArrayDestroy(psa: *mut SAFEARRAY) -> HRESULT;
 }
 
+struct SafeArrayAccessor {
+    arr: *mut SAFEARRAY,
+    p_data: *mut c_void,
+}
+
+/// An accessor to SafeArray, which:
+/// 1. locks the array allows reading the data.
+/// 2. and unlocks the array once dropped.
+///
+impl SafeArrayAccessor {
+    pub fn new(arr: *mut SAFEARRAY) -> Result<Self, Error> {
+        let mut p_data = NULL;
+
+        unsafe {
+            check_hres(SafeArrayAccessData(arr, &mut p_data))?;
+        }
+
+        Ok(Self { arr, p_data })
+    }
+
+    pub fn data(&self) -> *mut c_void {
+        self.p_data
+    }
+}
+
+impl Drop for SafeArrayAccessor {
+    fn drop(&mut self) {
+        // TOOD: Should we handle this in some way?
+        unsafe {
+            let result = check_hres(SafeArrayUnaccessData(self.arr));
+        }
+    }
+}
+
 pub fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
     let items = safe_array_to_vec(arr, VT_BSTR)?;
 
-    let string_items = items.into_iter().map(|item| match item {
-        Variant::String(s) => s,
-        _ => unreachable!(),
-    }).collect();
+    let string_items = items
+        .into_iter()
+        .map(|item| match item {
+            Variant::String(s) => s,
+            _ => unreachable!(),
+        })
+        .collect();
 
     Ok(string_items)
 }
 
 pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Variant>, Error> {
-    let mut p_data = NULL;
-
     let mut lower_bound: i32 = 0;
     let mut upper_bound: i32 = 0;
 
     unsafe {
         check_hres(SafeArrayGetLBound(arr, 1, &mut lower_bound as _))?;
         check_hres(SafeArrayGetUBound(arr, 1, &mut upper_bound as _))?;
-        check_hres(SafeArrayAccessData(arr, &mut p_data))?;
     }
+
+    let accessor = SafeArrayAccessor::new(arr)?;
 
     let mut items = vec![];
 
     match item_type {
         VT_I4 => {
             // We know that we expect an array of this type.
-            let p_data: *mut i32 = p_data as _;
+            let p_data: *mut i32 = accessor.data() as _;
 
             // upper_bound can be -1, in which case the array is empty and we will do nothing.
             let data_slice = unsafe { slice::from_raw_parts(p_data, (upper_bound + 1) as usize) };
@@ -63,7 +100,7 @@ pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Vari
         }
         VT_BSTR => {
             // We know that we expect an array of BSTRs.
-            let p_data: *mut BSTR = p_data as _;
+            let p_data: *mut BSTR = accessor.data() as _;
 
             // upper_bound can be -1, in which case the array is empty and we will do nothing.
             let data_slice = unsafe { slice::from_raw_parts(p_data, (upper_bound + 1) as usize) };
@@ -76,11 +113,6 @@ pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Vari
         }
         // TODO: Add support for all other types of arrays.
         _ => unimplemented!(),
-    }
-
-    // TODO: Make sure this happens even on errors.
-    unsafe {
-        check_hres(SafeArrayUnaccessData(arr))?;
     }
 
     Ok(items)
