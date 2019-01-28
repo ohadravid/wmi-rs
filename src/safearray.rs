@@ -26,9 +26,9 @@ extern "system" {
 }
 
 #[derive(Debug)]
-struct SafeArrayAccessor {
+struct SafeArrayAccessor<T> {
     arr: *mut SAFEARRAY,
-    p_data: *mut c_void,
+    p_data: *mut T,
     lower_bound: i32,
     upper_bound: i32,
 }
@@ -46,8 +46,14 @@ struct SafeArrayAccessor {
 /// However, accessing the data of the array must be done using a lock, which is the responsibility
 /// of this struct.
 ///
-impl SafeArrayAccessor {
-    pub fn new(arr: *mut SAFEARRAY) -> Result<Self, Error> {
+impl<T> SafeArrayAccessor<T> {
+    /// Creates a new Accessor, locking the given array,
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe as it is the caller's responsibility to verify that the array is
+    /// of items of type T.
+    pub unsafe fn new(arr: *mut SAFEARRAY) -> Result<Self, Error> {
         let mut p_data = NULL;
         let mut lower_bound: i32 = 0;
         let mut upper_bound: i32 = 0;
@@ -60,29 +66,23 @@ impl SafeArrayAccessor {
 
         Ok(Self {
             arr,
-            p_data,
+            p_data: p_data as *mut T,
             lower_bound,
             upper_bound,
         })
     }
 
     /// Return a slice which can access the data of the array.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe as it is the caller's responsibility to verify that the array is
-    /// of items of type T.
-    pub unsafe fn as_slice<T>(&self) -> &[T] {
-        let p_data: *mut T = self.p_data as _;
-
+    pub fn as_slice(&self) -> &[T] {
         // upper_bound can be -1, in which case the array is empty and we will return a 0 length slice.
-        let data_slice = unsafe { slice::from_raw_parts(p_data, (self.upper_bound + 1) as usize) };
+        let data_slice =
+            unsafe { slice::from_raw_parts(self.p_data, (self.upper_bound + 1) as usize) };
 
         &data_slice[(self.lower_bound as usize)..]
     }
 }
 
-impl Drop for SafeArrayAccessor {
+impl<T> Drop for SafeArrayAccessor<T> {
     fn drop(&mut self) {
         // TOOD: Should we handle errors in some way?
         unsafe {
@@ -106,22 +106,20 @@ pub fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, 
 }
 
 pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Variant>, Error> {
-    let accessor = SafeArrayAccessor::new(arr)?;
-
     let mut items = vec![];
 
     match item_type {
         VT_I4 => {
-            let slice = unsafe { accessor.as_slice::<i32>() };
+            let accessor = unsafe { SafeArrayAccessor::<i32>::new(arr)? };
 
-            for item in slice.iter() {
+            for item in accessor.as_slice().iter() {
                 items.push(Variant::I4(*item))
             }
         }
         VT_BSTR => {
-            let slice = unsafe { accessor.as_slice::<BSTR>() };
+            let accessor = unsafe { SafeArrayAccessor::<BSTR>::new(arr)? };
 
-            for item_bstr in slice.iter() {
+            for item_bstr in accessor.as_slice().iter() {
                 let item: &WideCStr = unsafe { WideCStr::from_ptr_str(*item_bstr) };
 
                 items.push(Variant::String(item.to_string()?));
