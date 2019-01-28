@@ -410,7 +410,6 @@ mod tests {
             "Win32_IP4RouteTable",
             "Win32_NetworkConnection",
             "Win32_Group",
-
             // Only works under 64bit.
             // "Win32_ShadowCopy",
         ];
@@ -447,9 +446,8 @@ mod tests {
             }
         }
 
-        let results: Vec<HashMap<String, Variant>> = wmi_con
-            .raw_query("SELECT * FROM Win32_GroupUser")
-            .unwrap();
+        let results: Vec<HashMap<String, Variant>> =
+            wmi_con.raw_query("SELECT * FROM Win32_GroupUser").unwrap();
 
         for res in results {
             match res.get("GroupComponent") {

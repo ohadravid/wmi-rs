@@ -1,4 +1,4 @@
-use crate::safearray::safe_array_to_vec_of_strings;
+use crate::safearray::safe_array_to_vec;
 use failure::{bail, Error};
 use log::debug;
 use serde::{de, forward_to_deserialize_any, Deserialize};
@@ -8,7 +8,6 @@ use winapi::{
     shared::wtypes::*,
     um::{oaidl::SAFEARRAY, oaidl::VARIANT},
 };
-use crate::safearray::safe_array_to_vec;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
