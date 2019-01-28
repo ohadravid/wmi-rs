@@ -34,8 +34,17 @@ struct SafeArrayAccessor {
 }
 
 /// An accessor to SafeArray, which:
-/// 1. locks the array allows reading the data.
-/// 2. and unlocks the array once dropped.
+/// 1. Locks the array so the data can be read.
+/// 2. Unlocks the array once dropped.
+///
+/// Pointers to a Safe Array can come from different places (like GetNames, WMI property value),
+/// which can have different drop behavior (GetNames require the caller to deallocate the array,
+/// while a WMI property must be deallocated via VariantClear).
+///
+/// For this reason, we don't have a `struct SafeArray`.
+///
+/// However, accessing the data of the array must be done using a lock, which is the responsibility
+/// of this struct.
 ///
 impl SafeArrayAccessor {
     pub fn new(arr: *mut SAFEARRAY) -> Result<Self, Error> {
