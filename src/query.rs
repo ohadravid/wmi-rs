@@ -3,7 +3,7 @@ use crate::{
     connection::WMIConnection,
     consts::{WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY},
     de::meta::struct_name_and_fields,
-    safearray::{get_string_array, SafeArrayDestroy},
+    safearray::{safe_array_to_vec_of_strings, SafeArrayDestroy},
     utils::check_hres,
 };
 use failure::Error;
@@ -219,7 +219,7 @@ impl IWbemClassWrapper {
             ))
         }?;
 
-        let res = get_string_array(p_names);
+        let res = safe_array_to_vec_of_strings(p_names);
 
         unsafe {
             check_hres(SafeArrayDestroy(p_names))?;

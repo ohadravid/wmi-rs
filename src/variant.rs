@@ -1,4 +1,4 @@
-use crate::safearray::get_string_array;
+use crate::safearray::safe_array_to_vec_of_strings;
 use failure::{bail, Error};
 use log::debug;
 use serde::{de, forward_to_deserialize_any, Deserialize};
@@ -45,7 +45,7 @@ impl Variant {
             let item_type = variant_type as u32 & VT_TYPEMASK;
 
             if item_type == VT_BSTR {
-                let data = get_string_array(*array)?;
+                let data = safe_array_to_vec_of_strings(*array)?;
 
                 return Ok(Variant::Array(
                     data.into_iter().map(|s| Variant::String(s)).collect(),
