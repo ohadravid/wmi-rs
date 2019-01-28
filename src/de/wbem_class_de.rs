@@ -1,22 +1,13 @@
 use crate::query::IWbemClassWrapper;
-use failure::{format_err};
+use failure::format_err;
 use serde::de::{
-    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Visitor, DeserializeOwned
+    self, Deserialize, DeserializeOwned, DeserializeSeed, IntoDeserializer, MapAccess, Visitor,
 };
 use serde::forward_to_deserialize_any;
 
-use std::{
-    iter::Peekable,
-    mem,
-    ptr,
-};
-use widestring::{
-    WideCString
-};
-use winapi::{
-    um::oaidl::{VARIANT},
-    um::oleauto::VariantClear,
-};
+use std::{iter::Peekable, mem, ptr};
+use widestring::WideCString;
+use winapi::{um::oaidl::VARIANT, um::oleauto::VariantClear};
 
 use crate::error::Error;
 use crate::variant::Variant;
@@ -93,6 +84,8 @@ where
             .next()
             .ok_or(format_err!("Expected current field to not be None"))?;
 
+        dbg!(current_field.as_ref());
+
         let name_prop = WideCString::from_str(current_field).map_err(Error::from_err)?;
 
         let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
@@ -106,7 +99,6 @@ where
                 ptr::null_mut(),
             );
         }
-
 
         let property_value = Variant::from_variant(vt_prop)?;
 
@@ -123,9 +115,10 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(Error::from_err(format_err!("Only structs and maps can be deserialized from WMI objects")))
+        Err(Error::from_err(format_err!(
+            "Only structs and maps can be deserialized from WMI objects"
+        )))
     }
-
 
     fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
@@ -257,20 +250,21 @@ mod tests {
         }
     }
 
-
     #[test]
     fn it_desr_array() {
         let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
         struct Win32_ComputerSystem {
-            BootStatus: Vec<i32>
+            BootStatus: Vec<i32>,
+            Roles: Vec<String>,
         }
 
         let results: Vec<Win32_ComputerSystem> = wmi_con.query().unwrap();
 
         for res in results {
-            assert_eq!(res.BootStatus , [0, 0, 0, 33, 31, 158, 0, 3, 2, 2]);
+            assert_eq!(res.BootStatus, [0, 0, 0, 33, 31, 158, 0, 3, 2, 2]);
+            assert_eq!(res.Roles, ["LM_Workstation", "LM_Server", "NT"]);
         }
     }
 }
