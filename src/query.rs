@@ -294,6 +294,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::tests::fixtures::*;
+    use crate::Variant;
 
     #[test]
     fn it_works() {
@@ -386,4 +387,36 @@ mod tests {
             assert_eq!(proc.Name, "cargo.exe");
         }
     }
+
+    #[test]
+    fn it_can_query_all_classes() {
+        let wmi_con = wmi_con();
+        let classes = [
+            "Win32_Service",
+            "Win32_Process",
+            "Win32_OperatingSystem",
+            "Win32_TimeZone",
+            "Win32_ComputerSystem",
+            "Win32_NetworkAdapter",
+            "Win32_NetworkAdapterConfiguration",
+            "Win32_LogicalDisk",
+            "Win32_PhysicalMemory",
+        ];
+
+        for class_name in classes.iter() {
+            dbg!(class_name);
+
+            let results: Vec<HashMap<String, Variant>> = wmi_con
+                .raw_query(format!("SELEcT * FROM {}", class_name))
+                .unwrap();
+
+            for res in results {
+                match res.get("Caption") {
+                    Some(Variant::String(s)) => assert!(s != ""),
+                    _ => assert!(false),
+                }
+            }
+        }
+    }
+
 }
