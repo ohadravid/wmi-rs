@@ -1,27 +1,25 @@
-use crate::connection::WMIConnection;
+use crate::{
+    connection::WMIConnection,
+    consts::{WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY},
+    safearray::{get_string_array, SafeArrayDestroy},
+    utils::check_hres,
+};
 use failure::Error;
 use log::debug;
+use std::{ptr, ptr::Unique};
 use widestring::WideCString;
-use winapi::shared::ntdef::NULL;
-use std::ptr;
-use std::ptr::Unique;
-use winapi::um::wbemcli::{IWbemLocator, IWbemServices, IWbemClassObject, CLSID_WbemLocator, IID_IWbemLocator, IEnumWbemClassObject};
-use winapi::shared::rpcdce::RPC_C_AUTHN_WINNT;
-use winapi::shared::rpcdce::RPC_C_AUTHZ_NONE;
-use winapi::shared::rpcdce::RPC_C_AUTHN_LEVEL_CALL;
-use winapi::um::wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE};
-use crate::utils::check_hres;
-use widestring::WideCStr;
-use winapi::um::oaidl::{VARIANT, VARIANT_n3};
-use winapi::shared::wtypes::BSTR;
-use std::mem;
-use winapi::um::oleauto::VariantClear;
-
+use winapi::{
+    shared::ntdef::{NULL},
+    um::{
+        oaidl::SAFEARRAY,
+        wbemcli::{IEnumWbemClassObject, IWbemClassObject},
+        wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_INFINITE},
+    },
+};
 
 pub struct QueryResultEnumerator<'a> {
     wmi_con: &'a WMIConnection,
     p_enumerator: Option<Unique<IEnumWbemClassObject>>,
-
 }
 
 impl WMIConnection {
@@ -32,14 +30,13 @@ impl WMIConnection {
         let mut p_enumerator = NULL as *mut IEnumWbemClassObject;
 
         unsafe {
-            check_hres(
-                (*self.svc()).ExecQuery(
-                    query_language.as_ptr() as *mut _,
-                    query.as_ptr() as *mut _,
-                    (WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY) as i32,
-                    ptr::null_mut(),
-                    &mut p_enumerator)
-            )?;
+            check_hres((*self.svc()).ExecQuery(
+                query_language.as_ptr() as *mut _,
+                query.as_ptr() as *mut _,
+                (WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY) as i32,
+                ptr::null_mut(),
+                &mut p_enumerator,
+            ))?;
         }
 
         debug!("Got enumerator {:?}", p_enumerator);
@@ -67,8 +64,60 @@ impl<'a> Drop for QueryResultEnumerator<'a> {
     }
 }
 
+/// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
+/// the object when dropped.
+///
+#[derive(Debug)]
+pub struct IWbemClassWrapper {
+    pub inner: Option<Unique<IWbemClassObject>>,
+}
+
+impl IWbemClassWrapper {
+    pub fn new(ptr: Option<Unique<IWbemClassObject>>) -> Self {
+        Self { inner: ptr }
+    }
+
+    /// Return the names of all the properties of the given object.
+    ///
+    pub fn list_properties(&self) -> Result<Vec<String>, Error> {
+        // This will store the properties names from the GetNames call.
+        let mut p_names = NULL as *mut SAFEARRAY;
+
+        let ptr = self.inner.unwrap().as_ptr();
+
+        unsafe {
+            check_hres((*ptr).GetNames(
+                ptr::null(),
+                WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY,
+                ptr::null_mut(),
+                &mut p_names,
+            ))
+        }?;
+
+        let res = get_string_array(p_names);
+
+        unsafe {
+            check_hres(SafeArrayDestroy(p_names))?;
+        }
+
+        res
+    }
+}
+
+impl Drop for IWbemClassWrapper {
+    fn drop(&mut self) {
+        if let Some(pcls_obj) = self.inner {
+            let ptr = pcls_obj.as_ptr();
+
+            unsafe {
+                (*ptr).Release();
+            }
+        }
+    }
+}
+
 impl<'a> Iterator for QueryResultEnumerator<'a> {
-    type Item = Result<String, Error>;
+    type Item = Result<IWbemClassWrapper, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut pcls_obj = NULL as *mut IWbemClassObject;
@@ -78,12 +127,15 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             return None;
         }
 
+        let raw_enumerator_prt = self.p_enumerator.unwrap().as_ptr();
+
         let res = unsafe {
-            check_hres(
-                (*self.p_enumerator.unwrap().as_ptr()).Next(WBEM_INFINITE as i32, 1,
-                                     &mut pcls_obj,
-                                     &mut return_value)
-            )
+            check_hres((*raw_enumerator_prt).Next(
+                WBEM_INFINITE as i32,
+                1,
+                &mut pcls_obj,
+                &mut return_value,
+            ))
         };
 
         if let Err(e) = res {
@@ -94,38 +146,49 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             return None;
         }
 
-        debug!("Got enumerator {:?} and obj {:?}", self.p_enumerator, pcls_obj);
+        debug!(
+            "Got enumerator {:?} and obj {:?}",
+            self.p_enumerator, pcls_obj
+        );
 
-        let name_prop = WideCString::from_str("Caption").unwrap();
-        let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
+        let pcls_wrapper = IWbemClassWrapper::new(Unique::new(pcls_obj));
 
-        unsafe {
-            (*pcls_obj).Get(
-                name_prop.as_ptr() as *mut _,
-                0,
-                &mut vt_prop,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
+        Some(Ok(pcls_wrapper))
+    }
+}
+
+#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
+mod tests {
+    use super::*;
+    use crate::connection::COMLibrary;
+    use crate::connection::WMIConnection;
+    use crate::datetime::WMIDateTime;
+    use serde::Deserialize;
+    use std::collections::HashMap;
+
+    #[test]
+    fn it_works() {
+        let com_con = COMLibrary::new().unwrap();
+        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+
+        let p_svc = wmi_con.svc();
+
+        assert_eq!(p_svc.is_null(), false);
+
+        let enumerator = wmi_con
+            .query("SELECT * FROM Win32_OperatingSystem")
+            .unwrap();
+
+        for res in enumerator {
+            let w = res.unwrap();
+            let mut props = w.list_properties().unwrap();
+
+            props.sort();
+
+            assert_eq!(props.len(), 64);
+            assert_eq!(props[..2], ["BootDevice", "BuildNumber"]);
+            assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"])
         }
-
-        let p = unsafe { vt_prop.n1.n2().n3.bstrVal() };
-
-        let prop_val: &WideCStr = unsafe {
-            WideCStr::from_ptr_str(*p)
-        };
-
-        unsafe { VariantClear(&mut vt_prop) };
-
-        // TODO: Remove this unwrap.
-        let property_value_as_string = prop_val.to_string().unwrap();
-
-        debug!("Got {}", property_value_as_string);
-
-        unsafe {
-            (*pcls_obj).Release();
-        }
-
-        Some(Ok(property_value_as_string))
     }
 }

@@ -1,9 +1,16 @@
-use std::io;
+use failure::{Fail};
 use winapi::shared::ntdef::HRESULT;
 
-pub fn check_hres(hres: HRESULT) -> Result<(), io::Error> {
+#[derive(Debug, Fail)]
+pub enum WMIError {
+    #[fail(display = "HRESULT Call failed with: {:#X}", hres)]
+    HResultError { hres: HRESULT },
+}
+
+pub fn check_hres(hres: HRESULT) -> Result<(), WMIError> {
     if hres < 0 {
-        return Err(io::Error::last_os_error());
+        dbg!(hres);
+        return Err(WMIError::HResultError { hres });
     }
 
     Ok(())
