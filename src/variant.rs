@@ -8,6 +8,7 @@ use winapi::{
     shared::wtypes::*,
     um::{oaidl::SAFEARRAY, oaidl::VARIANT},
 };
+use crate::safearray::safe_array_to_vec;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
@@ -51,8 +52,9 @@ impl Variant {
                 ));
             }
 
-            // TODO: Add support for all other types of arrays.
-            unimplemented!()
+            dbg!(item_type);
+
+            return Ok(Variant::Array(safe_array_to_vec(*array, item_type as u32)?));
         }
 
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.

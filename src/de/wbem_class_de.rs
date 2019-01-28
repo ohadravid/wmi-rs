@@ -107,6 +107,7 @@ where
             );
         }
 
+
         let property_value = Variant::from_variant(vt_prop)?;
 
         unsafe { VariantClear(&mut vt_prop) };
@@ -253,6 +254,23 @@ mod tests {
                 Variant::String("Microsoft Windows 10 Pro".into())
             );
             assert_eq!(w.get("Debug"), None);
+        }
+    }
+
+
+    #[test]
+    fn it_desr_array() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_ComputerSystem {
+            BootStatus: Vec<i32>
+        }
+
+        let results: Vec<Win32_ComputerSystem> = wmi_con.query().unwrap();
+
+        for res in results {
+            assert_eq!(res.BootStatus , [0, 0, 0, 33, 31, 158, 0, 3, 2, 2]);
         }
     }
 }
