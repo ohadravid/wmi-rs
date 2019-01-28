@@ -25,9 +25,12 @@ extern "system" {
     pub fn SafeArrayDestroy(psa: *mut SAFEARRAY) -> HRESULT;
 }
 
+#[derive(Debug)]
 struct SafeArrayAccessor {
     arr: *mut SAFEARRAY,
     p_data: *mut c_void,
+    lower_bound: i32,
+    upper_bound: i32,
 }
 
 /// An accessor to SafeArray, which:
@@ -37,24 +40,44 @@ struct SafeArrayAccessor {
 impl SafeArrayAccessor {
     pub fn new(arr: *mut SAFEARRAY) -> Result<Self, Error> {
         let mut p_data = NULL;
+        let mut lower_bound: i32 = 0;
+        let mut upper_bound: i32 = 0;
 
         unsafe {
+            check_hres(SafeArrayGetLBound(arr, 1, &mut lower_bound as _))?;
+            check_hres(SafeArrayGetUBound(arr, 1, &mut upper_bound as _))?;
             check_hres(SafeArrayAccessData(arr, &mut p_data))?;
         }
 
-        Ok(Self { arr, p_data })
+        Ok(Self {
+            arr,
+            p_data,
+            lower_bound,
+            upper_bound,
+        })
     }
 
-    pub fn data(&self) -> *mut c_void {
-        self.p_data
+    /// Return a slice which can access the data of the array.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe as it is the caller's responsibility to verify that the array is
+    /// of items of type T.
+    pub unsafe fn as_slice<T>(&self) -> &[T] {
+        let p_data: *mut T = self.p_data as _;
+
+        // upper_bound can be -1, in which case the array is empty and we will return a 0 length slice.
+        let data_slice = unsafe { slice::from_raw_parts(p_data, (self.upper_bound + 1) as usize) };
+
+        &data_slice[(self.lower_bound as usize)..]
     }
 }
 
 impl Drop for SafeArrayAccessor {
     fn drop(&mut self) {
-        // TOOD: Should we handle this in some way?
+        // TOOD: Should we handle errors in some way?
         unsafe {
-            let result = check_hres(SafeArrayUnaccessData(self.arr));
+            let _result = check_hres(SafeArrayUnaccessData(self.arr));
         }
     }
 }
@@ -74,38 +97,22 @@ pub fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, 
 }
 
 pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Variant>, Error> {
-    let mut lower_bound: i32 = 0;
-    let mut upper_bound: i32 = 0;
-
-    unsafe {
-        check_hres(SafeArrayGetLBound(arr, 1, &mut lower_bound as _))?;
-        check_hres(SafeArrayGetUBound(arr, 1, &mut upper_bound as _))?;
-    }
-
     let accessor = SafeArrayAccessor::new(arr)?;
 
     let mut items = vec![];
 
     match item_type {
         VT_I4 => {
-            // We know that we expect an array of this type.
-            let p_data: *mut i32 = accessor.data() as _;
+            let slice = unsafe { accessor.as_slice::<i32>() };
 
-            // upper_bound can be -1, in which case the array is empty and we will do nothing.
-            let data_slice = unsafe { slice::from_raw_parts(p_data, (upper_bound + 1) as usize) };
-
-            for item in data_slice[(lower_bound as usize)..].iter() {
+            for item in slice.iter() {
                 items.push(Variant::I4(*item))
             }
         }
         VT_BSTR => {
-            // We know that we expect an array of BSTRs.
-            let p_data: *mut BSTR = accessor.data() as _;
+            let slice = unsafe { accessor.as_slice::<BSTR>() };
 
-            // upper_bound can be -1, in which case the array is empty and we will do nothing.
-            let data_slice = unsafe { slice::from_raw_parts(p_data, (upper_bound + 1) as usize) };
-
-            for item_bstr in data_slice[(lower_bound as usize)..].iter() {
+            for item_bstr in slice.iter() {
                 let item: &WideCStr = unsafe { WideCStr::from_ptr_str(*item_bstr) };
 
                 items.push(Variant::String(item.to_string()?));
