@@ -28,6 +28,30 @@ pub enum FilterValue {
     String(String),
 }
 
+/// Build an SQL query for the given filters, over the given type (using it's name and fields).
+/// For example, for:
+///
+/// # Examples
+///
+/// For a struct such as:
+///
+/// ```edition2018
+/// # use wmi::*;
+/// # use serde::Deserialize;
+/// #[derive(Deserialize, Debug)]
+/// #[serde(rename = "Win32_OperatingSystem")]
+/// #[serde(rename_all = "PascalCase")]
+/// struct OperatingSystem {
+///     caption: String,
+///     debug: bool,
+/// }
+/// ```
+///
+/// The resulting query (with no filters) will look like:
+/// ```
+/// "SELECT Caption, Debug FROM Win32_OperatingSystem";
+/// ```
+///
 fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> String
 where
     T: de::Deserialize<'de>,
@@ -294,6 +318,10 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::tests::fixtures::*;
+    use crate::utils::WMIError;
+    use failure::Fail;
+    use winapi::shared::ntdef::HRESULT;
+    use winapi::um::wbemcli::WBEM_E_INVALID_QUERY;
 
     #[test]
     fn it_works() {
@@ -324,6 +352,7 @@ mod tests {
             .unwrap();
 
         for res in enumerator {
+            dbg!(&res);
             assert!(res.is_err())
         }
     }
@@ -334,8 +363,25 @@ mod tests {
 
         let enumerator = wmi_con.exec_query_native_wrapper("42").unwrap();
 
+        // Show how to detect which error had occurred.
         for res in enumerator {
-            assert!(res.is_err())
+            match res {
+                Ok(_) => assert!(false),
+                Err(e) => {
+                    let cause = e.as_fail();
+
+                    if let Some(wmi_err) = cause.downcast_ref::<WMIError>() {
+                        match wmi_err {
+                            WMIError::HResultError { hres } => {
+                                assert_eq!(*hres, WBEM_E_INVALID_QUERY as HRESULT);
+                            },
+                            _ => assert!(false),
+                        }
+                    } else {
+                        assert!(false);
+                    }
+                }
+            }
         }
     }
 
