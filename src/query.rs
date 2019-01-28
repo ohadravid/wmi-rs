@@ -28,6 +28,30 @@ pub enum FilterValue {
     String(String),
 }
 
+/// Build an SQL query for the given filters, over the given type (using it's name and fields).
+/// For example, for:
+///
+/// # Examples
+///
+/// For a struct such as:
+///
+/// ```edition2018
+/// # use wmi::*;
+/// # use serde::Deserialize;
+/// #[derive(Deserialize, Debug)]
+/// #[serde(rename = "Win32_OperatingSystem")]
+/// #[serde(rename_all = "PascalCase")]
+/// struct OperatingSystem {
+///     caption: String,
+///     debug: bool,
+/// }
+/// ```
+///
+/// The resulting query (with no filters) will look like:
+/// ```
+/// "SELECT Caption, Debug FROM Win32_OperatingSystem";
+/// ```
+///
 fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> String
 where
     T: de::Deserialize<'de>,
@@ -117,10 +141,9 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
-    /// # use wmi::tests::fixtures::*;
+    /// # use wmi::*;
     /// # use std::collections::HashMap;
-    /// # use wmi::Variant;
-    /// # let con = wmi_con();
+    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
     /// let results : Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem").unwrap();
     /// #
     pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
@@ -144,9 +167,9 @@ impl WMIConnection {
     /// Query all the objects of type T.
     ///
     /// ```edition2018
-    /// # use wmi::tests::fixtures::*;
+    /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = wmi_con();
+    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
     /// #[derive(Deserialize)]
     /// struct Win32_OperatingSystem {
     ///     Name: String,
@@ -284,17 +307,19 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
 
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connection::COMLibrary;
-    use crate::connection::WMIConnection;
     use crate::datetime::WMIDateTime;
     use serde::Deserialize;
-    use std::collections::hash_map::RandomState;
     use std::collections::HashMap;
 
     use crate::tests::fixtures::*;
     use crate::Variant;
+    use crate::utils::WMIError;
+    use failure::Fail;
+    use winapi::shared::ntdef::HRESULT;
+    use winapi::um::wbemcli::WBEM_E_INVALID_QUERY;
 
     #[test]
     fn it_works() {
@@ -317,6 +342,48 @@ mod tests {
     }
 
     #[test]
+    fn it_fails_gracefully() {
+        let wmi_con = wmi_con();
+
+        let enumerator = wmi_con
+            .exec_query_native_wrapper("SELECT NoSuchField FROM Win32_OperatingSystem")
+            .unwrap();
+
+        for res in enumerator {
+            dbg!(&res);
+            assert!(res.is_err())
+        }
+    }
+
+    #[test]
+    fn it_fails_gracefully_with_invalid_sql() {
+        let wmi_con = wmi_con();
+
+        let enumerator = wmi_con.exec_query_native_wrapper("42").unwrap();
+
+        // Show how to detect which error had occurred.
+        for res in enumerator {
+            match res {
+                Ok(_) => assert!(false),
+                Err(e) => {
+                    let cause = e.as_fail();
+
+                    if let Some(wmi_err) = cause.downcast_ref::<WMIError>() {
+                        match wmi_err {
+                            WMIError::HResultError { hres } => {
+                                assert_eq!(*hres, WBEM_E_INVALID_QUERY as HRESULT);
+                            },
+                            _ => assert!(false),
+                        }
+                    } else {
+                        assert!(false);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn it_can_query_a_struct() {
         let wmi_con = wmi_con();
 
@@ -330,6 +397,20 @@ mod tests {
         for os in results {
             assert_eq!(os.Caption, "Microsoft Windows 10 Pro");
         }
+    }
+
+    #[test]
+    fn it_fails_gracefully_when_querying_a_struct() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            NoSuchField: String,
+        }
+
+        let result = wmi_con.query::<Win32_OperatingSystem>();
+
+        assert!(result.is_err());
     }
 
     #[test]

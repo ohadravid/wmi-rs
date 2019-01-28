@@ -7,6 +7,8 @@ pub mod fixtures {
     use std::rc::Rc;
 
     // This way we only setup COM security once during tests.
+    // We can't use `std::sync::Once` because we have to keep the `COM_LIB` object alive for the
+    // entire run.
     lazy_static! {
         static ref COM_LIB: COMLibrary = { COMLibrary::new().unwrap() };
     }
