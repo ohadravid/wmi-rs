@@ -10,7 +10,7 @@ pub mod datetime;
 pub mod safearray;
 pub mod consts;
 
-//#[cfg(test)]
+#[cfg(test)]
 pub mod tests;
 
 pub use de::wbem_class_de::from_wbem_class_obj;

@@ -117,10 +117,9 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
-    /// # use wmi::tests::fixtures::*;
+    /// # use wmi::*;
     /// # use std::collections::HashMap;
-    /// # use wmi::Variant;
-    /// # let con = wmi_con();
+    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
     /// let results : Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem").unwrap();
     /// #
     pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
@@ -144,9 +143,9 @@ impl WMIConnection {
     /// Query all the objects of type T.
     ///
     /// ```edition2018
-    /// # use wmi::tests::fixtures::*;
+    /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = wmi_con();
+    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
     /// #[derive(Deserialize)]
     /// struct Win32_OperatingSystem {
     ///     Name: String,
@@ -284,6 +283,7 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
 
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::connection::COMLibrary;
