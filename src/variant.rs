@@ -52,8 +52,6 @@ impl Variant {
                 ));
             }
 
-            dbg!(item_type);
-
             return Ok(Variant::Array(safe_array_to_vec(*array, item_type as u32)?));
         }
 

@@ -84,8 +84,6 @@ where
             .next()
             .ok_or(format_err!("Expected current field to not be None"))?;
 
-        dbg!(current_field.as_ref());
-
         let name_prop = WideCString::from_str(current_field).map_err(Error::from_err)?;
 
         let mut vt_prop: VARIANT = unsafe { mem::zeroed() };

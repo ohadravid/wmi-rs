@@ -401,13 +401,23 @@ mod tests {
             "Win32_NetworkAdapterConfiguration",
             "Win32_LogicalDisk",
             "Win32_PhysicalMemory",
+            "Win32_StartupCommand",
+            "Win32_NetworkLoginProfile",
+            "Win32_Share",
+            "Win32_MappedLogicalDisk",
+            "Win32_DiskDrive",
+            "Win32_Product",
+            "Win32_IP4RouteTable",
+            "Win32_NetworkConnection",
+            "Win32_Group",
+
+            // Only works under 64bit.
+            // "Win32_ShadowCopy",
         ];
 
         for class_name in classes.iter() {
-            dbg!(class_name);
-
             let results: Vec<HashMap<String, Variant>> = wmi_con
-                .raw_query(format!("SELEcT * FROM {}", class_name))
+                .raw_query(format!("SELECT * FROM {}", class_name))
                 .unwrap();
 
             for res in results {
@@ -415,6 +425,41 @@ mod tests {
                     Some(Variant::String(s)) => assert!(s != ""),
                     _ => assert!(false),
                 }
+            }
+        }
+
+        // Associators. TODO: Support this in the desr logic (so a Disk can have `Partitions`).
+        let associators_classes = [
+            "Win32_DiskDriveToDiskPartition",
+            "Win32_LogicalDiskToPartition",
+        ];
+
+        for class_name in associators_classes.iter() {
+            let results: Vec<HashMap<String, Variant>> = wmi_con
+                .raw_query(format!("SELECT * FROM {}", class_name))
+                .unwrap();
+
+            for res in results {
+                match res.get("Antecedent") {
+                    Some(Variant::String(s)) => assert!(s != ""),
+                    _ => assert!(false),
+                }
+            }
+        }
+
+        let results: Vec<HashMap<String, Variant>> = wmi_con
+            .raw_query("SELECT * FROM Win32_GroupUser")
+            .unwrap();
+
+        for res in results {
+            match res.get("GroupComponent") {
+                Some(Variant::String(s)) => assert!(s != ""),
+                _ => assert!(false),
+            }
+
+            match res.get("PartComponent") {
+                Some(Variant::String(s)) => assert!(s != ""),
+                _ => assert!(false),
             }
         }
     }
