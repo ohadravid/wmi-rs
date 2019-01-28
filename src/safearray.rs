@@ -4,13 +4,14 @@ use failure::Error;
 use std::slice;
 use widestring::WideCStr;
 use winapi::{
+    shared::wtypes::*,
     shared::{
         minwindef::UINT,
         ntdef::{LONG, NULL},
         winerror::HRESULT,
         wtypes::BSTR,
     },
-    um::{oaidl::SAFEARRAY, oleauto::SafeArrayAccessData, oleauto::SafeArrayUnaccessData},
+    um::{oaidl::SAFEARRAY, oleauto::SafeArrayAccessData, oleauto::SafeArrayUnaccessData}
 };
 
 // TODO: This should be part of winapi-rs.
@@ -72,8 +73,6 @@ pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Vari
 
     match item_type {
         VT_I4 => {
-            unimplemented!();
-
             // We know that we expect an array of this type.
             let p_data: *mut i32 = p_data as _;
 
