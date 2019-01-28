@@ -44,14 +44,6 @@ impl Variant {
 
             let item_type = variant_type as u32 & VT_TYPEMASK;
 
-            if item_type == VT_BSTR {
-                let data = safe_array_to_vec_of_strings(*array)?;
-
-                return Ok(Variant::Array(
-                    data.into_iter().map(|s| Variant::String(s)).collect(),
-                ));
-            }
-
             return Ok(Variant::Array(safe_array_to_vec(*array, item_type as u32)?));
         }
 
