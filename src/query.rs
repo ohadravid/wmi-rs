@@ -1,9 +1,9 @@
-use crate::from_wbem_class_obj;
+use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::{
     connection::WMIConnection,
     consts::{WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY},
     de::meta::struct_name_and_fields,
-    safearray::{get_string_array, SafeArrayDestroy},
+    safearray::{safe_array_to_vec_of_strings, SafeArrayDestroy},
     utils::check_hres,
 };
 use failure::Error;
@@ -109,6 +109,7 @@ pub struct QueryResultEnumerator<'a> {
 impl WMIConnection {
     /// Execute the given query and return an iterator of WMI pointers.
     /// It's better to use the other query methods, since this is relatively low level.
+    ///
     pub fn exec_query_native_wrapper(
         &self,
         query: impl AsRef<str>,
@@ -146,6 +147,7 @@ impl WMIConnection {
     /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
     /// let results : Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem").unwrap();
     /// #
+    ///
     pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
@@ -176,6 +178,7 @@ impl WMIConnection {
     /// }
     /// con.query::<Win32_OperatingSystem>();
     /// #
+    ///
     pub fn query<T>(&self) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
@@ -186,6 +189,7 @@ impl WMIConnection {
     }
 
     /// Query all the objects of type T, while filtering according to `filters`.
+    ///
     pub fn filtered_query<T>(&self, filters: &HashMap<String, FilterValue>) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
@@ -242,7 +246,7 @@ impl IWbemClassWrapper {
             ))
         }?;
 
-        let res = get_string_array(p_names);
+        let res = safe_array_to_vec_of_strings(p_names);
 
         unsafe {
             check_hres(SafeArrayDestroy(p_names))?;
@@ -310,14 +314,12 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connection::COMLibrary;
-    use crate::connection::WMIConnection;
     use crate::datetime::WMIDateTime;
     use serde::Deserialize;
-    use std::collections::hash_map::RandomState;
     use std::collections::HashMap;
 
     use crate::tests::fixtures::*;
+    use crate::Variant;
     use crate::utils::WMIError;
     use failure::Fail;
     use winapi::shared::ntdef::HRESULT;
@@ -470,4 +472,79 @@ mod tests {
             assert_eq!(proc.Name, "cargo.exe");
         }
     }
+
+    #[test]
+    fn it_can_query_all_classes() {
+        let wmi_con = wmi_con();
+        let classes = [
+            "Win32_Service",
+            "Win32_Process",
+            "Win32_OperatingSystem",
+            "Win32_TimeZone",
+            "Win32_ComputerSystem",
+            "Win32_NetworkAdapter",
+            "Win32_NetworkAdapterConfiguration",
+            "Win32_LogicalDisk",
+            "Win32_PhysicalMemory",
+            "Win32_StartupCommand",
+            "Win32_NetworkLoginProfile",
+            "Win32_Share",
+            "Win32_MappedLogicalDisk",
+            "Win32_DiskDrive",
+            "Win32_Product",
+            "Win32_IP4RouteTable",
+            "Win32_NetworkConnection",
+            "Win32_Group",
+            // Only works under 64bit.
+            // "Win32_ShadowCopy",
+        ];
+
+        for class_name in classes.iter() {
+            let results: Vec<HashMap<String, Variant>> = wmi_con
+                .raw_query(format!("SELECT * FROM {}", class_name))
+                .unwrap();
+
+            for res in results {
+                match res.get("Caption") {
+                    Some(Variant::String(s)) => assert!(s != ""),
+                    _ => assert!(false),
+                }
+            }
+        }
+
+        // Associators. TODO: Support this in the desr logic (so a Disk can have `Partitions`).
+        let associators_classes = [
+            "Win32_DiskDriveToDiskPartition",
+            "Win32_LogicalDiskToPartition",
+        ];
+
+        for class_name in associators_classes.iter() {
+            let results: Vec<HashMap<String, Variant>> = wmi_con
+                .raw_query(format!("SELECT * FROM {}", class_name))
+                .unwrap();
+
+            for res in results {
+                match res.get("Antecedent") {
+                    Some(Variant::String(s)) => assert!(s != ""),
+                    _ => assert!(false),
+                }
+            }
+        }
+
+        let results: Vec<HashMap<String, Variant>> =
+            wmi_con.raw_query("SELECT * FROM Win32_GroupUser").unwrap();
+
+        for res in results {
+            match res.get("GroupComponent") {
+                Some(Variant::String(s)) => assert!(s != ""),
+                _ => assert!(false),
+            }
+
+            match res.get("PartComponent") {
+                Some(Variant::String(s)) => assert!(s != ""),
+                _ => assert!(false),
+            }
+        }
+    }
+
 }

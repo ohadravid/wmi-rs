@@ -36,9 +36,13 @@ use winapi::{
 
 pub struct COMLibrary {}
 
+/// Initialize COM.
+///
+/// COM will be `CoUninitialize`d after this object is dropped.
+///
 impl COMLibrary {
     /// `CoInitialize`s the COM library for use by the calling thread.
-    /// COM will be `CoUninitialize`d after this object is dropped.
+    ///
     pub fn new() -> Result<Self, Error> {
         unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
 
@@ -49,6 +53,8 @@ impl COMLibrary {
         Ok(instance)
     }
 
+    /// `CoInitialize`s the COM library for use by the calling thread, but without setting the security context.
+    ///
     pub fn without_security() -> Result<Self, Error> {
         unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
 
@@ -88,6 +94,10 @@ pub struct WMIConnection {
     p_svc: Option<Unique<IWbemServices>>,
 }
 
+/// A connection to the local WMI provider, which provides querying capabilities.
+///
+/// Currently does not support remote providers (e.g connecting to other computers).
+///
 impl WMIConnection {
     pub fn new(com_lib: Rc<COMLibrary>) -> Result<Self, Error> {
         let mut instance = Self {

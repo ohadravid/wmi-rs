@@ -1,4 +1,4 @@
-use crate::safearray::get_string_array;
+use crate::safearray::safe_array_to_vec;
 use failure::{bail, Error};
 use log::debug;
 use serde::{de, forward_to_deserialize_any, Deserialize};
@@ -43,16 +43,7 @@ impl Variant {
 
             let item_type = variant_type as u32 & VT_TYPEMASK;
 
-            if item_type == VT_BSTR {
-                let data = get_string_array(*array)?;
-
-                return Ok(Variant::Array(
-                    data.into_iter().map(|s| Variant::String(s)).collect(),
-                ));
-            }
-
-            // TODO: Add support for all other types of arrays.
-            unimplemented!()
+            return Ok(Variant::Array(safe_array_to_vec(*array, item_type as u32)?));
         }
 
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.

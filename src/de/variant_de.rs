@@ -1,31 +1,27 @@
-use crate::safearray::get_string_array;
+use crate::safearray::safe_array_to_vec_of_strings;
+use crate::variant::Variant;
 use failure::{bail, Error};
 use log::debug;
 use serde::{de, forward_to_deserialize_any, Deserialize};
 use std::fmt;
-use crate::variant::Variant;
+use std::vec::IntoIter;
 
+#[derive(Debug)]
 struct SeqAccess {
-    data: Vec<Variant>,
-    i: usize,
+    data: IntoIter<Variant>,
 }
 
 impl<'de> de::SeqAccess<'de> for SeqAccess {
     type Error = crate::error::Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
-        where
-            T: de::DeserializeSeed<'de>,
+    where
+        T: de::DeserializeSeed<'de>,
     {
-        if self.i >= self.data.len() {
-            return Ok(None);
+        match self.data.next() {
+            Some(variant) => seed.deserialize(variant).map(Some),
+            None => Ok(None),
         }
-
-        let res: Variant = self.data.swap_remove(self.i);
-
-        self.i += 1;
-
-        seed.deserialize(res).map(Some)
     }
 }
 
@@ -33,8 +29,8 @@ impl<'de> serde::Deserializer<'de> for Variant {
     type Error = crate::error::Error;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: de::Visitor<'de>,
+    where
+        V: de::Visitor<'de>,
     {
         match self {
             Variant::Null => visitor.visit_none(),
@@ -46,7 +42,9 @@ impl<'de> serde::Deserializer<'de> for Variant {
             Variant::Bool(b) => visitor.visit_bool(b),
             Variant::UI1(n) => visitor.visit_u8(n),
             Variant::UI8(n) => visitor.visit_u64(n),
-            Variant::Array(v) => visitor.visit_seq(SeqAccess { data: v, i: 0 }),
+            Variant::Array(mut v) => visitor.visit_seq(SeqAccess {
+                data: v.into_iter(),
+            }),
         }
     }
 
@@ -60,8 +58,8 @@ impl<'de> serde::Deserializer<'de> for Variant {
 impl<'de> Deserialize<'de> for Variant {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Variant, D::Error>
-        where
-            D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
         struct VariantVisitor;
 
@@ -94,8 +92,8 @@ impl<'de> Deserialize<'de> for Variant {
 
             #[inline]
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
+            where
+                E: serde::de::Error,
             {
                 self.visit_string(String::from(value))
             }
@@ -112,8 +110,8 @@ impl<'de> Deserialize<'de> for Variant {
 
             #[inline]
             fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-                where
-                    D: serde::Deserializer<'de>,
+            where
+                D: serde::Deserializer<'de>,
             {
                 Deserialize::deserialize(deserializer)
             }
@@ -125,8 +123,8 @@ impl<'de> Deserialize<'de> for Variant {
 
             #[inline]
             fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-                where
-                    V: de::SeqAccess<'de>,
+            where
+                V: de::SeqAccess<'de>,
             {
                 let mut vec = Vec::new();
 
@@ -138,8 +136,8 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
-                where
-                    V: de::MapAccess<'de>,
+            where
+                V: de::MapAccess<'de>,
             {
                 unimplemented!()
             }
