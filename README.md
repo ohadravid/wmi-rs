@@ -15,11 +15,9 @@ use wmi::{from_wbem_class_obj, COMLibrary, Variant, WMIConnection, WMIDateTime};
 let com_con = COMLibrary::new().unwrap();
 let wmi_con = WMIConnection::new(com_con.into()).unwrap();
 
-let enumerator = wmi_con.query("SELECT * FROM Win32_OperatingSystem")?;
+let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem").unwrap();
 
-for os_res in enumerator {
-    let os: HashMap<String, Variant> = from_wbem_class_obj(&os_res.unwrap())?;
-
+for os in results {
     println!("{:#?}", os);
 }
 
@@ -34,11 +32,9 @@ struct Win32_OperatingSystem {
     LastBootUpTime: WMIDateTime,
 }
 
-let enumerator = wmi_con.query("SELECT * FROM Win32_OperatingSystem")?;
+let results: Vec<Win32_OperatingSystem> = wmi_con.query().unwrap();
 
-for os_res in enumerator {
-    let os: Win32_OperatingSystem = from_wbem_class_obj(&os_res.unwrap())?;
-
+for os in results {
     println!("{:#?}", os);
 }
 ```

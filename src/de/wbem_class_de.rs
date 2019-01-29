@@ -1,8 +1,10 @@
 use crate::query::IWbemClassWrapper;
 use failure::{format_err};
 use serde::de::{
-    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Visitor,
+    self, Deserialize, DeserializeSeed, IntoDeserializer, MapAccess, Visitor, DeserializeOwned
 };
+use serde::forward_to_deserialize_any;
+
 use std::{
     iter::Peekable,
     mem,
@@ -19,21 +21,21 @@ use winapi::{
 use crate::error::Error;
 use crate::variant::Variant;
 
-pub struct Deserializer<'de> {
+pub struct Deserializer<'a> {
     // This string starts with the input data and characters are truncated off
     // the beginning as data is parsed.
-    pub wbem_class_obj: &'de IWbemClassWrapper,
+    pub wbem_class_obj: &'a IWbemClassWrapper,
 }
 
-impl<'de> Deserializer<'de> {
-    pub fn from_wbem_class_obj(wbem_class_obj: &'de IWbemClassWrapper) -> Self {
+impl<'a> Deserializer<'a> {
+    pub fn from_wbem_class_obj(wbem_class_obj: &'a IWbemClassWrapper) -> Self {
         Deserializer { wbem_class_obj }
     }
 }
 
-pub fn from_wbem_class_obj<'a, T>(wbem_class_obj: &'a IWbemClassWrapper) -> Result<T, Error>
+pub fn from_wbem_class_obj<T>(wbem_class_obj: &IWbemClassWrapper) -> Result<T, Error>
 where
-    T: Deserialize<'a>,
+    T: DeserializeOwned,
 {
     let mut deserializer = Deserializer::from_wbem_class_obj(wbem_class_obj);
     let t = T::deserialize(&mut deserializer)?;
@@ -120,182 +122,9 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        Err(Error::from_err(format_err!("Only structs and maps can be deserialized from WMI objects")))
     }
 
-    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_unit_struct<V>(
-        self,
-        name: &'static str,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_newtype_struct<V>(
-        self,
-        name: &'static str,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_tuple_struct<V>(
-        self,
-        name: &'static str,
-        len: usize,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
 
     fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
@@ -315,40 +144,19 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("{:?} {:?}", fields, name);
-
         visitor.visit_map(WMIMapAccess::new(fields.iter(), &self))
     }
 
-    fn deserialize_enum<V>(
-        self,
-        name: &'static str,
-        variants: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
-    }
-
-    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        unimplemented!()
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
+        byte_buf option unit unit_struct newtype_struct seq tuple
+        tuple_struct enum identifier ignored_any
     }
 }
 
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::connection::COMLibrary;
@@ -357,14 +165,11 @@ mod tests {
     use serde::Deserialize;
     use std::collections::HashMap;
 
+    use crate::tests::fixtures::*;
+
     #[test]
     fn it_works() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
-
-        let p_svc = wmi_con.svc();
-
-        assert_eq!(p_svc.is_null(), false);
+        let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
@@ -381,7 +186,7 @@ mod tests {
         }
 
         let enumerator = wmi_con
-            .query("SELECT * FROM Win32_OperatingSystem")
+            .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
@@ -389,7 +194,6 @@ mod tests {
 
             let w: Win32_OperatingSystem = from_wbem_class_obj(&w).unwrap();
 
-            println!("I am {:?}", w);
             assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
             assert_eq!(
                 w.Name,
@@ -408,23 +212,16 @@ mod tests {
 
     #[test]
     fn it_desr_into_map() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
-
-        let p_svc = wmi_con.svc();
-
-        assert_eq!(p_svc.is_null(), false);
+        let wmi_con = wmi_con();
 
         let enumerator = wmi_con
-            .query("SELECT * FROM Win32_OperatingSystem")
+            .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
             let w = res.unwrap();
 
             let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
-
-            println!("I am {:#?}", w);
 
             assert_eq!(
                 *w.get("Caption").unwrap(),
@@ -436,6 +233,27 @@ mod tests {
                 *w.get("MUILanguages").unwrap(),
                 Variant::Array(vec![Variant::String("en-US".into())])
             );
+        }
+    }
+
+    #[test]
+    fn it_desr_into_map_with_selected_fields() {
+        let wmi_con = wmi_con();
+
+        let enumerator = wmi_con
+            .exec_query_native_wrapper("SELECT Caption FROM Win32_OperatingSystem")
+            .unwrap();
+
+        for res in enumerator {
+            let w = res.unwrap();
+
+            let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
+
+            assert_eq!(
+                *w.get("Caption").unwrap(),
+                Variant::String("Microsoft Windows 10 Pro".into())
+            );
+            assert_eq!(w.get("Debug"), None);
         }
     }
 }

@@ -14,11 +14,10 @@ fn main() -> Result<(), Error> {
     let com_con = COMLibrary::new()?;
     let wmi_con = WMIConnection::new(com_con.into())?;
 
-    let enumerator = wmi_con.query("SELECT * FROM Win32_OperatingSystem")?;
+    let results: Vec<HashMap<String, Variant>> =
+        wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem")?;
 
-    for os_res in enumerator {
-        let os: HashMap<String, Variant> = from_wbem_class_obj(&os_res?)?;
-
+    for os in results {
         info!("{:#?}", os);
     }
 
@@ -33,12 +32,26 @@ fn main() -> Result<(), Error> {
         LastBootUpTime: WMIDateTime,
     }
 
-    let enumerator = wmi_con.query("SELECT * FROM Win32_OperatingSystem")?;
+    let results: Vec<Win32_OperatingSystem> =
+        wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem")?;
 
-    for os_res in enumerator {
-        let os: Win32_OperatingSystem = from_wbem_class_obj(&os_res.unwrap())?;
-
+    for os in results {
         println!("{:#?}", os);
     }
+
+    #[derive(Deserialize, Debug)]
+    #[serde(rename = "Win32_OperatingSystem")]
+    #[serde(rename_all = "PascalCase")]
+    struct OperatingSystem {
+        caption: String,
+        debug: bool,
+    }
+
+    let results: Vec<OperatingSystem> = wmi_con.query()?;
+
+    for os in results {
+        println!("{:#?}", os);
+    }
+
     Ok(())
 }
