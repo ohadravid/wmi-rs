@@ -1,4 +1,4 @@
-use crate::from_wbem_class_obj;
+use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::{
     connection::WMIConnection,
     consts::{WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY},
@@ -109,6 +109,7 @@ pub struct QueryResultEnumerator<'a> {
 impl WMIConnection {
     /// Execute the given query and return an iterator of WMI pointers.
     /// It's better to use the other query methods, since this is relatively low level.
+    ///
     pub fn exec_query_native_wrapper(
         &self,
         query: impl AsRef<str>,
@@ -146,6 +147,7 @@ impl WMIConnection {
     /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
     /// let results : Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem").unwrap();
     /// #
+    ///
     pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
@@ -176,6 +178,7 @@ impl WMIConnection {
     /// }
     /// con.query::<Win32_OperatingSystem>();
     /// #
+    ///
     pub fn query<T>(&self) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
@@ -186,6 +189,7 @@ impl WMIConnection {
     }
 
     /// Query all the objects of type T, while filtering according to `filters`.
+    /// 
     pub fn filtered_query<T>(&self, filters: &HashMap<String, FilterValue>) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,

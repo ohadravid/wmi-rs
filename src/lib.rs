@@ -24,7 +24,7 @@
 //! WMI data model is based on COM's [`VARIANT`] Type, which is a struct capable of holding
 //! many types of data.
 //!
-//! This crate provides the analogous [`wmi::Variant`][Variant] enum.
+//! This crate provides the analogous [`Variant`][Variant] enum.
 //!
 //! Using this enum, we can execute a simple WMI query and inspect the results.
 //!
@@ -67,7 +67,7 @@
 //! ```
 //!
 //! Because the name of the struct given to `serde` matches the [WMI class] name, the SQL query
-//! can be inferred automatically.
+//! is inferred.
 //!
 //! [WMI]: https://docs.microsoft.com/en-us/windows/desktop/wmisdk/about-wmi
 //! [Creating a WMI Application Using C++]: https://docs.microsoft.com/en-us/windows/desktop/wmisdk/creating-a-wmi-application-using-c-
@@ -76,18 +76,23 @@
 //!
 //! # Internals
 //!
-//! [`wmi::WMIConnection`][WMIConnection] is used to create and execute a WMI query, returning
-//! [`wmi::query::IWbemClassWrapper`][IWbemClassWrapper] which is a wrapper for a WMI object pointer.
+//! [`WMIConnection`](WMIConnection) is used to create and execute a WMI query, returning
+//! [`IWbemClassWrapper`](query::IWbemClassWrapper) which is a wrapper for a WMI object pointer.
 //!
-//! Then, [`wmi::from_wbem_class_obj`][from_wbem_class_obj] is used to create a Rust struct with the equivalent data.
+//! Then, [`from_wbem_class_obj`](de::wbem_class_de::from_wbem_class_obj) is used to create a Rust struct with the equivalent data.
 //!
-//! Deserializing data from WMI and into Rust is done via `serde` and is implemented in the [`wmi::de`][de] module.
+//! Deserializing data from WMI and into Rust is done via `serde` and is implemented in the [`de`][de] module.
 //! More info can be found in `serde`'s documentation about [writing a data format].
+//! The deserializer will either use the field names defined on the output struct,
+//! or retrieve all field names from WMI if the ouput is a `HashMap`.
 //!
-//! [writing a data format] https://serde.rs/data-format.html
+//! [writing a data format]: https://serde.rs/data-format.html
 //!
-//! There are two main data structures (other than pointers to object) which are deserialize into Rust:
-//! [`wmi::Variant`][Variant] and [`wmi::safearray::SafeArrayAccessor`][SafeArrayAccessor].
+//! There are two main data structures (other than pointers to object) which convert native data to Rust data structures:
+//! [`Variant`](Variant) and [`SafeArrayAccessor`](safearray::SafeArrayAccessor).
+//!
+//! Most native objects has an equivalent wrapper struct which implements `Drop` for that data.
+//!
 //!
 #![feature(ptr_internals, custom_attribute)]
 
@@ -104,7 +109,6 @@ pub mod consts;
 #[cfg(test)]
 pub mod tests;
 
-pub use de::wbem_class_de::from_wbem_class_obj;
 pub use connection::{COMLibrary, WMIConnection};
 pub use variant::Variant;
 pub use datetime::WMIDateTime;
