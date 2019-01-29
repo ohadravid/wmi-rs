@@ -3,6 +3,15 @@ name = "wmi"
 version = "0.1.0"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
 edition = "2018"
+license = "MIT|Apache-2.0"
+readme = "README.md"
+documentation = "https://ohadravid.github.io/wmi-rs/docs/wmi/"
+homepage = "https://github.com/ohadravid/wmi-rs"
+repository = "https://github.com/ohadravid/wmi-rs"
+description = """
+WMI crate for rust.
+"""
+categories = ["api-bindings", "os::windows-apis"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { git = "https://github.com/retep998/winapi-rs.git", branch = "0.3", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi"] }
