@@ -189,7 +189,7 @@ impl WMIConnection {
     }
 
     /// Query all the objects of type T, while filtering according to `filters`.
-    /// 
+    ///
     pub fn filtered_query<T>(&self, filters: &HashMap<String, FilterValue>) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
