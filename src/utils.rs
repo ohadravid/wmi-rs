@@ -1,4 +1,4 @@
-use failure::{Fail};
+use failure::Fail;
 use winapi::shared::ntdef::HRESULT;
 
 #[derive(Debug, Fail)]

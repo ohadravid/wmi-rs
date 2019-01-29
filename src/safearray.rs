@@ -4,7 +4,6 @@ use failure::Error;
 use std::iter::Iterator;
 use std::slice;
 use widestring::WideCStr;
-use winapi::ctypes::c_void;
 use winapi::{
     shared::wtypes::*,
     shared::{

@@ -1,6 +1,4 @@
-use crate::safearray::safe_array_to_vec_of_strings;
 use crate::variant::Variant;
-use failure::{bail, Error};
 use log::debug;
 use serde::{de, forward_to_deserialize_any, Deserialize};
 use std::fmt;

@@ -97,18 +97,19 @@
 #![feature(ptr_internals, custom_attribute)]
 
 pub mod connection;
-pub mod de;
-pub mod query;
-pub mod utils;
-pub mod error;
-pub mod variant;
-pub mod datetime;
-pub mod safearray;
 pub mod consts;
+pub mod datetime;
+pub mod de;
+pub mod error;
+pub mod query;
+pub mod result_enumerator;
+pub mod safearray;
+pub mod utils;
+pub mod variant;
 
 #[cfg(test)]
 pub mod tests;
 
 pub use connection::{COMLibrary, WMIConnection};
-pub use variant::Variant;
 pub use datetime::WMIDateTime;
+pub use variant::Variant;

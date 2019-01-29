@@ -1,37 +1,28 @@
 use crate::utils::check_hres;
-use failure::{Error};
-use log::{debug};
+use failure::Error;
+use log::debug;
 use std::ptr;
 use std::ptr::Unique;
 use std::rc::Rc;
-use widestring::{WideCString};
+use widestring::WideCString;
 use winapi::{
     shared::{
-        rpcdce::{
-            RPC_C_AUTHN_LEVEL_CALL,
-            RPC_C_AUTHN_LEVEL_DEFAULT,
-            RPC_C_AUTHN_WINNT,
-            RPC_C_AUTHZ_NONE,
-            RPC_C_IMP_LEVEL_IMPERSONATE
-        },
         ntdef::NULL,
-        wtypesbase::CLSCTX_INPROC_SERVER
+        rpcdce::{
+            RPC_C_AUTHN_LEVEL_CALL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE,
+            RPC_C_IMP_LEVEL_IMPERSONATE,
+        },
+        wtypesbase::CLSCTX_INPROC_SERVER,
     },
     um::{
         combaseapi::{
-            CoCreateInstance,
-            CoInitializeEx,
-            CoInitializeSecurity,
-            CoSetProxyBlanket,
-            CoUninitialize
+            CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket,
+            CoUninitialize,
         },
         objbase::COINIT_MULTITHREADED,
         objidl::EOAC_NONE,
-        wbemcli::{
-            CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator,
-            IWbemServices,
-        }
-    }
+        wbemcli::{CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator, IWbemServices},
+    },
 };
 
 pub struct COMLibrary {}

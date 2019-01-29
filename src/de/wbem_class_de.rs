@@ -1,8 +1,5 @@
-use crate::query::IWbemClassWrapper;
 use failure::format_err;
-use serde::de::{
-    self, Deserialize, DeserializeOwned, DeserializeSeed, IntoDeserializer, MapAccess, Visitor,
-};
+use serde::de::{self, DeserializeOwned, DeserializeSeed, IntoDeserializer, MapAccess, Visitor};
 use serde::forward_to_deserialize_any;
 
 use std::{iter::Peekable, mem, ptr};
@@ -10,6 +7,7 @@ use widestring::WideCString;
 use winapi::{um::oaidl::VARIANT, um::oleauto::VariantClear};
 
 use crate::error::Error;
+use crate::result_enumerator::IWbemClassWrapper;
 use crate::variant::Variant;
 
 pub struct Deserializer<'a> {
@@ -151,8 +149,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connection::COMLibrary;
-    use crate::connection::WMIConnection;
     use crate::datetime::WMIDateTime;
     use serde::Deserialize;
     use std::collections::HashMap;

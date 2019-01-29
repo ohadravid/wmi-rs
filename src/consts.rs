@@ -1,4 +1,3 @@
-
 pub const WBEM_FLAG_ALWAYS: i32 = 0;
 pub const WBEM_FLAG_ONLY_IF_TRUE: i32 = 0x1;
 pub const WBEM_FLAG_ONLY_IF_FALSE: i32 = 0x2;
