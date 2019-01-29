@@ -2,7 +2,7 @@
 [Documentation](https://ohadravid.github.io/wmi-rs/docs/wmi/)
 
 WMI crate for rust.
-Currently 🚧 WIP 🚧.
+Currently in alpha 🚧.
 
 ## Examples
 
