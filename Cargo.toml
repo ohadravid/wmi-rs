@@ -14,6 +14,9 @@ WMI crate for rust.
 categories = ["api-bindings", "os::windows-apis"]
 keywords = ["wmi", "com", "win32"]
 
+[features]
+test = []
+
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { git = "https://github.com/retep998/winapi-rs.git", branch = "0.3", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi"] }
 failure = "*"

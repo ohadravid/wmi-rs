@@ -107,7 +107,7 @@ pub mod safearray;
 pub mod utils;
 pub mod variant;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test"))]
 pub mod tests;
 
 pub use connection::{COMLibrary, WMIConnection};
