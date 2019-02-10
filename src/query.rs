@@ -1,7 +1,7 @@
 use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::result_enumerator::QueryResultEnumerator;
 use crate::{connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres};
-use failure::Error;
+use failure::{Error, format_err};
 use log::debug;
 use serde::de;
 use std::collections::HashMap;
@@ -183,6 +183,30 @@ impl WMIConnection {
         let query_text = build_query::<T>(Some(&filters));
 
         self.raw_query(&query_text)
+    }
+
+    /// Get a single object of type T.
+    /// If non are found, an error is returned.
+    /// If more than one object is found, all but the first are ignored.
+    ///
+    /// ```edition2018
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+    /// #[derive(Deserialize)]
+    /// struct Win32_OperatingSystem {
+    ///     Name: String,
+    /// }
+    /// let os = con.get::<Win32_OperatingSystem>();
+    /// #
+    ///
+    pub fn get<T>(&self) -> Result<T, Error>
+    where
+        T: de::DeserializeOwned,
+    {
+        let results = self.query()?;
+
+        results.into_iter().next().ok_or_else(|| format_err!("No results returned"))
     }
 }
 
@@ -420,6 +444,20 @@ mod tests {
                 _ => assert!(false),
             }
         }
+    }
+
+    #[test]
+    fn con_get_return_a_single_object() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_Process {
+            Name: String,
+        }
+
+        let proc = wmi_con.get::<Win32_Process>().unwrap();
+
+        assert_ne!(proc.Name, "");
     }
 
 }
