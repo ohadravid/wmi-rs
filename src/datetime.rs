@@ -1,6 +1,6 @@
 use chrono::prelude::*;
 use failure::{bail, Error};
-use serde::de;
+use serde::{de, ser};
 use std::fmt;
 use std::str::FromStr;
 
@@ -55,8 +55,18 @@ impl<'de> de::Deserialize<'de> for WMIDateTime {
     }
 }
 
+impl ser::Serialize for WMIDateTime {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        serializer.serialize_str(&self.0.to_rfc3339())
+    }
+}
+
 mod tests {
     use super::WMIDateTime;
+    use serde_json;
 
     #[test]
     fn it_works_with_negative_offset() {
@@ -84,5 +94,13 @@ mod tests {
         let dt_res: Result<WMIDateTime, _> = "20190113200517.000500".parse();
 
         assert!(dt_res.is_err());
+    }
+
+    #[test]
+    fn it_serializes_to_rfc() {
+        let dt: WMIDateTime = "20190113200517.500000+060".parse().unwrap();
+
+        let v = serde_json::to_string(&dt).unwrap();
+        assert_eq!(v, "\"2019-01-13T20:05:17.000500+01:00\"");
     }
 }
