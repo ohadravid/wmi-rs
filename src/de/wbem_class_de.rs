@@ -275,9 +275,18 @@ mod tests {
 
         let results: Vec<Win32_Service> = wmi_con.query().unwrap();
 
-        for res in results {
-            assert_eq!(res.Name, "S");
-            assert_eq!(res.PathName, Some("a".to_owned()));
-        }
+        let lsm_service = results
+            .iter()
+            .find(|&service| service.Name == "LSM")
+            .unwrap();
+
+        assert_eq!(lsm_service.PathName, None);
+
+        let lmhosts_service = results
+            .iter()
+            .find(|&service| service.Name == "lmhosts")
+            .unwrap();
+
+        assert!(lmhosts_service.PathName.is_some());
     }
 }
