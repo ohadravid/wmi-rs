@@ -270,10 +270,7 @@ mod tests {
         #[derive(Deserialize, Debug)]
         pub struct Win32_Service {
             pub Name: String,
-            pub DisplayName: String,
             pub PathName: Option<String>,
-            pub State: String,
-            pub Started: bool,
         }
 
         let results: Vec<Win32_Service> = wmi_con.query().unwrap();
