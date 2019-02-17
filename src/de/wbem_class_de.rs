@@ -262,4 +262,25 @@ mod tests {
             assert_eq!(res.Roles, ["LM_Workstation", "LM_Server", "NT"]);
         }
     }
+
+    #[test]
+    fn it_desr_option_string() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        pub struct Win32_Service {
+            pub Name: String,
+            pub DisplayName: String,
+            pub PathName: Option<String>,
+            pub State: String,
+            pub Started: bool,
+        }
+
+        let results: Vec<Win32_Service> = wmi_con.query().unwrap();
+
+        for res in results {
+            assert_eq!(res.Name, "S");
+            assert_eq!(res.PathName, Some("a".to_owned()));
+        }
+    }
 }
