@@ -12,17 +12,13 @@ use winapi::{
         winerror::HRESULT,
         wtypes::BSTR,
     },
-    um::{oaidl::SAFEARRAY, oleauto::SafeArrayAccessData, oleauto::SafeArrayUnaccessData},
+    um::{oaidl::SAFEARRAY, oleauto::{
+        SafeArrayAccessData,
+        SafeArrayUnaccessData,
+        SafeArrayGetLBound,
+        SafeArrayGetUBound,
+    }},
 };
-
-// TODO: This should be part of winapi-rs.
-extern "system" {
-    pub fn SafeArrayGetLBound(psa: *mut SAFEARRAY, nDim: UINT, plLbound: *mut LONG) -> HRESULT;
-
-    pub fn SafeArrayGetUBound(psa: *mut SAFEARRAY, nDim: UINT, plUbound: *mut LONG) -> HRESULT;
-
-    pub fn SafeArrayDestroy(psa: *mut SAFEARRAY) -> HRESULT;
-}
 
 #[derive(Debug)]
 pub struct SafeArrayAccessor<T> {
