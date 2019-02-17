@@ -64,6 +64,7 @@ impl ser::Serialize for WMIDateTime {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::WMIDateTime;
     use serde_json;
