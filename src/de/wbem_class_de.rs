@@ -262,4 +262,51 @@ mod tests {
             assert_eq!(res.Roles, ["LM_Workstation", "LM_Server", "NT"]);
         }
     }
+
+    #[test]
+    fn it_desr_option_string() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        pub struct Win32_Service {
+            pub Name: String,
+            pub PathName: Option<String>,
+        }
+
+        let results: Vec<Win32_Service> = wmi_con.query().unwrap();
+
+        let lsm_service = results
+            .iter()
+            .find(|&service| service.Name == "LSM")
+            .unwrap();
+
+        assert_eq!(lsm_service.PathName, None);
+
+        let lmhosts_service = results
+            .iter()
+            .find(|&service| service.Name == "lmhosts")
+            .unwrap();
+
+        assert!(lmhosts_service.PathName.is_some());
+    }
+
+    #[test]
+    fn it_fail_to_desr_null_to_string() {
+        // Values can return as Null / Empty from WMI.
+        // It is impossible to `desr` such values to `String` (for example).
+        // See `it_desr_option_string` on how to fix this error.
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        pub struct Win32_Service {
+            pub Name: String,
+            pub PathName: String,
+        }
+
+        let res: Result<Vec<Win32_Service>, _> = wmi_con.query();
+
+        let err = res.err().unwrap();
+
+        assert_eq!(format!("{}", err), "invalid type: Option value, expected a string")
+    }
 }
