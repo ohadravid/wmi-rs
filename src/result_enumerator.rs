@@ -1,8 +1,5 @@
 use crate::{
-    connection::WMIConnection,
-    consts::{WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY},
-    safearray::{safe_array_to_vec_of_strings, SafeArrayDestroy},
-    utils::check_hres,
+    connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres,
 };
 use failure::Error;
 use log::debug;
@@ -11,8 +8,11 @@ use winapi::{
     shared::ntdef::NULL,
     um::{
         oaidl::SAFEARRAY,
-        wbemcli::WBEM_INFINITE,
-        wbemcli::{IEnumWbemClassObject, IWbemClassObject},
+        oleauto::SafeArrayDestroy,
+        wbemcli::{
+            IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY,
+            WBEM_INFINITE,
+        },
     },
 };
 
@@ -40,7 +40,7 @@ impl IWbemClassWrapper {
         unsafe {
             check_hres((*ptr).GetNames(
                 ptr::null(),
-                WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY,
+                (WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY) as i32,
                 ptr::null_mut(),
                 &mut p_names,
             ))

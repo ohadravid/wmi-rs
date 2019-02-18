@@ -97,7 +97,6 @@
 #![feature(ptr_internals, custom_attribute)]
 
 pub mod connection;
-pub mod consts;
 pub mod datetime;
 pub mod de;
 pub mod error;
