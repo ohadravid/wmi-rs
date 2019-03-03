@@ -2,7 +2,7 @@ use crate::{
     connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres,
 };
 use failure::Error;
-use log::debug;
+use log::trace;
 use std::{ptr, ptr::Unique};
 use winapi::{
     shared::ntdef::NULL,
@@ -122,7 +122,7 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             return None;
         }
 
-        debug!(
+        trace!(
             "Got enumerator {:?} and obj {:?}",
             self.p_enumerator, pcls_obj
         );

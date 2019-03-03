@@ -2,7 +2,7 @@ use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::result_enumerator::QueryResultEnumerator;
 use crate::{connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres};
 use failure::{Error, format_err};
-use log::debug;
+use log::trace;
 use serde::de;
 use std::collections::HashMap;
 use std::ptr;
@@ -118,7 +118,7 @@ impl WMIConnection {
             ))?;
         }
 
-        debug!("Got enumerator {:?}", p_enumerator);
+        trace!("Got enumerator {:?}", p_enumerator);
 
         Ok(QueryResultEnumerator::new(self, p_enumerator))
     }
