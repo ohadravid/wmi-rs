@@ -2,7 +2,14 @@
 [Documentation](https://ohadravid.github.io/wmi-rs/docs/wmi/)
 
 WMI crate for rust.
-Currently in alpha 🚧.
+Currently in beta.
+
+```toml
+# Cargo.toml
+[dependencies]
+wmi = "0.1"
+```
+
 
 ## Examples
 
