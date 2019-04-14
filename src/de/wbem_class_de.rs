@@ -187,7 +187,7 @@ mod tests {
                 w.Name,
                 "Microsoft Windows 10 Pro|C:\\WINDOWS|\\Device\\Harddisk0\\Partition3"
             );
-            assert_eq!(w.CurrentTimeZone, 60);
+            assert_eq!(w.CurrentTimeZone, 120);
             assert_eq!(w.Debug, false);
             assert_eq!(w.EncryptionLevel, 256);
             assert_eq!(w.ForegroundApplicationBoost, 2);
