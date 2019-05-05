@@ -46,11 +46,11 @@ pub enum FilterValue {
 /// "SELECT Caption, Debug FROM Win32_OperatingSystem";
 /// ```
 ///
-fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> String
+fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> Result<String, Error>
 where
     T: de::Deserialize<'de>,
 {
-    let (name, fields) = struct_name_and_fields::<T>();
+    let (name, fields) = struct_name_and_fields::<T>()?;
 
     let optional_where_clause = match filters {
         None => String::new(),
@@ -92,7 +92,7 @@ where
         optional_where_clause
     );
 
-    query_text
+    Ok(query_text)
 }
 
 impl WMIConnection {
@@ -169,7 +169,7 @@ impl WMIConnection {
     where
         T: de::DeserializeOwned,
     {
-        let query_text = build_query::<T>(None);
+        let query_text = build_query::<T>(None)?;
 
         self.raw_query(&query_text)
     }
@@ -180,7 +180,7 @@ impl WMIConnection {
     where
         T: de::DeserializeOwned,
     {
-        let query_text = build_query::<T>(Some(&filters));
+        let query_text = build_query::<T>(Some(&filters))?;
 
         self.raw_query(&query_text)
     }
@@ -323,7 +323,7 @@ mod tests {
             Caption: String,
         }
 
-        let query = build_query::<Win32_OperatingSystem>(None);
+        let query = build_query::<Win32_OperatingSystem>(None).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
 
         assert_eq!(query, select_part);
@@ -343,7 +343,7 @@ mod tests {
         filters.insert("C3".to_string(), FilterValue::Number(42));
         filters.insert("C4".to_string(), FilterValue::Bool(false));
 
-        let query = build_query::<Win32_OperatingSystem>(Some(&filters));
+        let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
         let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false"#;
 
@@ -460,4 +460,12 @@ mod tests {
         assert_ne!(proc.Name, "");
     }
 
+    #[test]
+    fn con_error_for_query_without_struct() {
+        let wmi_con = wmi_con();
+
+        let res: Result<Vec<HashMap<String, Variant>>, _> = wmi_con.query();
+
+        assert!(res.is_err());
+    }
 }

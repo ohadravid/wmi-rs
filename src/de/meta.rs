@@ -4,7 +4,8 @@ use serde::forward_to_deserialize_any;
 /// Return the fields of a struct.
 /// Taken directly from https://github.com/serde-rs/serde/issues/1110
 ///
-pub fn struct_name_and_fields<'de, T>() -> (&'static str, &'static [&'static str])
+pub fn struct_name_and_fields<'de, T>(
+) -> Result<(&'static str, &'static [&'static str]), serde::de::value::Error>
 where
     T: Deserialize<'de>,
 {
@@ -52,12 +53,20 @@ where
         fields: &mut fields,
     });
 
-    (name.unwrap(), fields.unwrap())
+    match name {
+        None =>  Err(de::Error::custom("Expected a named struct. \
+            Hint: You cannot use a HashMap<...> in this context because it requires the struct to have a name")),
+        Some(name) => {
+            Ok((name, fields.unwrap()))
+        }
+    }
 }
 
 mod tests {
     use super::*;
+    use crate::Variant;
     use serde::Deserialize;
+    use std::collections::HashMap;
 
     #[test]
     fn it_works() {
@@ -67,7 +76,7 @@ mod tests {
             Name: String,
         }
 
-        let (name, fields) = struct_name_and_fields::<Win32_OperatingSystem>();
+        let (name, fields) = struct_name_and_fields::<Win32_OperatingSystem>().unwrap();
 
         assert_eq!(name, "Win32_OperatingSystem");
         assert_eq!(fields, ["Caption", "Name"]);
@@ -83,9 +92,16 @@ mod tests {
             name: String,
         }
 
-        let (name, fields) = struct_name_and_fields::<Win32OperatingSystem>();
+        let (name, fields) = struct_name_and_fields::<Win32OperatingSystem>().unwrap();
 
         assert_eq!(name, "Win32_OperatingSystem");
         assert_eq!(fields, ["Caption", "Name"]);
+    }
+
+    #[test]
+    fn it_fails_for_non_structs() {
+        let err = struct_name_and_fields::<HashMap<String, Variant>>().unwrap_err();
+
+        assert!(format!("{:?}", err).contains("Expected a named struct"));
     }
 }
