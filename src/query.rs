@@ -208,6 +208,44 @@ impl WMIConnection {
 
         results.into_iter().next().ok_or_else(|| format_err!("No results returned"))
     }
+
+    /// Query all the associators of type T of the given object.
+    /// The `object_path` argument can be provided by querying an object wih it's `__Path` property.
+    ///
+    /// ```edition2018
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+    ///
+    /// #[derive(Deserialize, Debug)]
+    /// struct Win32_DiskDrive {
+    ///     // `__Path` is a WMI-internal property used to uniquely identify objects.
+    ///     __Path: String,
+    ///     Caption: String,
+    /// }
+    ///
+    /// #[derive(Deserialize, Debug)]
+    /// struct Win32_DiskPartition {
+    ///     Caption: String,
+    /// }
+    ///
+    /// let disk = con.get::<Win32_DiskDrive>().unwrap();
+    /// let results = con.associators::<Win32_DiskPartition>(&disk.__Path).unwrap();
+    /// #
+    ///
+    pub fn associators<T>(&self, object_path: &str) -> Result<Vec<T>, Error>
+        where
+            T: de::DeserializeOwned,
+    {
+        let (name, _fields) = struct_name_and_fields::<T>()?;
+
+        // See more at:
+        // https://docs.microsoft.com/en-us/windows/desktop/wmisdk/associators-of-statement
+        let query = format!("ASSOCIATORS OF {{{object_path}}} WHERE ResultClass = {class_name}", object_path = object_path, class_name = name);
+
+        self.raw_query(&query)
+    }
+
 }
 
 #[allow(non_snake_case)]
@@ -467,5 +505,31 @@ mod tests {
         let res: Result<Vec<HashMap<String, Variant>>, _> = wmi_con.query();
 
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn it_can_query_associators() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_DiskDrive {
+            __Path: String,
+            Caption: String,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_DiskPartition {
+            Caption: String,
+        }
+
+        let disk = wmi_con.get::<Win32_DiskDrive>().unwrap();
+
+        let results = wmi_con.associators::<Win32_DiskPartition>(&disk.__Path).unwrap();
+
+        assert!(results.len() >= 1);
+
+        for part in results {
+            assert!(part.Caption.contains("Partition #"));
+        }
     }
 }
