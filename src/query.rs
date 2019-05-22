@@ -128,11 +128,13 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
+    /// # fn main() -> Result<(), failure::Error> {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
-    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
-    /// let results : Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem").unwrap();
-    /// #
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// let results: Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem")?;
+    /// #   Ok(())
+    /// # }
     ///
     pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
     where
@@ -155,15 +157,25 @@ impl WMIConnection {
     /// Query all the objects of type T.
     ///
     /// ```edition2018
-    /// # use wmi::*;
-    /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
-    /// #[derive(Deserialize)]
-    /// struct Win32_OperatingSystem {
-    ///     Name: String,
+    /// use wmi::*;
+    /// use serde::Deserialize;
+    ///
+    /// fn main() -> Result<(), failure::Error> {
+    ///     let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    ///
+    ///     #[derive(Deserialize, Debug)]
+    ///     struct Win32_Process {
+    ///         Name: String,
+    ///     }
+    ///
+    ///     let procs: Vec<Win32_Process> = con.query()?;
+    ///
+    ///     for proc in procs {
+    ///        println!("{:?}", proc);
+    ///     }
+    ///
+    ///     Ok(())
     /// }
-    /// con.query::<Win32_OperatingSystem>();
-    /// #
     ///
     pub fn query<T>(&self) -> Result<Vec<T>, Error>
     where
@@ -190,15 +202,17 @@ impl WMIConnection {
     /// If more than one object is found, all but the first are ignored.
     ///
     /// ```edition2018
+    /// # fn main() -> Result<(), failure::Error> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
     /// #[derive(Deserialize)]
     /// struct Win32_OperatingSystem {
     ///     Name: String,
     /// }
-    /// let os = con.get::<Win32_OperatingSystem>();
-    /// #
+    /// let os = con.get::<Win32_OperatingSystem>()?;
+    /// #   Ok(())
+    /// # }
     ///
     pub fn get<T>(&self) -> Result<T, Error>
     where
@@ -213,9 +227,10 @@ impl WMIConnection {
     /// The `object_path` argument can be provided by querying an object wih it's `__Path` property.
     ///
     /// ```edition2018
+    /// # fn main() -> Result<(), failure::Error> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
     ///
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_DiskDrive {
@@ -229,9 +244,10 @@ impl WMIConnection {
     ///     Caption: String,
     /// }
     ///
-    /// let disk = con.get::<Win32_DiskDrive>().unwrap();
-    /// let results = con.associators::<Win32_DiskPartition>(&disk.__Path).unwrap();
-    /// #
+    /// let disk = con.get::<Win32_DiskDrive>()?;
+    /// let results = con.associators::<Win32_DiskPartition>(&disk.__Path)?;
+    /// #   Ok(())
+    /// # }
     ///
     pub fn associators<T>(&self, object_path: &str) -> Result<Vec<T>, Error>
         where
