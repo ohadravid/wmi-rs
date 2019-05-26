@@ -7,7 +7,7 @@ Currently in beta.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.1"
+wmi = "0.2"
 ```
 
 
