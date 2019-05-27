@@ -548,4 +548,28 @@ mod tests {
             assert!(part.Caption.contains("Partition #"));
         }
     }
+
+    #[test]
+    fn con_get_return_a_single_object_by_path() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug, PartialEq)]
+        struct Win32_Process {
+            __Path: String,
+            Name: String,
+        }
+
+        let proc = wmi_con.get::<Win32_Process>().unwrap();
+
+        let proc_by_path = wmi_con.get_by_path::<Win32_Process>(&proc.__Path).unwrap();
+
+        assert_eq!(proc_by_path, proc);
+
+
+        let proc_by_path_hashmap: HashMap<String, Variant> = wmi_con.get_by_path(&proc.__Path).unwrap();
+
+        assert_eq!(proc_by_path_hashmap.get("Name").unwrap(), proc.Name);
+
+    }
+
 }
