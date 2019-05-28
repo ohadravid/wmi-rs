@@ -1,9 +1,9 @@
 use failure::format_err;
-use serde::de::{self, DeserializeOwned, DeserializeSeed, IntoDeserializer, MapAccess, Visitor};
+use serde::de::{self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, VariantAccess, Visitor, Unexpected};
 use serde::forward_to_deserialize_any;
 
 use std::{iter::Peekable, ptr};
-use winapi::{um::oleauto::VariantClear};
+use winapi::um::oleauto::VariantClear;
 
 use crate::error::Error;
 use crate::result_enumerator::IWbemClassWrapper;
@@ -28,6 +28,79 @@ where
     let t = T::deserialize(&mut deserializer)?;
 
     Ok(t)
+}
+
+struct WMIEnum<'a, 'de: 'a> {
+    class_name: String,
+    de: &'a mut Deserializer<'de>,
+}
+
+impl<'a, 'de> WMIEnum<'a, 'de>
+{
+    pub fn new(class_name: String, de: &'a mut Deserializer<'de>) -> Self {
+        Self {
+            class_name,
+            de,
+        }
+    }
+}
+
+impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a, 'de> {
+    type Error = Error;
+    type Variant = Self;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        let val = seed.deserialize(&mut *self.de)?;
+
+        Ok((val, self))
+    }
+}
+
+impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
+    type Error = Error;
+
+    // If the `Visitor` expected this variant to be a unit variant, the input
+    // should have been the plain string case handled in `deserialize_enum`.
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        let unexp = Unexpected::UnitVariant;
+        Err(de::Error::invalid_type(unexp, &"newtype variant"))
+    }
+
+    // Newtype variants are represented in JSON as `{ NAME: VALUE }` so
+    // deserialize the value here.
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        seed.deserialize(self.de)
+    }
+
+    // Tuple variants are represented in JSON as `{ NAME: [DATA...] }` so
+    // deserialize the sequence of data here.
+    fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let unexp = Unexpected::TupleVariant;
+        Err(de::Error::invalid_type(unexp, &"newtype variant"))
+    }
+
+    // Struct variants are represented in JSON as `{ NAME: { K: V, ... } }` so
+    // deserialize the inner map here.
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let unexp = Unexpected::StructVariant;
+        Err(de::Error::invalid_type(unexp, &"newtype variant"))
+    }
 }
 
 struct WMIMapAccess<'a, 'de, S, I>
@@ -80,7 +153,11 @@ where
             .next()
             .ok_or(format_err!("Expected current field to not be None"))?;
 
-        let property_value = self.de.wbem_class_obj.get_property(current_field.as_ref()).map_err(Error::from_err)?;
+        let property_value = self
+            .de
+            .wbem_class_obj
+            .get_property(current_field.as_ref())
+            .map_err(Error::from_err)?;
 
         seed.deserialize(property_value)
     }
@@ -96,6 +173,31 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         Err(Error::from_err(format_err!(
             "Only structs and maps can be deserialized from WMI objects"
         )))
+    }
+
+    fn deserialize_enum<V>(
+        mut self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let class_name = self.wbem_class_obj.class()?;
+
+        visitor.visit_enum(WMIEnum::new(class_name, &mut self))
+    }
+
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+        where
+            V: Visitor<'de>,
+    {
+        visitor.visit_newtype_struct(self)
     }
 
     fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -121,8 +223,8 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     forward_to_deserialize_any! {
         bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
-        byte_buf option unit unit_struct newtype_struct seq tuple
-        tuple_struct enum identifier ignored_any
+        byte_buf option unit unit_struct seq tuple
+        tuple_struct identifier ignored_any
     }
 }
 
@@ -132,10 +234,10 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 mod tests {
     use super::*;
     use crate::datetime::WMIDateTime;
+    use crate::variant::Variant;
     use serde::Deserialize;
     use std::collections::HashMap;
-    use crate::variant::Variant;
-    
+
     use crate::tests::fixtures::*;
 
     #[test]
@@ -290,6 +392,30 @@ mod tests {
 
         let err = res.err().unwrap();
 
-        assert_eq!(format!("{}", err), "invalid type: Option value, expected a string")
+        assert_eq!(
+            format!("{}", err),
+            "invalid type: Option value, expected a string"
+        )
+    }
+
+    #[test]
+    fn it_can_desr_newtype() {
+        // Values can return as Null / Empty from WMI.
+        // It is impossible to `desr` such values to `String` (for example).
+        // See `it_desr_option_string` on how to fix this error.
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        pub struct Win32_Service {
+            pub Name: String,
+            pub PathName: Option<String>,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct Wrapper(Win32_Service);
+
+        let wrapped_service: Wrapper = wmi_con.get().unwrap();
+
+        dbg!(wrapped_service);
     }
 }

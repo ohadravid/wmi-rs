@@ -714,23 +714,21 @@ mod tests {
         let accounts_in_group: Vec<Win32_Account> = wmi_con.associators(&group.__Path).unwrap();
         dbg!(&accounts_in_group);
 
+
+        #[derive(Deserialize, Debug, PartialEq)]
         enum User { User(Win32_UserAccount), Group(Win32_Group), System(Win32_SystemAccount) }
 
         for account in accounts_in_group {
             let raw_account = wmi_con.get_raw_by_path(&account.__Path).unwrap();
 
             match raw_account.class().unwrap().as_str() {
-                "Win32_UserAccount" => {
-                    panic!();
-                }
-                "Win32_SystemAccount" => {
-                    panic!();
-                }
-                "Win32_Group" => {
-                    panic!();
+                "Win32_UserAccount" | "Win32_SystemAccount" | "Win32_Group"  => {
+                    // OK.
                 }
                 _ => panic!(),
             };
+
+            let account: User = raw_account.into_desr().unwrap();
         }
     }
 }

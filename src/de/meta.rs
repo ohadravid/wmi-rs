@@ -24,6 +24,17 @@ where
             Err(de::Error::custom("I'm just here for the fields"))
         }
 
+        fn deserialize_newtype_struct<V>(
+            self,
+            name: &'static str,
+            visitor: V,
+        ) -> Result<V::Value, Self::Error>
+            where
+                V: Visitor<'de>,
+        {
+            visitor.visit_newtype_struct(self)
+        }
+
         fn deserialize_struct<V>(
             self,
             name: &'static str,
@@ -40,7 +51,7 @@ where
 
         forward_to_deserialize_any! {
             bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
-            byte_buf option unit unit_struct newtype_struct seq tuple
+            byte_buf option unit unit_struct seq tuple
             tuple_struct map enum identifier ignored_any
         }
     }
