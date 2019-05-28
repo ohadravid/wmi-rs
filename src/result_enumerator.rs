@@ -3,7 +3,10 @@ use crate::{
 };
 use failure::Error;
 use log::trace;
-use std::{ptr, ptr::Unique};
+use std::{mem, ptr, ptr::Unique};
+use widestring::WideCString;
+use winapi::um::oaidl::VARIANT;
+use winapi::um::oleauto::VariantClear;
 use winapi::{
     shared::ntdef::NULL,
     um::{
@@ -15,6 +18,7 @@ use winapi::{
         },
     },
 };
+use crate::variant::Variant;
 
 /// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
 /// the object when dropped.
@@ -53,6 +57,28 @@ impl IWbemClassWrapper {
         }
 
         res
+    }
+
+    pub fn get_property(&self, property_name: &str) -> Result<Variant, Error> {
+        let name_prop = WideCString::from_str(property_name)?;
+
+        let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
+
+        unsafe {
+            (*self.inner.unwrap().as_ptr()).Get(
+                name_prop.as_ptr() as *mut _,
+                0,
+                &mut vt_prop,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            );
+        }
+
+        let property_value = Variant::from_variant(vt_prop)?;
+
+        unsafe { VariantClear(&mut vt_prop) };
+
+        Ok(property_value)
     }
 }
 
@@ -124,7 +150,8 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
 
         trace!(
             "Got enumerator {:?} and obj {:?}",
-            self.p_enumerator, pcls_obj
+            self.p_enumerator,
+            pcls_obj
         );
 
         let pcls_wrapper = IWbemClassWrapper::new(Unique::new(pcls_obj));

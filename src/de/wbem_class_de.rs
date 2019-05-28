@@ -2,13 +2,11 @@ use failure::format_err;
 use serde::de::{self, DeserializeOwned, DeserializeSeed, IntoDeserializer, MapAccess, Visitor};
 use serde::forward_to_deserialize_any;
 
-use std::{iter::Peekable, mem, ptr};
-use widestring::WideCString;
-use winapi::{um::oaidl::VARIANT, um::oleauto::VariantClear};
+use std::{iter::Peekable, ptr};
+use winapi::{um::oleauto::VariantClear};
 
 use crate::error::Error;
 use crate::result_enumerator::IWbemClassWrapper;
-use crate::variant::Variant;
 
 pub struct Deserializer<'a> {
     // This string starts with the input data and characters are truncated off
@@ -82,23 +80,7 @@ where
             .next()
             .ok_or(format_err!("Expected current field to not be None"))?;
 
-        let name_prop = WideCString::from_str(current_field).map_err(Error::from_err)?;
-
-        let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
-
-        unsafe {
-            (*self.de.wbem_class_obj.inner.unwrap().as_ptr()).Get(
-                name_prop.as_ptr() as *mut _,
-                0,
-                &mut vt_prop,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
-        }
-
-        let property_value = Variant::from_variant(vt_prop)?;
-
-        unsafe { VariantClear(&mut vt_prop) };
+        let property_value = self.de.wbem_class_obj.get_property(current_field.as_ref()).map_err(Error::from_err)?;
 
         seed.deserialize(property_value)
     }
@@ -152,7 +134,8 @@ mod tests {
     use crate::datetime::WMIDateTime;
     use serde::Deserialize;
     use std::collections::HashMap;
-
+    use crate::variant::Variant;
+    
     use crate::tests::fixtures::*;
 
     #[test]

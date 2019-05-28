@@ -223,6 +223,32 @@ impl WMIConnection {
         results.into_iter().next().ok_or_else(|| format_err!("No results returned"))
     }
 
+    /// Get a single object of type T.
+    /// If non are found, an error is returned.
+    /// If more than one object is found, all but the first are ignored.
+    ///
+    /// ```edition2018
+    /// # fn main() -> Result<(), failure::Error> {
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// #[derive(Deserialize)]
+    /// struct Win32_OperatingSystem {
+    ///     Name: String,
+    /// }
+    /// let os = con.get::<Win32_OperatingSystem>()?;
+    /// #   Ok(())
+    /// # }
+    ///
+    pub fn get_by_path<T>(&self, object_path: &str) -> Result<T, Error>
+        where
+            T: de::DeserializeOwned,
+    {
+        let results = self.query()?;
+
+        results.into_iter().next().ok_or_else(|| format_err!("No results returned"))
+    }
+
     /// Query all the associators of type T of the given object.
     /// The `object_path` argument can be provided by querying an object wih it's `__Path` property.
     ///
@@ -557,18 +583,20 @@ mod tests {
         struct Win32_Process {
             __Path: String,
             Name: String,
+            ProcessID: u32,
         }
 
-        let proc = wmi_con.get::<Win32_Process>().unwrap();
+        let procs = wmi_con.query::<Win32_Process>().unwrap();
+
+        let proc = &procs[3];
 
         let proc_by_path = wmi_con.get_by_path::<Win32_Process>(&proc.__Path).unwrap();
 
-        assert_eq!(proc_by_path, proc);
-
+        assert_eq!(&proc_by_path, proc);
 
         let proc_by_path_hashmap: HashMap<String, Variant> = wmi_con.get_by_path(&proc.__Path).unwrap();
 
-        assert_eq!(proc_by_path_hashmap.get("Name").unwrap(), proc.Name);
+        assert_eq!(proc_by_path_hashmap.get("ProcessID").unwrap(), &Variant::UI8(proc.ProcessID.into()));
 
     }
 
