@@ -200,7 +200,7 @@ impl WMIConnection {
     }
 
     /// Get a single object of type T.
-    /// If non are found, an error is returned.
+    /// If none are found, an error is returned.
     /// If more than one object is found, all but the first are ignored.
     ///
     /// ```edition2018
@@ -251,9 +251,8 @@ impl WMIConnection {
         Ok(pcls_wrapper)
     }
 
-    /// Get a single object of type T.
-    /// If non are found, an error is returned.
-    /// If more than one object is found, all but the first are ignored.
+    /// Get a WMI object by path, and return a deserialized object.
+    /// This is useful when the type of the object at the path in known at compile time.
     ///
     /// ```edition2018
     /// # fn main() -> Result<(), failure::Error> {
@@ -264,7 +263,7 @@ impl WMIConnection {
     /// struct Win32_OperatingSystem {
     ///     Name: String,
     /// }
-    /// let os = con.get::<Win32_OperatingSystem>()?;
+    /// let os = wmi_con.get_by_path::<Win32_OperatingSystem>(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
     /// #   Ok(())
     /// # }
     ///
@@ -627,6 +626,22 @@ mod tests {
         let proc_by_path_hashmap: HashMap<String, Variant> = wmi_con.get_by_path(&proc.__Path).unwrap();
 
         assert_eq!(proc_by_path_hashmap.get("ProcessId").unwrap(), &Variant::I8(proc.ProcessId));
+
+    }
+
+    #[test]
+    fn con_get_return_a_single_object_by_path_from_actual_path() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug, PartialEq)]
+        struct Win32_OperatingSystem {
+            Caption: String,
+        }
+
+        let os = wmi_con.get_by_path::<Win32_OperatingSystem>(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#).unwrap();
+
+        dbg!(&os);
+        assert!(os.Caption.contains("Microsoft Windows"));
 
     }
 }
