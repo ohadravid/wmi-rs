@@ -163,7 +163,7 @@ impl WMIConnection {
     /// let results: Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem")?;
     /// #   Ok(())
     /// # }
-    ///
+    /// ```
     pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
@@ -172,9 +172,7 @@ impl WMIConnection {
 
         enumerator
             .map(|item| match item {
-                Ok(wbem_class_obj) => {
-                    wbem_class_obj.into_desr()
-                }
+                Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
                 Err(e) => Err(e),
             })
             .collect()
@@ -202,7 +200,7 @@ impl WMIConnection {
     ///
     ///     Ok(())
     /// }
-    ///
+    /// ```
     pub fn query<T>(&self) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
@@ -239,7 +237,7 @@ impl WMIConnection {
     /// let os = con.get::<Win32_OperatingSystem>()?;
     /// #   Ok(())
     /// # }
-    ///
+    /// ```
     pub fn get<T>(&self) -> Result<T, Error>
     where
         T: de::DeserializeOwned,
@@ -252,9 +250,27 @@ impl WMIConnection {
             .ok_or_else(|| format_err!("No results returned"))
     }
 
-    /// Get a WMI object by path, and return a WMI pointers.
-    /// It's better to use the `get_by_path` method, since this is relatively low level.
+    /// Get a WMI object by path, and return a wrapper around a WMI pointer.
+    /// It's better to use the `get_by_path` method, since this function is more low level.
     ///
+    /// ```edition2018
+    /// # fn main() -> Result<(), failure::Error> {
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// let raw_os = con.get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
+    /// assert_eq!(raw_os.class()?, "Win32_OperatingSystem");
+    ///
+    /// #[derive(Deserialize)]
+    /// struct Win32_OperatingSystem {
+    ///     Name: String,
+    /// }
+    ///
+    /// let os: Win32_OperatingSystem = raw_os.into_desr()?;
+    /// println!("{}", os.Name);
+    /// #   Ok(())
+    /// # }
+    /// ```
     pub fn get_raw_by_path(
         &self,
         object_path: impl AsRef<str>,
@@ -293,7 +309,68 @@ impl WMIConnection {
     /// let os = con.get_by_path::<Win32_OperatingSystem>(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
     /// #   Ok(())
     /// # }
+    /// ```
     ///
+    /// It's possible to have a path where the type of the WMI object is not known at compile time.
+    /// Either use `get_raw_by_path` and the `.class()` to find out the real type of the object,
+    /// or if the object is only of a few possible types, deserialize it to an enum:
+    ///
+    /// ```edition2018
+    /// # fn main() -> Result<(), failure::Error> {
+    /// # use std::collections::HashMap;
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    ///
+    /// # #[derive(Deserialize, Debug, PartialEq)]
+    /// # struct Win32_Group {
+    /// #     __Path: String,
+    /// # }
+    /// #
+    /// # let mut filters = HashMap::new();
+    /// # filters.insert("Name".into(), "Administrators".into());
+    /// #
+    /// #
+    /// # let admin_group: Win32_Group = con
+    /// #     .filtered_query(&filters)?
+    /// #     .into_iter()
+    /// #     .next()
+    /// #     .unwrap();
+    ///
+    ///
+    /// #[derive(Deserialize, Debug, PartialEq)]
+    /// struct Win32_Account {
+    ///     __Path: String,
+    /// }
+    ///
+    /// #[derive(Deserialize, Debug, PartialEq)]
+    /// struct Win32_UserAccount {
+    ///     Caption: String,
+    /// }
+    ///
+    /// #[derive(Deserialize, Debug, PartialEq)]
+    /// struct Win32_SystemAccount {
+    ///     Caption: String,
+    /// }
+    ///
+    /// // Groups contain multiple types of objects, all inheriting from `Win32_Account`.
+    /// let accounts_in_group: Vec<Win32_Account> = con.associators(&admin_group.__Path)?;
+    ///
+    /// #[derive(Deserialize, Debug)]
+    /// enum User {
+    ///     #[serde(rename = "Win32_SystemAccount")]
+    ///     System(Win32_SystemAccount),
+    ///     #[serde(rename = "Win32_UserAccount")]
+    ///     User(Win32_UserAccount),
+    /// };
+    ///
+    /// for account in accounts_in_group {
+    ///     let user: User = con.get_by_path(&account.__Path)?;
+    ///     println!("{:?}", user);
+    /// }
+    /// #   Ok(())
+    /// # }
+    /// ```
     pub fn get_by_path<T>(&self, object_path: &str) -> Result<T, Error>
     where
         T: de::DeserializeOwned,
@@ -330,7 +407,7 @@ impl WMIConnection {
     /// let results = con.associators::<Win32_DiskPartition>(&disk.__Path)?;
     /// #   Ok(())
     /// # }
-    ///
+    /// ```
     pub fn associators<T>(&self, object_path: &str) -> Result<Vec<T>, Error>
     where
         T: de::DeserializeOwned,
@@ -709,26 +786,38 @@ mod tests {
         let mut filters = HashMap::new();
         filters.insert("Name".into(), "Administrators".into());
 
-        let group: Win32_Group = wmi_con.filtered_query(&filters).unwrap().into_iter().next().unwrap();
-        dbg!(&group);
+        let group: Win32_Group = wmi_con
+            .filtered_query(&filters)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+
         let accounts_in_group: Vec<Win32_Account> = wmi_con.associators(&group.__Path).unwrap();
-        dbg!(&accounts_in_group);
 
-
-        #[derive(Deserialize, Debug, PartialEq)]
-        enum User { User(Win32_UserAccount), Group(Win32_Group), System(Win32_SystemAccount) }
+        #[derive(Deserialize, Debug)]
+        enum User {
+            #[serde(rename = "Win32_SystemAccount")]
+            System(Win32_SystemAccount),
+            #[serde(rename = "Win32_UserAccount")]
+            User(Win32_UserAccount),
+        };
 
         for account in accounts_in_group {
             let raw_account = wmi_con.get_raw_by_path(&account.__Path).unwrap();
 
+            // Completely dynamic.
             match raw_account.class().unwrap().as_str() {
-                "Win32_UserAccount" | "Win32_SystemAccount" | "Win32_Group"  => {
+                "Win32_UserAccount" | "Win32_SystemAccount" | "Win32_Group" => {
                     // OK.
                 }
                 _ => panic!(),
             };
 
-            let account: User = raw_account.into_desr().unwrap();
+            let account_as_hashmap: HashMap<String, Variant> = raw_account.into_desr().unwrap();
+
+            // Enum based desr.
+            let raw_account: User = wmi_con.get_by_path(&account.__Path).unwrap();
         }
     }
 }

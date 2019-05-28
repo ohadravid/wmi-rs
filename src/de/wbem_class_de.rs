@@ -1,5 +1,8 @@
 use failure::format_err;
-use serde::de::{self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, VariantAccess, Visitor, Unexpected};
+use serde::de::{
+    self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, Unexpected,
+    VariantAccess, Visitor,
+};
 use serde::forward_to_deserialize_any;
 
 use std::{iter::Peekable, ptr};
@@ -31,17 +34,12 @@ where
 }
 
 struct WMIEnum<'a, 'de: 'a> {
-    class_name: String,
     de: &'a mut Deserializer<'de>,
 }
 
-impl<'a, 'de> WMIEnum<'a, 'de>
-{
-    pub fn new(class_name: String, de: &'a mut Deserializer<'de>) -> Self {
-        Self {
-            class_name,
-            de,
-        }
+impl<'a, 'de> WMIEnum<'a, 'de> {
+    pub fn new(de: &'a mut Deserializer<'de>) -> Self {
+        Self { de }
     }
 }
 
@@ -54,7 +52,6 @@ impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a, 'de> {
         V: DeserializeSeed<'de>,
     {
         let val = seed.deserialize(&mut *self.de)?;
-
         Ok((val, self))
     }
 }
@@ -62,15 +59,7 @@ impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a, 'de> {
 impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
     type Error = Error;
 
-    // If the `Visitor` expected this variant to be a unit variant, the input
-    // should have been the plain string case handled in `deserialize_enum`.
-    fn unit_variant(self) -> Result<(), Self::Error> {
-        let unexp = Unexpected::UnitVariant;
-        Err(de::Error::invalid_type(unexp, &"newtype variant"))
-    }
-
-    // Newtype variants are represented in JSON as `{ NAME: VALUE }` so
-    // deserialize the value here.
+    // Newtype variants can be deserialized directly.
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
     where
         T: DeserializeSeed<'de>,
@@ -78,8 +67,12 @@ impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
         seed.deserialize(self.de)
     }
 
-    // Tuple variants are represented in JSON as `{ NAME: [DATA...] }` so
-    // deserialize the sequence of data here.
+    // All other possible enum variants are not supported.
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        let unexp = Unexpected::UnitVariant;
+        Err(de::Error::invalid_type(unexp, &"newtype variant"))
+    }
+
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
@@ -88,8 +81,6 @@ impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
         Err(de::Error::invalid_type(unexp, &"newtype variant"))
     }
 
-    // Struct variants are represented in JSON as `{ NAME: { K: V, ... } }` so
-    // deserialize the inner map here.
     fn struct_variant<V>(
         self,
         _fields: &'static [&'static str],
@@ -184,18 +175,26 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let class_name = self.wbem_class_obj.class()?;
-
-        visitor.visit_enum(WMIEnum::new(class_name, &mut self))
+        visitor.visit_enum(WMIEnum::new(&mut self))
     }
 
+    // When deserializing enums, return the object's class name as the expected enum variant.
+    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let class_name = self.wbem_class_obj.class()?;
+        visitor.visit_string(class_name)
+    }
+
+    // Support for deserializing `Wrapper(Win32_OperatingSystem)`.
     fn deserialize_newtype_struct<V>(
         self,
         _name: &'static str,
         visitor: V,
     ) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         visitor.visit_newtype_struct(self)
     }
@@ -224,7 +223,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     forward_to_deserialize_any! {
         bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
         byte_buf option unit unit_struct seq tuple
-        tuple_struct identifier ignored_any
+        tuple_struct ignored_any
     }
 }
 
@@ -416,6 +415,39 @@ mod tests {
 
         let wrapped_service: Wrapper = wmi_con.get().unwrap();
 
-        dbg!(wrapped_service);
+        assert_ne!(&wrapped_service.0.Name, "")
+    }
+
+    #[test]
+    fn it_can_desr_newtype_enum() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        pub struct Win32_UserAccount {
+            pub __Path: String,
+            pub Name: String,
+        }
+
+        #[derive(Deserialize, Debug)]
+        pub struct Win32_SystemAccount {
+            pub Name: String,
+        }
+
+        #[derive(Deserialize, Debug)]
+        enum User {
+            #[serde(rename = "Win32_SystemAccount")]
+            System(Win32_SystemAccount),
+            #[serde(rename = "Win32_UserAccount")]
+            User(Win32_UserAccount),
+        };
+
+        let user: Win32_UserAccount = wmi_con.get().unwrap();
+
+        let user_enum: User = wmi_con.get_by_path(&user.__Path).unwrap();
+
+        match user_enum {
+            User::System(_) => assert!(false),
+            User::User(_) => assert!(true),
+        };
     }
 }

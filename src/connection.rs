@@ -142,7 +142,7 @@ impl WMIConnection {
         let mut p_svc = ptr::null_mut::<IWbemServices>();
 
         let object_path = "ROOT\\CIMV2";
-        let mut object_path_bstr = WideCString::from_str(object_path)?;
+        let object_path_bstr = WideCString::from_str(object_path)?;
 
         unsafe {
             check_hres((*self.loc()).ConnectServer(

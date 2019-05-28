@@ -147,7 +147,7 @@ impl<'de> Deserialize<'de> for Variant {
                 Ok(Variant::Array(vec))
             }
 
-            fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+            fn visit_map<V>(self, mut _visitor: V) -> Result<Self::Value, V::Error>
             where
                 V: de::MapAccess<'de>,
             {
