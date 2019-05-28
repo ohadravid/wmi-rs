@@ -1,27 +1,53 @@
 use crate::de::wbem_class_de::from_wbem_class_obj;
-use crate::result_enumerator::{QueryResultEnumerator, IWbemClassWrapper};
+use crate::result_enumerator::{IWbemClassWrapper, QueryResultEnumerator};
 use crate::{connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres};
-use failure::{Error, format_err};
+use failure::{format_err, Error};
 use log::trace;
 use serde::de;
 use std::collections::HashMap;
 use std::ptr;
+use std::ptr::Unique;
 use widestring::WideCString;
+use winapi::um::wbemcli::IWbemClassObject;
 use winapi::{
     shared::ntdef::NULL,
     um::{
         wbemcli::IEnumWbemClassObject,
-        wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE},
+        wbemcli::{
+            WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE,
+        },
     },
 };
-use std::ptr::Unique;
-use winapi::um::wbemcli::IWbemClassObject;
 
 pub enum FilterValue {
     Bool(bool),
     Number(i64),
     Str(&'static str),
     String(String),
+}
+
+impl From<String> for FilterValue {
+    fn from(value: String) -> Self {
+        FilterValue::String(value)
+    }
+}
+
+impl From<&'static str> for FilterValue {
+    fn from(value: &'static str) -> Self {
+        FilterValue::Str(value)
+    }
+}
+
+impl From<i64> for FilterValue {
+    fn from(value: i64) -> Self {
+        FilterValue::Number(value)
+    }
+}
+
+impl From<bool> for FilterValue {
+    fn from(value: bool) -> Self {
+        FilterValue::Bool(value)
+    }
 }
 
 /// Build an SQL query for the given filters, over the given type (using it's name and fields).
@@ -147,9 +173,7 @@ impl WMIConnection {
         enumerator
             .map(|item| match item {
                 Ok(wbem_class_obj) => {
-                    let value = from_wbem_class_obj(&wbem_class_obj);
-
-                    value.map_err(Error::from)
+                    wbem_class_obj.into_desr()
                 }
                 Err(e) => Err(e),
             })
@@ -222,7 +246,10 @@ impl WMIConnection {
     {
         let results = self.query()?;
 
-        results.into_iter().next().ok_or_else(|| format_err!("No results returned"))
+        results
+            .into_iter()
+            .next()
+            .ok_or_else(|| format_err!("No results returned"))
     }
 
     /// Get a WMI object by path, and return a WMI pointers.
@@ -263,13 +290,13 @@ impl WMIConnection {
     /// struct Win32_OperatingSystem {
     ///     Name: String,
     /// }
-    /// let os = wmi_con.get_by_path::<Win32_OperatingSystem>(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
+    /// let os = con.get_by_path::<Win32_OperatingSystem>(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
     /// #   Ok(())
     /// # }
     ///
     pub fn get_by_path<T>(&self, object_path: &str) -> Result<T, Error>
-        where
-            T: de::DeserializeOwned,
+    where
+        T: de::DeserializeOwned,
     {
         let wbem_class_obj = self.get_raw_by_path(object_path)?;
 
@@ -305,18 +332,21 @@ impl WMIConnection {
     /// # }
     ///
     pub fn associators<T>(&self, object_path: &str) -> Result<Vec<T>, Error>
-        where
-            T: de::DeserializeOwned,
+    where
+        T: de::DeserializeOwned,
     {
         let (name, _fields) = struct_name_and_fields::<T>()?;
 
         // See more at:
         // https://docs.microsoft.com/en-us/windows/desktop/wmisdk/associators-of-statement
-        let query = format!("ASSOCIATORS OF {{{object_path}}} WHERE ResultClass = {class_name}", object_path = object_path, class_name = name);
+        let query = format!(
+            "ASSOCIATORS OF {{{object_path}}} WHERE ResultClass = {class_name}",
+            object_path = object_path,
+            class_name = name
+        );
 
         self.raw_query(&query)
     }
-
 }
 
 #[allow(non_snake_case)]
@@ -595,7 +625,9 @@ mod tests {
 
         let disk = wmi_con.get::<Win32_DiskDrive>().unwrap();
 
-        let results = wmi_con.associators::<Win32_DiskPartition>(&disk.__Path).unwrap();
+        let results = wmi_con
+            .associators::<Win32_DiskPartition>(&disk.__Path)
+            .unwrap();
 
         assert!(results.len() >= 1);
 
@@ -605,7 +637,7 @@ mod tests {
     }
 
     #[test]
-    fn con_get_return_a_single_object_by_path() {
+    fn con_get_return_an_object_by_path() {
         let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug, PartialEq)]
@@ -623,14 +655,17 @@ mod tests {
 
         assert_eq!(&proc_by_path, proc);
 
-        let proc_by_path_hashmap: HashMap<String, Variant> = wmi_con.get_by_path(&proc.__Path).unwrap();
+        let proc_by_path_hashmap: HashMap<String, Variant> =
+            wmi_con.get_by_path(&proc.__Path).unwrap();
 
-        assert_eq!(proc_by_path_hashmap.get("ProcessId").unwrap(), &Variant::I8(proc.ProcessId));
-
+        assert_eq!(
+            proc_by_path_hashmap.get("ProcessId").unwrap(),
+            &Variant::I8(proc.ProcessId)
+        );
     }
 
     #[test]
-    fn con_get_return_a_single_object_by_path_from_actual_path() {
+    fn con_get_return_an_object_by_path_from_actual_path() {
         let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug, PartialEq)]
@@ -638,10 +673,64 @@ mod tests {
             Caption: String,
         }
 
-        let os = wmi_con.get_by_path::<Win32_OperatingSystem>(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#).unwrap();
+        let os = wmi_con
+            .get_by_path::<Win32_OperatingSystem>(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)
+            .unwrap();
 
         dbg!(&os);
         assert!(os.Caption.contains("Microsoft Windows"));
+    }
 
+    #[test]
+    fn con_get_return_a_raw_object_by_path_from_actual_path() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug, PartialEq)]
+        struct Win32_Account {
+            __Path: String,
+        }
+
+        #[derive(Deserialize, Debug, PartialEq)]
+        struct Win32_Group {
+            __Path: String,
+            Caption: String,
+        }
+
+        #[derive(Deserialize, Debug, PartialEq)]
+        struct Win32_UserAccount {
+            Caption: String,
+        }
+
+        #[derive(Deserialize, Debug, PartialEq)]
+        struct Win32_SystemAccount {
+            Caption: String,
+        }
+
+        let mut filters = HashMap::new();
+        filters.insert("Name".into(), "Administrators".into());
+
+        let group: Win32_Group = wmi_con.filtered_query(&filters).unwrap().into_iter().next().unwrap();
+        dbg!(&group);
+        let accounts_in_group: Vec<Win32_Account> = wmi_con.associators(&group.__Path).unwrap();
+        dbg!(&accounts_in_group);
+
+        enum User { User(Win32_UserAccount), Group(Win32_Group), System(Win32_SystemAccount) }
+
+        for account in accounts_in_group {
+            let raw_account = wmi_con.get_raw_by_path(&account.__Path).unwrap();
+
+            match raw_account.class().unwrap().as_str() {
+                "Win32_UserAccount" => {
+                    panic!();
+                }
+                "Win32_SystemAccount" => {
+                    panic!();
+                }
+                "Win32_Group" => {
+                    panic!();
+                }
+                _ => panic!(),
+            };
+        }
     }
 }

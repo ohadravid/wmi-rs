@@ -34,13 +34,16 @@ impl<'de> serde::Deserializer<'de> for Variant {
             Variant::Null => visitor.visit_none(),
             Variant::Empty => visitor.visit_none(),
             Variant::String(s) => visitor.visit_string(s),
+            Variant::I1(n) => visitor.visit_i8(n),
             Variant::I2(n) => visitor.visit_i16(n),
             Variant::I4(n) => visitor.visit_i32(n),
             Variant::I8(n) => visitor.visit_i64(n),
             Variant::Bool(b) => visitor.visit_bool(b),
             Variant::UI1(n) => visitor.visit_u8(n),
+            Variant::UI2(n) => visitor.visit_u16(n),
+            Variant::UI4(n) => visitor.visit_u32(n),
             Variant::UI8(n) => visitor.visit_u64(n),
-            Variant::Array(mut v) => visitor.visit_seq(SeqAccess {
+            Variant::Array(v) => visitor.visit_seq(SeqAccess {
                 data: v.into_iter(),
             }),
         }

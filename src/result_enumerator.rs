@@ -1,8 +1,12 @@
+use crate::de::wbem_class_de::from_wbem_class_obj;
+use crate::variant::Variant;
 use crate::{
     connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres,
 };
 use failure::Error;
 use log::trace;
+use serde::de;
+use std::convert::TryInto;
 use std::{mem, ptr, ptr::Unique};
 use widestring::WideCString;
 use winapi::um::oaidl::VARIANT;
@@ -18,7 +22,6 @@ use winapi::{
         },
     },
 };
-use crate::variant::Variant;
 
 /// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
 /// the object when dropped.
@@ -79,6 +82,21 @@ impl IWbemClassWrapper {
         unsafe { VariantClear(&mut vt_prop) };
 
         Ok(property_value)
+    }
+
+    pub fn path(&self) -> Result<String, Error> {
+        self.get_property("__Path").and_then(Variant::try_into)
+    }
+
+    pub fn class(&self) -> Result<String, Error> {
+        self.get_property("__Class").and_then(Variant::try_into)
+    }
+
+    pub fn into_desr<T>(self) -> Result<T, Error>
+    where
+        T: de::DeserializeOwned,
+    {
+        from_wbem_class_obj(&self).map_err(Error::from)
     }
 }
 
