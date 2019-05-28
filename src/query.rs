@@ -1,5 +1,5 @@
 use crate::de::wbem_class_de::from_wbem_class_obj;
-use crate::result_enumerator::QueryResultEnumerator;
+use crate::result_enumerator::{QueryResultEnumerator, IWbemClassWrapper};
 use crate::{connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres};
 use failure::{Error, format_err};
 use log::trace;
@@ -11,9 +11,11 @@ use winapi::{
     shared::ntdef::NULL,
     um::{
         wbemcli::IEnumWbemClassObject,
-        wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY},
+        wbemcli::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE},
     },
 };
+use std::ptr::Unique;
+use winapi::um::wbemcli::IWbemClassObject;
 
 pub enum FilterValue {
     Bool(bool),
@@ -223,6 +225,32 @@ impl WMIConnection {
         results.into_iter().next().ok_or_else(|| format_err!("No results returned"))
     }
 
+    /// Get a WMI object by path, and return a WMI pointers.
+    /// It's better to use the `get_by_path` method, since this is relatively low level.
+    ///
+    pub fn get_raw_by_path(
+        &self,
+        object_path: impl AsRef<str>,
+    ) -> Result<IWbemClassWrapper, Error> {
+        let object_path = WideCString::from_str(object_path.as_ref())?;
+
+        let mut pcls_obj = NULL as *mut IWbemClassObject;
+
+        unsafe {
+            check_hres((*self.svc()).GetObject(
+                object_path.as_ptr() as *mut _,
+                WBEM_FLAG_RETURN_WBEM_COMPLETE as i32,
+                ptr::null_mut(),
+                &mut pcls_obj,
+                ptr::null_mut(),
+            ))?;
+        }
+
+        let pcls_wrapper = IWbemClassWrapper::new(Unique::new(pcls_obj));
+
+        Ok(pcls_wrapper)
+    }
+
     /// Get a single object of type T.
     /// If non are found, an error is returned.
     /// If more than one object is found, all but the first are ignored.
@@ -244,9 +272,11 @@ impl WMIConnection {
         where
             T: de::DeserializeOwned,
     {
-        let results = self.query()?;
+        let wbem_class_obj = self.get_raw_by_path(object_path)?;
 
-        results.into_iter().next().ok_or_else(|| format_err!("No results returned"))
+        let value = from_wbem_class_obj(&wbem_class_obj);
+
+        value.map_err(Error::from)
     }
 
     /// Query all the associators of type T of the given object.
@@ -583,7 +613,7 @@ mod tests {
         struct Win32_Process {
             __Path: String,
             Name: String,
-            ProcessID: u32,
+            ProcessId: i64,
         }
 
         let procs = wmi_con.query::<Win32_Process>().unwrap();
@@ -596,8 +626,7 @@ mod tests {
 
         let proc_by_path_hashmap: HashMap<String, Variant> = wmi_con.get_by_path(&proc.__Path).unwrap();
 
-        assert_eq!(proc_by_path_hashmap.get("ProcessID").unwrap(), &Variant::UI8(proc.ProcessID.into()));
+        assert_eq!(proc_by_path_hashmap.get("ProcessId").unwrap(), &Variant::I8(proc.ProcessId));
 
     }
-
 }
