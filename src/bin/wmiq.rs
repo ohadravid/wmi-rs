@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::env::args;
 use wmi::{COMLibrary, Variant, WMIConnection};
 
-
 fn main() {
     let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
     let args: Vec<String> = args().collect();
@@ -18,7 +17,7 @@ fn main() {
         Err(e) => {
             println!("Couldn't run query {} because of {:?}", query, e);
             return;
-        },
+        }
         Ok(results) => results,
     };
 
