@@ -19,7 +19,7 @@ use winapi::{
             CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket,
             CoUninitialize,
         },
-        objbase::COINIT_MULTITHREADED,
+        objbase::{COINIT_MULTITHREADED, COINIT_APARTMENTTHREADED},
         objidl::EOAC_NONE,
         wbemcli::{CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator, IWbemServices},
     },
