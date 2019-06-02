@@ -353,8 +353,11 @@ impl WMIConnection {
     ///     Caption: String,
     /// }
     ///
+    /// #[derive(Deserialize, Debug, PartialEq)]
+    /// struct Win32_GroupUser{ }
+    ///
     /// // Groups contain multiple types of objects, all inheriting from `Win32_Account`.
-    /// let accounts_in_group: Vec<Win32_Account> = con.associators(&admin_group.__Path)?;
+    /// let accounts_in_group: Vec<Win32_Account> = con.associators::<_, Win32_GroupUser>(&admin_group.__Path)?;
     ///
     /// #[derive(Deserialize, Debug)]
     /// enum User {

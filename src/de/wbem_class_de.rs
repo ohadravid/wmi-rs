@@ -238,6 +238,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::tests::fixtures::*;
+    use std::process;
 
     #[test]
     fn it_works() {
@@ -266,11 +267,8 @@ mod tests {
 
             let w: Win32_OperatingSystem = from_wbem_class_obj(&w).unwrap();
 
-            assert_eq!(w.Caption, "Microsoft Windows 10 Pro");
-            assert_eq!(
-                w.Name,
-                "Microsoft Windows 10 Pro|C:\\WINDOWS|\\Device\\Harddisk0\\Partition3"
-            );
+            assert!(w.Caption.contains("Microsoft "));
+            assert!(w.Name.contains("Microsoft ") && w.Name.contains("Partition"));
             assert_eq!(w.CurrentTimeZone, 120);
             assert_eq!(w.Debug, false);
             assert_eq!(w.EncryptionLevel, 256);
@@ -299,12 +297,17 @@ mod tests {
                 *w.get("Caption").unwrap(),
                 Variant::String("Microsoft Windows 10 Pro".into())
             );
+
             assert_eq!(*w.get("Debug").unwrap(), Variant::Bool(false));
 
-            assert_eq!(
-                *w.get("MUILanguages").unwrap(),
-                Variant::Array(vec![Variant::String("en-US".into())])
-            );
+            let langs = w.get("MUILanguages").unwrap();
+
+            match langs {
+                Variant::Array(langs) => {
+                    assert!(langs.contains(&Variant::String("en-US".into())));
+                }
+                _ => assert!(false),
+            }
         }
     }
 
@@ -352,26 +355,25 @@ mod tests {
         let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
-        pub struct Win32_Service {
+        pub struct Win32_Process {
             pub Name: String,
-            pub PathName: Option<String>,
+            pub CommandLine: Option<String>,
+            pub ProcessID: u32,
         }
 
-        let results: Vec<Win32_Service> = wmi_con.query().unwrap();
+        let mut filters = HashMap::new();
+        filters.insert("ProcessID".into(), 0.into());
 
-        let lsm_service = results
-            .iter()
-            .find(|&service| service.Name == "LSM")
-            .unwrap();
+        let system_proc: Win32_Process = wmi_con.filtered_query(&filters).unwrap().pop().unwrap();
 
-        assert_eq!(lsm_service.PathName, None);
+        assert_eq!(system_proc.CommandLine, None);
 
-        let lmhosts_service = results
-            .iter()
-            .find(|&service| service.Name == "lmhosts")
-            .unwrap();
+        let mut filters = HashMap::new();
+        filters.insert("ProcessID".into(), i64::from(process::id()).into());
 
-        assert!(lmhosts_service.PathName.is_some());
+        let current_proc: Win32_Process = wmi_con.filtered_query(&filters).unwrap().pop().unwrap();
+
+        assert!(current_proc.CommandLine.is_some());
     }
 
     #[test]
@@ -382,12 +384,16 @@ mod tests {
         let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
-        pub struct Win32_Service {
+        pub struct Win32_Process {
             pub Name: String,
-            pub PathName: String,
+            pub CommandLine: String,
+            pub ProcessID: u32,
         }
 
-        let res: Result<Vec<Win32_Service>, _> = wmi_con.query();
+        let mut filters = HashMap::new();
+        filters.insert("ProcessID".into(), 0.into());
+
+        let res: Result<Vec<Win32_Process>, _> = wmi_con.filtered_query(&filters);
 
         let err = res.err().unwrap();
 
