@@ -403,23 +403,32 @@ impl WMIConnection {
     ///     Caption: String,
     /// }
     ///
+    /// #[derive(Deserialize, Debug)]
+    /// struct Win32_DiskDriveToDiskPartition {}
+    ///
     /// let disk = con.get::<Win32_DiskDrive>()?;
-    /// let results = con.associators::<Win32_DiskPartition>(&disk.__Path)?;
+    /// let results = con.associators::<Win32_DiskPartition, Win32_DiskDriveToDiskPartition>(&disk.__Path)?;
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn associators<T>(&self, object_path: &str) -> Result<Vec<T>, Error>
+    pub fn associators<ResultClass, AssocClass>(
+        &self,
+        object_path: &str,
+    ) -> Result<Vec<ResultClass>, Error>
     where
-        T: de::DeserializeOwned,
+        ResultClass: de::DeserializeOwned,
+        AssocClass: de::DeserializeOwned,
     {
-        let (name, _fields) = struct_name_and_fields::<T>()?;
+        let (class_name, _fields) = struct_name_and_fields::<ResultClass>()?;
+        let (association_class, _) = struct_name_and_fields::<AssocClass>()?;
 
         // See more at:
         // https://docs.microsoft.com/en-us/windows/desktop/wmisdk/associators-of-statement
         let query = format!(
-            "ASSOCIATORS OF {{{object_path}}} WHERE ResultClass = {class_name}",
+            "ASSOCIATORS OF {{{object_path}}} WHERE AssocClass = {association_class} ResultClass = {class_name}",
             object_path = object_path,
-            class_name = name
+            association_class = association_class,
+            class_name = class_name
         );
 
         self.raw_query(&query)
@@ -700,10 +709,13 @@ mod tests {
             Caption: String,
         }
 
+        #[derive(Deserialize, Debug)]
+        struct Win32_DiskDriveToDiskPartition {}
+
         let disk = wmi_con.get::<Win32_DiskDrive>().unwrap();
 
         let results = wmi_con
-            .associators::<Win32_DiskPartition>(&disk.__Path)
+            .associators::<Win32_DiskPartition, Win32_DiskDriveToDiskPartition>(&disk.__Path)
             .unwrap();
 
         assert!(results.len() >= 1);
@@ -783,6 +795,9 @@ mod tests {
             Caption: String,
         }
 
+        #[derive(Deserialize, Debug, PartialEq)]
+        struct Win32_GroupUser {}
+
         let mut filters = HashMap::new();
         filters.insert("Name".into(), "Administrators".into());
 
@@ -793,7 +808,9 @@ mod tests {
             .next()
             .unwrap();
 
-        let accounts_in_group: Vec<Win32_Account> = wmi_con.associators(&group.__Path).unwrap();
+        let accounts_in_group: Vec<Win32_Account> = wmi_con
+            .associators::<_, Win32_GroupUser>(&group.__Path)
+            .unwrap();
 
         #[derive(Deserialize, Debug)]
         enum User {
