@@ -387,6 +387,8 @@ impl WMIConnection {
 
     /// Query all the associators of type T of the given object.
     /// The `object_path` argument can be provided by querying an object wih it's `__Path` property.
+    /// `AssocClass` must be have the name as the conneting association class between the original object and the results.
+    /// See https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-diskdrivetodiskpartition for example.
     ///
     /// ```edition2018
     /// # fn main() -> Result<(), failure::Error> {
@@ -406,6 +408,7 @@ impl WMIConnection {
     ///     Caption: String,
     /// }
     ///
+    /// // There's no need to specify any fields here, since only the name of the struct is used by `associators`.
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_DiskDriveToDiskPartition {}
     ///
