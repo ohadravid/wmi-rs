@@ -1,4 +1,7 @@
 # wmi
+[![Build Status](https://dev.azure.com/ohadrv/wmi-rs/_apis/build/status/ohadravid.wmi-rs?branchName=master)](https://dev.azure.com/ohadrv/wmi-rs/_build/latest?definitionId=1&branchName=master)
+![crates.io](https://img.shields.io/crates/v/wmi.svg)
+
 [Documentation](https://ohadravid.github.io/wmi-rs/docs/wmi/)
 
 WMI crate for rust.
@@ -7,7 +10,7 @@ Currently in beta.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.2"
+wmi = "0.4"
 ```
 
 
