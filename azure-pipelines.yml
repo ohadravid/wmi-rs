@@ -36,9 +36,8 @@ steps:
     displayName: Cargo test
 
   - script: |
-      cargo login $env:CRATES_IO_TOKEN
       cargo publish
     displayName: Cargo publish
     condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
     env:
-      CRATES_IO_TOKEN: $(crates_io_token)
+      CARGO_REGISTRY_TOKEN: $(crates_io_token)
