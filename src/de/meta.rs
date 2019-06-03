@@ -29,8 +29,8 @@ where
             name: &'static str,
             visitor: V,
         ) -> Result<V::Value, Self::Error>
-            where
-                V: Visitor<'de>,
+        where
+            V: Visitor<'de>,
         {
             visitor.visit_newtype_struct(self)
         }
