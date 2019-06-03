@@ -529,7 +529,7 @@ mod tests {
         let results = wmi_con.query::<Win32_OperatingSystem>().unwrap();
 
         for os in results {
-            assert_eq!(os.Caption, "Microsoft Windows 10 Pro");
+            assert!(os.Caption.starts_with("Microsoft Windows"));
         }
     }
 

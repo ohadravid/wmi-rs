@@ -269,7 +269,6 @@ mod tests {
 
             assert!(w.Caption.contains("Microsoft "));
             assert!(w.Name.contains("Microsoft ") && w.Name.contains("Partition"));
-            assert_eq!(w.CurrentTimeZone, 120);
             assert_eq!(w.Debug, false);
             assert_eq!(w.EncryptionLevel, 256);
             assert_eq!(w.ForegroundApplicationBoost, 2);
@@ -293,10 +292,10 @@ mod tests {
 
             let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
 
-            assert_eq!(
-                *w.get("Caption").unwrap(),
-                Variant::String("Microsoft Windows 10 Pro".into())
-            );
+            match w.get("Caption").unwrap() {
+                Variant::String(s) => assert!(s.starts_with("Microsoft Windows")),
+                _ => assert!(false),
+            }
 
             assert_eq!(*w.get("Debug").unwrap(), Variant::Bool(false));
 
@@ -324,10 +323,11 @@ mod tests {
 
             let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
 
-            assert_eq!(
-                *w.get("Caption").unwrap(),
-                Variant::String("Microsoft Windows 10 Pro".into())
-            );
+            match w.get("Caption").unwrap() {
+                Variant::String(s) => assert!(s.starts_with("Microsoft Windows")),
+                _ => assert!(false),
+            }
+
             assert_eq!(w.get("Debug"), None);
         }
     }
@@ -345,8 +345,8 @@ mod tests {
         let results: Vec<Win32_ComputerSystem> = wmi_con.query().unwrap();
 
         for res in results {
-            assert_eq!(res.BootStatus, [0, 0, 0, 33, 31, 158, 0, 3, 2, 2]);
-            assert_eq!(res.Roles, ["LM_Workstation", "LM_Server", "NT"]);
+            assert_eq!(res.BootStatus.len(), 10);
+            assert!(res.Roles.contains(&"NT".to_owned()));
         }
     }
 
