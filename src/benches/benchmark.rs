@@ -49,6 +49,14 @@ pub struct Process {
     pub Caption: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename = "CIM_ProcessExecutable")]
+pub struct ProcessExecutable {
+    pub BaseAddress: String,
+    pub Antecedent: String,
+    pub Dependent: String,
+}
+
 fn get_accounts(con: &WMIConnection) {
     let accounts: Vec<Account> = con.query().unwrap();
 }
@@ -80,6 +88,10 @@ pub fn get_users_with_groups(con: &WMIConnection) {
     let accounts: Vec<Account> = con
         .associators::<Account, GroupUser>(&group.__Path)
         .unwrap();
+}
+
+pub fn get_modules(con: &WMIConnection) {
+    let execs: Vec<ProcessExecutable> = con.query().unwrap();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -118,6 +130,12 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("get_users_with_groups", |b| {
         let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
         b.iter(|| get_users_with_groups(&wmi_con))
+    });
+
+    // baseline: 625ms.
+    c.bench_function("get_modules", |b| {
+        let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+        b.iter(|| get_modules(&wmi_con))
     });
 }
 
