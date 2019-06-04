@@ -233,6 +233,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 mod tests {
     use super::*;
     use crate::datetime::WMIDateTime;
+    use crate::duration::WMIDuration;
     use crate::variant::Variant;
     use serde::Deserialize;
     use std::collections::HashMap;
@@ -401,6 +402,18 @@ mod tests {
             format!("{}", err),
             "invalid type: Option value, expected a string"
         )
+    }
+
+    #[test]
+    fn it_desr_duration() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        pub struct Win32_NetworkLoginProfile {
+            pub PasswordAge: Option<WMIDuration>,
+        }
+
+        let profiles: Vec<Win32_NetworkLoginProfile> = wmi_con.query().unwrap();
     }
 
     #[test]

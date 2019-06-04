@@ -99,6 +99,7 @@
 pub mod connection;
 pub mod datetime;
 pub mod de;
+pub mod duration;
 pub mod error;
 pub mod query;
 pub mod result_enumerator;
@@ -111,4 +112,5 @@ pub mod tests;
 
 pub use connection::{COMLibrary, WMIConnection};
 pub use datetime::WMIDateTime;
+pub use duration::WMIDuration;
 pub use variant::Variant;
