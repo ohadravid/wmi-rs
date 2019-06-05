@@ -484,7 +484,6 @@ mod tests {
             .unwrap();
 
         for res in enumerator {
-            dbg!(&res);
             assert!(res.is_err())
         }
     }
@@ -772,7 +771,6 @@ mod tests {
             .get_by_path::<Win32_OperatingSystem>(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)
             .unwrap();
 
-        dbg!(&os);
         assert!(os.Caption.contains("Microsoft Windows"));
     }
 

@@ -2,7 +2,7 @@
 [![Build Status](https://dev.azure.com/ohadrv/wmi-rs/_apis/build/status/ohadravid.wmi-rs?branchName=master)](https://dev.azure.com/ohadrv/wmi-rs/_build/latest?definitionId=1&branchName=master)
 ![crates.io](https://img.shields.io/crates/v/wmi.svg)
 
-[Documentation](https://ohadravid.github.io/wmi-rs/docs/wmi/)
+[Documentation](https://docs.rs/crate/wmi)
 
 WMI crate for rust.
 Currently in beta.
@@ -19,35 +19,38 @@ wmi = "0.4"
 Queries can be deserialized info a free-form `HashMap` or a `struct`:
 
 ```rust
-use std::collections::HashMap;
 use serde::Deserialize;
+use wmi::{COMLibrary, Variant, WMIConnection, WMIDateTime};
+use std::collections::HashMap;
 
-use wmi::{from_wbem_class_obj, COMLibrary, Variant, WMIConnection, WMIDateTime};
-
-let com_con = COMLibrary::new().unwrap();
-let wmi_con = WMIConnection::new(com_con.into()).unwrap();
-
-let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem").unwrap();
-
-for os in results {
-    println!("{:#?}", os);
-}
-
-#[derive(Deserialize, Debug)]
-struct Win32_OperatingSystem {
-    Caption: String,
-    Name: String,
-    CurrentTimeZone: i16,
-    Debug: bool,
-    EncryptionLevel: u32,
-    ForegroundApplicationBoost: u8,
-    LastBootUpTime: WMIDateTime,
-}
-
-let results: Vec<Win32_OperatingSystem> = wmi_con.query().unwrap();
-
-for os in results {
-    println!("{:#?}", os);
+fn main() -> Result<(), Box<dyn std::error::Error>>  {
+    let com_con = COMLibrary::new()?;
+    let wmi_con = WMIConnection::new(com_con.into())?;
+    
+    let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem")?;
+    
+    for os in results {
+        println!("{:#?}", os);
+    }
+    
+    #[derive(Deserialize, Debug)]
+    struct Win32_OperatingSystem {
+        Caption: String,
+        Name: String,
+        CurrentTimeZone: i16,
+        Debug: bool,
+        EncryptionLevel: u32,
+        ForegroundApplicationBoost: u8,
+        LastBootUpTime: WMIDateTime,
+    }
+    
+    let results: Vec<Win32_OperatingSystem> = wmi_con.query()?;
+    
+    for os in results {
+        println!("{:#?}", os);
+    }
+    
+    Ok(())
 }
 ```
 

@@ -9,7 +9,6 @@ pub enum WMIError {
 
 pub fn check_hres(hres: HRESULT) -> Result<(), WMIError> {
     if hres < 0 {
-        dbg!(hres);
         return Err(WMIError::HResultError { hres });
     }
 

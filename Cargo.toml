@@ -1,11 +1,11 @@
 [package]
 name = "wmi"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-documentation = "https://ohadravid.github.io/wmi-rs/docs/wmi/"
+documentation = "https://docs.rs/crate/wmi"
 homepage = "https://github.com/ohadravid/wmi-rs"
 repository = "https://github.com/ohadravid/wmi-rs"
 description = """
@@ -13,6 +13,9 @@ WMI crate for rust.
 """
 categories = ["api-bindings", "os::windows-apis"]
 keywords = ["wmi", "com", "win32"]
+
+[package.metadata.docs.rs]
+default-target = "x86_64-pc-windows-msvc"
 
 [features]
 test = ["lazy_static"]
@@ -26,10 +29,14 @@ serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 lazy_static = { version = "1.2.0", optional = true }
 
+[build-dependencies]
+little-skeptic = "0.15"
+
 [dev-dependencies]
 lazy_static = "1.2.0"
 serde_json = { version = "1.0" }
 criterion = "0.2"
+little-skeptic = "0.15"
 
 [[bin]]
 name = "wmiq"

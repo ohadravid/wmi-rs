@@ -45,6 +45,7 @@
 //! Using `serde`, it is possible to return a struct representing the the data.
 //!
 //! ```edition2018
+//! # fn main() -> Result<(), failure::Error> {
 //! # use wmi::*;
 //! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
 //! use serde::Deserialize;
@@ -59,15 +60,17 @@
 //!     last_boot_up_time: WMIDateTime,
 //! }
 //!
-//! let results: Vec<OperatingSystem> = wmi_con.query().unwrap();
+//! let results: Vec<OperatingSystem> = wmi_con.query()?;
 //!
 //! for os in results {
 //!     println!("{:#?}", os);
 //! }
+//! #   Ok(())
+//! # }
 //! ```
 //!
 //! Because the name of the struct given to `serde` matches the [WMI class] name, the SQL query
-//! is inferred.
+//! can be inferred.
 //!
 //! [WMI]: https://docs.microsoft.com/en-us/windows/desktop/wmisdk/about-wmi
 //! [Creating a WMI Application Using C++]: https://docs.microsoft.com/en-us/windows/desktop/wmisdk/creating-a-wmi-application-using-c-
@@ -94,6 +97,7 @@
 //! Most native objects has an equivalent wrapper struct which implements `Drop` for that data.
 //!
 //!
+#![cfg(windows)]
 #![feature(ptr_internals, custom_attribute)]
 
 pub mod connection;
