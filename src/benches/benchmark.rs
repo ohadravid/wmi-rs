@@ -57,6 +57,16 @@ pub struct ProcessExecutable {
     pub Dependent: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename = "Win32_Service")]
+pub struct Service {
+    pub Name: String,
+    pub DisplayName: String,
+    pub PathName: Option<String>,
+    pub State: String,
+    pub Started: bool,
+}
+
 fn get_accounts(con: &WMIConnection) {
     let accounts: Vec<Account> = con.query().unwrap();
 }
@@ -92,6 +102,10 @@ pub fn get_users_with_groups(con: &WMIConnection) {
 
 pub fn get_modules(con: &WMIConnection) {
     let execs: Vec<ProcessExecutable> = con.query().unwrap();
+}
+
+fn get_services(con: &WMIConnection) {
+    let services: Vec<Service> = con.query().unwrap();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -136,6 +150,12 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("get_modules", |b| {
         let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
         b.iter(|| get_modules(&wmi_con))
+    });
+
+    // baseline: 300ms.
+    c.bench_function("get_services", |b| {
+        let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+        b.iter(|| get_services(&wmi_con))
     });
 }
 

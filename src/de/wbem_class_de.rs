@@ -142,7 +142,7 @@ where
         let current_field = self
             .fields
             .next()
-            .ok_or(format_err!("Expected current field to not be None"))?;
+            .ok_or_else(|| format_err!("Expected current field to not be None"))?;
 
         let property_value = self
             .de
