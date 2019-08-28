@@ -35,7 +35,7 @@ little-skeptic = "0.15"
 [dev-dependencies]
 lazy_static = "1.2.0"
 serde_json = { version = "1.0" }
-criterion = "0.2"
+criterion = "0.3"
 little-skeptic = "0.15"
 
 [[bin]]
