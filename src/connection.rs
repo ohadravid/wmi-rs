@@ -98,7 +98,12 @@ impl WMIConnection {
     /// Creates a connection with the given namespace path.
     ///
     /// ```edition2018
-    /// let wmi_con = WMIConnection::with_namespace_path("ROOT\\Microsoft\\Windows\\Storage", com_con.into())?;
+    /// # fn main() -> Result<(), failure::Error> {
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// let wmi_con = WMIConnection::with_namespace_path("ROOT\\Microsoft\\Windows\\Storage", COMLibrary::new()?.into())?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn with_namespace_path(namespace_path: &str, com_lib: Rc<COMLibrary>) -> Result<Self, Error> {
         let mut instance = Self {
