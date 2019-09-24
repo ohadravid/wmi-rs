@@ -90,7 +90,22 @@ pub struct WMIConnection {
 /// Currently does not support remote providers (e.g connecting to other computers).
 ///
 impl WMIConnection {
+    /// Creates a connection with a default `CIMV2` namespace path.
     pub fn new(com_lib: Rc<COMLibrary>) -> Result<Self, Error> {
+        Self::with_namespace_path("ROOT\\CIMV2", com_lib)
+    }
+
+    /// Creates a connection with the given namespace path.
+    ///
+    /// ```edition2018
+    /// # fn main() -> Result<(), failure::Error> {
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// let wmi_con = WMIConnection::with_namespace_path("ROOT\\Microsoft\\Windows\\Storage", COMLibrary::new()?.into())?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_namespace_path(namespace_path: &str, com_lib: Rc<COMLibrary>) -> Result<Self, Error> {
         let mut instance = Self {
             com_con: com_lib,
             p_loc: None,
@@ -99,7 +114,7 @@ impl WMIConnection {
 
         instance.create_locator()?;
 
-        instance.create_services()?;
+        instance.create_services(namespace_path)?;
 
         instance.set_proxy()?;
 
@@ -136,13 +151,12 @@ impl WMIConnection {
         Ok(())
     }
 
-    fn create_services(&mut self) -> Result<(), Error> {
+    fn create_services(&mut self, path: &str) -> Result<(), Error> {
         debug!("Calling ConnectServer");
 
         let mut p_svc = ptr::null_mut::<IWbemServices>();
 
-        let object_path = "ROOT\\CIMV2";
-        let object_path_bstr = WideCString::from_str(object_path)?;
+        let object_path_bstr = WideCString::from_str(path)?;
 
         unsafe {
             check_hres((*self.loc()).ConnectServer(
