@@ -2,7 +2,7 @@ use crate::utils::check_hres;
 use failure::Error;
 use log::debug;
 use std::ptr;
-use std::ptr::Unique;
+use std::ptr::NonNull;
 use std::rc::Rc;
 use widestring::WideCString;
 use winapi::{
@@ -19,7 +19,7 @@ use winapi::{
             CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket,
             CoUninitialize,
         },
-        objbase::{COINIT_MULTITHREADED, COINIT_APARTMENTTHREADED},
+        objbase::{COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED},
         objidl::EOAC_NONE,
         wbemcli::{CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator, IWbemServices},
     },
@@ -81,8 +81,8 @@ impl Drop for COMLibrary {
 
 pub struct WMIConnection {
     com_con: Rc<COMLibrary>,
-    p_loc: Option<Unique<IWbemLocator>>,
-    p_svc: Option<Unique<IWbemServices>>,
+    p_loc: Option<NonNull<IWbemLocator>>,
+    p_svc: Option<NonNull<IWbemServices>>,
 }
 
 /// A connection to the local WMI provider, which provides querying capabilities.
@@ -105,7 +105,10 @@ impl WMIConnection {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn with_namespace_path(namespace_path: &str, com_lib: Rc<COMLibrary>) -> Result<Self, Error> {
+    pub fn with_namespace_path(
+        namespace_path: &str,
+        com_lib: Rc<COMLibrary>,
+    ) -> Result<Self, Error> {
         let mut instance = Self {
             com_con: com_lib,
             p_loc: None,
@@ -144,7 +147,7 @@ impl WMIConnection {
             ))?;
         }
 
-        self.p_loc = Unique::new(p_loc as *mut IWbemLocator);
+        self.p_loc = NonNull::new(p_loc as *mut IWbemLocator);
 
         debug!("Got locator {:?}", self.p_loc);
 
@@ -171,7 +174,7 @@ impl WMIConnection {
             ))?;
         }
 
-        self.p_svc = Unique::new(p_svc as *mut IWbemServices);
+        self.p_svc = NonNull::new(p_svc as *mut IWbemServices);
 
         debug!("Got service {:?}", self.p_svc);
 
