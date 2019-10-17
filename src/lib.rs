@@ -98,7 +98,6 @@
 //!
 //!
 #![cfg(windows)]
-#![feature(ptr_internals, custom_attribute)]
 
 pub mod connection;
 pub mod datetime;

@@ -6,7 +6,7 @@ use log::trace;
 use serde::de;
 use std::collections::HashMap;
 use std::ptr;
-use std::ptr::Unique;
+use std::ptr::NonNull;
 use widestring::WideCString;
 use winapi::um::wbemcli::IWbemClassObject;
 use winapi::{
@@ -289,7 +289,7 @@ impl WMIConnection {
             ))?;
         }
 
-        let pcls_wrapper = IWbemClassWrapper::new(Unique::new(pcls_obj));
+        let pcls_wrapper = IWbemClassWrapper::new(NonNull::new(pcls_obj));
 
         Ok(pcls_wrapper)
     }

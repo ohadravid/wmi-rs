@@ -7,7 +7,7 @@ use failure::Error;
 use log::trace;
 use serde::de;
 use std::convert::TryInto;
-use std::{mem, ptr, ptr::Unique};
+use std::{mem, ptr, ptr::NonNull};
 use widestring::WideCString;
 use winapi::um::oaidl::VARIANT;
 use winapi::um::oleauto::VariantClear;
@@ -28,11 +28,11 @@ use winapi::{
 ///
 #[derive(Debug)]
 pub struct IWbemClassWrapper {
-    pub inner: Option<Unique<IWbemClassObject>>,
+    pub inner: Option<NonNull<IWbemClassObject>>,
 }
 
 impl IWbemClassWrapper {
-    pub fn new(ptr: Option<Unique<IWbemClassObject>>) -> Self {
+    pub fn new(ptr: Option<NonNull<IWbemClassObject>>) -> Self {
         Self { inner: ptr }
     }
 
@@ -114,14 +114,14 @@ impl Drop for IWbemClassWrapper {
 
 pub struct QueryResultEnumerator<'a> {
     wmi_con: &'a WMIConnection,
-    p_enumerator: Option<Unique<IEnumWbemClassObject>>,
+    p_enumerator: Option<NonNull<IEnumWbemClassObject>>,
 }
 
 impl<'a> QueryResultEnumerator<'a> {
     pub fn new(wmi_con: &'a WMIConnection, p_enumerator: *mut IEnumWbemClassObject) -> Self {
         Self {
             wmi_con,
-            p_enumerator: Unique::new(p_enumerator),
+            p_enumerator: NonNull::new(p_enumerator),
         }
     }
 }
@@ -172,7 +172,7 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             pcls_obj
         );
 
-        let pcls_wrapper = IWbemClassWrapper::new(Unique::new(pcls_obj));
+        let pcls_wrapper = IWbemClassWrapper::new(NonNull::new(pcls_obj));
 
         Some(Ok(pcls_wrapper))
     }
