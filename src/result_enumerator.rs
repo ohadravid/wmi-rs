@@ -113,14 +113,14 @@ impl Drop for IWbemClassWrapper {
 }
 
 pub struct QueryResultEnumerator<'a> {
-    wmi_con: &'a WMIConnection,
+    _wmi_con: &'a WMIConnection,
     p_enumerator: Option<NonNull<IEnumWbemClassObject>>,
 }
 
 impl<'a> QueryResultEnumerator<'a> {
     pub fn new(wmi_con: &'a WMIConnection, p_enumerator: *mut IEnumWbemClassObject) -> Self {
         Self {
-            wmi_con,
+            _wmi_con: wmi_con,
             p_enumerator: NonNull::new(p_enumerator),
         }
     }

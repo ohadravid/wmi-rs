@@ -19,6 +19,9 @@ wmi = "0.4"
 Queries can be deserialized info a free-form `HashMap` or a `struct`:
 
 ```rust
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+    
 use serde::Deserialize;
 use wmi::{COMLibrary, Variant, WMIConnection, WMIDateTime};
 use std::collections::HashMap;

@@ -835,10 +835,10 @@ mod tests {
                 _ => panic!(),
             };
 
-            let account_as_hashmap: HashMap<String, Variant> = raw_account.into_desr().unwrap();
+            let _account_as_hashmap: HashMap<String, Variant> = raw_account.into_desr().unwrap();
 
             // Enum based desr.
-            let raw_account: User = wmi_con.get_by_path(&account.__Path).unwrap();
+            let _raw_account: User = wmi_con.get_by_path(&account.__Path).unwrap();
         }
     }
 }

@@ -97,6 +97,9 @@
 //! Most native objects has an equivalent wrapper struct which implements `Drop` for that data.
 //!
 //!
+//!
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
 #![cfg(windows)]
 
 pub mod connection;

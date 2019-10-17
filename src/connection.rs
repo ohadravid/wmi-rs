@@ -19,7 +19,7 @@ use winapi::{
             CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket,
             CoUninitialize,
         },
-        objbase::{COINIT_APARTMENTTHREADED, COINIT_MULTITHREADED},
+        objbase::COINIT_MULTITHREADED,
         objidl::EOAC_NONE,
         wbemcli::{CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator, IWbemServices},
     },
@@ -80,7 +80,7 @@ impl Drop for COMLibrary {
 }
 
 pub struct WMIConnection {
-    com_con: Rc<COMLibrary>,
+    _com_con: Rc<COMLibrary>,
     p_loc: Option<NonNull<IWbemLocator>>,
     p_svc: Option<NonNull<IWbemServices>>,
 }
@@ -110,7 +110,7 @@ impl WMIConnection {
         com_lib: Rc<COMLibrary>,
     ) -> Result<Self, Error> {
         let mut instance = Self {
-            com_con: com_lib,
+            _com_con: com_lib,
             p_loc: None,
             p_svc: None,
         };

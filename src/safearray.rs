@@ -6,12 +6,7 @@ use std::slice;
 use widestring::WideCStr;
 use winapi::{
     shared::wtypes::*,
-    shared::{
-        minwindef::UINT,
-        ntdef::{LONG, NULL},
-        winerror::HRESULT,
-        wtypes::BSTR,
-    },
+    shared::{ntdef::NULL, wtypes::BSTR},
     um::{
         oaidl::SAFEARRAY,
         oleauto::{

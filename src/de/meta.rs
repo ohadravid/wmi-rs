@@ -26,7 +26,7 @@ where
 
         fn deserialize_newtype_struct<V>(
             self,
-            name: &'static str,
+            _name: &'static str,
             visitor: V,
         ) -> Result<V::Value, Self::Error>
         where

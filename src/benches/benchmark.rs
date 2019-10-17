@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, Criterion};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use wmi::query::FilterValue;
-use wmi::{COMLibrary, Variant, WMIConnection, WMIDateTime};
+
+use wmi::{COMLibrary, Variant, WMIConnection};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename = "Win32_Account")]
@@ -68,24 +68,24 @@ pub struct Service {
 }
 
 fn get_accounts(con: &WMIConnection) {
-    let accounts: Vec<Account> = con.query().unwrap();
+    let _accounts: Vec<Account> = con.query().unwrap();
 }
 
 fn get_user_accounts(con: &WMIConnection) {
-    let users: Vec<UserAccount> = con.query().unwrap();
+    let _users: Vec<UserAccount> = con.query().unwrap();
 }
 
 fn get_user_accounts_hash_map(con: &WMIConnection) {
-    let users: Vec<HashMap<String, Variant>> =
+    let _users: Vec<HashMap<String, Variant>> =
         con.raw_query("SELECT * FROM Win32_UserAccount").unwrap();
 }
 
 fn get_minimal_procs(con: &WMIConnection) {
-    let procs: Vec<Process> = con.query().unwrap();
+    let _procs: Vec<Process> = con.query().unwrap();
 }
 
 fn get_procs_hash_map(con: &WMIConnection) {
-    let procs: Vec<HashMap<String, Variant>> =
+    let _procs: Vec<HashMap<String, Variant>> =
         con.raw_query("SELECT * FROM Win32_Process").unwrap();
 }
 
@@ -95,17 +95,17 @@ pub fn get_users_with_groups(con: &WMIConnection) {
     filters.insert("Name".to_string(), "Administrators".into());
 
     let group: Group = con.filtered_query(&filters).unwrap().pop().unwrap();
-    let accounts: Vec<Account> = con
+    let _accounts: Vec<Account> = con
         .associators::<Account, GroupUser>(&group.__Path)
         .unwrap();
 }
 
 pub fn get_modules(con: &WMIConnection) {
-    let execs: Vec<ProcessExecutable> = con.query().unwrap();
+    let _execs: Vec<ProcessExecutable> = con.query().unwrap();
 }
 
 fn get_services(con: &WMIConnection) {
-    let services: Vec<Service> = con.query().unwrap();
+    let _services: Vec<Service> = con.query().unwrap();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

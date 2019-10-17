@@ -1,5 +1,5 @@
 use crate::variant::Variant;
-use log::debug;
+
 use serde::{de, forward_to_deserialize_any, Deserialize};
 use std::fmt;
 use std::vec::IntoIter;
@@ -98,7 +98,7 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             #[inline]
-            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+            fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E> {
                 unimplemented!();
             }
 

@@ -5,8 +5,8 @@ use serde::de::{
 };
 use serde::forward_to_deserialize_any;
 
-use std::{iter::Peekable, ptr};
-use winapi::um::oleauto::VariantClear;
+use std::{iter::Peekable};
+
 
 use crate::error::Error;
 use crate::result_enumerator::IWbemClassWrapper;
@@ -73,7 +73,7 @@ impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
         Err(de::Error::invalid_type(unexp, &"newtype variant"))
     }
 
-    fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -84,7 +84,7 @@ impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
     fn struct_variant<V>(
         self,
         _fields: &'static [&'static str],
-        visitor: V,
+        _visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
@@ -157,7 +157,7 @@ where
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = Error;
 
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -210,7 +210,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_struct<V>(
         self,
-        name: &'static str,
+        _name: &'static str,
         fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
@@ -413,7 +413,7 @@ mod tests {
             pub PasswordAge: Option<WMIDuration>,
         }
 
-        let profiles: Vec<Win32_NetworkLoginProfile> = wmi_con.query().unwrap();
+        let _profiles: Vec<Win32_NetworkLoginProfile> = wmi_con.query().unwrap();
     }
 
     #[test]
