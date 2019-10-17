@@ -12,12 +12,12 @@ use winapi::{
         winerror::HRESULT,
         wtypes::BSTR,
     },
-    um::{oaidl::SAFEARRAY, oleauto::{
-        SafeArrayAccessData,
-        SafeArrayUnaccessData,
-        SafeArrayGetLBound,
-        SafeArrayGetUBound,
-    }},
+    um::{
+        oaidl::SAFEARRAY,
+        oleauto::{
+            SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayUnaccessData,
+        },
+    },
 };
 
 #[derive(Debug)]

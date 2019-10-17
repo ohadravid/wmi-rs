@@ -1,11 +1,11 @@
 use crate::safearray::safe_array_to_vec;
-use failure::{bail, Error, format_err};
+use failure::{bail, format_err, Error};
+use std::convert::TryFrom;
 use widestring::WideCStr;
 use winapi::{
     shared::wtypes::*,
     um::{oaidl::SAFEARRAY, oaidl::VARIANT},
 };
-use std::convert::TryFrom;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
@@ -129,11 +129,15 @@ macro_rules! impl_try_from_variant {
             fn try_from(value: Variant) -> Result<$target_type, Self::Error> {
                 match value {
                     Variant::$variant_type(item) => Ok(item),
-                    other => Err(format_err!("Variant {:?} cannot be turned into a {}", &other, stringify!($target_type)))
+                    other => Err(format_err!(
+                        "Variant {:?} cannot be turned into a {}",
+                        &other,
+                        stringify!($target_type)
+                    )),
                 }
             }
         }
-    }
+    };
 }
 
 impl_try_from_variant!(String, String);
