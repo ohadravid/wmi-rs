@@ -9,7 +9,7 @@ strategy:
     windows-stable:
       imageName: 'vs2017-win2016'
       target: 'x86_64-pc-windows-msvc'
-      rustup_toolchain: nightly
+      rustup_toolchain: stable
 
 pool:
   vmImage: $(imageName)
