@@ -10,7 +10,7 @@ use winapi::{
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
 
-#[derive(Debug, PartialEq, Hash)]
+#[derive(Debug, PartialEq)]
 pub enum Variant {
     Empty,
     Null,
@@ -21,6 +21,9 @@ pub enum Variant {
     I2(i16),
     I4(i32),
     I8(i64),
+
+    R4(f32),
+    R8(f64),
 
     Bool(bool),
 
@@ -79,6 +82,16 @@ impl Variant {
                 let num: &i64 = unsafe { vt.n1.n2().n3.llVal() };
 
                 Variant::I8(*num)
+            }
+            VT_R4 => {
+                let num: &f32 = unsafe { vt.n1.n2().n3.fltVal() };
+
+                Variant::R4(*num)
+            }
+            VT_R8 => {
+                let num: &f64 = unsafe { vt.n1.n2().n3.dblVal() };
+
+                Variant::R8(*num)
             }
             VT_BOOL => {
                 let value: &i16 = unsafe { vt.n1.n2().n3.boolVal() };

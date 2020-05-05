@@ -38,6 +38,8 @@ impl<'de> serde::Deserializer<'de> for Variant {
             Variant::I2(n) => visitor.visit_i16(n),
             Variant::I4(n) => visitor.visit_i32(n),
             Variant::I8(n) => visitor.visit_i64(n),
+            Variant::R4(f) => visitor.visit_f32(f),
+            Variant::R8(f) => visitor.visit_f64(f),
             Variant::Bool(b) => visitor.visit_bool(b),
             Variant::UI1(n) => visitor.visit_u8(n),
             Variant::UI2(n) => visitor.visit_u16(n),
@@ -98,8 +100,13 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             #[inline]
-            fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E> {
-                unimplemented!();
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+                Ok(Variant::R8(value))
+            }
+
+            #[inline]
+            fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E> {
+                Ok(Variant::R4(value))
             }
 
             #[inline]
