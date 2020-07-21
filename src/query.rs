@@ -1,7 +1,8 @@
 use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::result_enumerator::{IWbemClassWrapper, QueryResultEnumerator};
-use crate::{connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres};
-use failure::{format_err, Error};
+use crate::{
+    connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres, WMIError,
+};
 use log::trace;
 use serde::de;
 use std::collections::HashMap;
@@ -74,7 +75,7 @@ impl From<bool> for FilterValue {
 /// "SELECT Caption, Debug FROM Win32_OperatingSystem";
 /// ```
 ///
-fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> Result<String, Error>
+fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> Result<String, WMIError>
 where
     T: de::Deserialize<'de>,
 {
@@ -130,7 +131,7 @@ impl WMIConnection {
     pub fn exec_query_native_wrapper(
         &self,
         query: impl AsRef<str>,
-    ) -> Result<QueryResultEnumerator, Error> {
+    ) -> Result<QueryResultEnumerator, WMIError> {
         let query_language = WideCString::from_str("WQL")?;
         let query = WideCString::from_str(query)?;
 
@@ -156,7 +157,7 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -164,7 +165,7 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, Error>
+    pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, WMIError>
     where
         T: de::DeserializeOwned,
     {
@@ -184,7 +185,7 @@ impl WMIConnection {
     /// use wmi::*;
     /// use serde::Deserialize;
     ///
-    /// fn main() -> Result<(), failure::Error> {
+    /// fn main() -> Result<(), wmi::WMIError> {
     ///     let con = WMIConnection::new(COMLibrary::new()?.into())?;
     ///
     ///     #[derive(Deserialize, Debug)]
@@ -201,7 +202,7 @@ impl WMIConnection {
     ///     Ok(())
     /// }
     /// ```
-    pub fn query<T>(&self) -> Result<Vec<T>, Error>
+    pub fn query<T>(&self) -> Result<Vec<T>, WMIError>
     where
         T: de::DeserializeOwned,
     {
@@ -212,7 +213,10 @@ impl WMIConnection {
 
     /// Query all the objects of type T, while filtering according to `filters`.
     ///
-    pub fn filtered_query<T>(&self, filters: &HashMap<String, FilterValue>) -> Result<Vec<T>, Error>
+    pub fn filtered_query<T>(
+        &self,
+        filters: &HashMap<String, FilterValue>,
+    ) -> Result<Vec<T>, WMIError>
     where
         T: de::DeserializeOwned,
     {
@@ -226,7 +230,7 @@ impl WMIConnection {
     /// If more than one object is found, all but the first are ignored.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -238,7 +242,7 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn get<T>(&self) -> Result<T, Error>
+    pub fn get<T>(&self) -> Result<T, WMIError>
     where
         T: de::DeserializeOwned,
     {
@@ -247,14 +251,14 @@ impl WMIConnection {
         results
             .into_iter()
             .next()
-            .ok_or_else(|| format_err!("No results returned"))
+            .ok_or_else(|| WMIError::ResultEmpty)
     }
 
     /// Get a WMI object by path, and return a wrapper around a WMI pointer.
     /// It's better to use the `get_by_path` method, since this function is more low level.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -274,7 +278,7 @@ impl WMIConnection {
     pub fn get_raw_by_path(
         &self,
         object_path: impl AsRef<str>,
-    ) -> Result<IWbemClassWrapper, Error> {
+    ) -> Result<IWbemClassWrapper, WMIError> {
         let object_path = WideCString::from_str(object_path.as_ref())?;
 
         let mut pcls_obj = NULL as *mut IWbemClassObject;
@@ -298,7 +302,7 @@ impl WMIConnection {
     /// This is useful when the type of the object at the path in known at compile time.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -316,7 +320,7 @@ impl WMIConnection {
     /// or if the object is only of a few possible types, deserialize it to an enum:
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use std::collections::HashMap;
     /// # use wmi::*;
     /// # use serde::Deserialize;
@@ -374,15 +378,13 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn get_by_path<T>(&self, object_path: &str) -> Result<T, Error>
+    pub fn get_by_path<T>(&self, object_path: &str) -> Result<T, WMIError>
     where
         T: de::DeserializeOwned,
     {
         let wbem_class_obj = self.get_raw_by_path(object_path)?;
 
-        let value = from_wbem_class_obj(&wbem_class_obj);
-
-        value.map_err(Error::from)
+        from_wbem_class_obj(&wbem_class_obj)
     }
 
     /// Query all the associators of type T of the given object.
@@ -391,7 +393,7 @@ impl WMIConnection {
     /// See https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-diskdrivetodiskpartition for example.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -420,7 +422,7 @@ impl WMIConnection {
     pub fn associators<ResultClass, AssocClass>(
         &self,
         object_path: &str,
-    ) -> Result<Vec<ResultClass>, Error>
+    ) -> Result<Vec<ResultClass>, WMIError>
     where
         ResultClass: de::DeserializeOwned,
         AssocClass: de::DeserializeOwned,
@@ -450,8 +452,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::tests::fixtures::*;
-    use crate::utils::WMIError;
-    use crate::Variant;
+    use crate::{Variant, WMIError};
     use winapi::shared::ntdef::HRESULT;
     use winapi::um::wbemcli::WBEM_E_INVALID_QUERY;
 
@@ -498,20 +499,12 @@ mod tests {
         for res in enumerator {
             match res {
                 Ok(_) => assert!(false),
-                Err(e) => {
-                    let cause = e.as_fail();
-
-                    if let Some(wmi_err) = cause.downcast_ref::<WMIError>() {
-                        match wmi_err {
-                            WMIError::HResultError { hres } => {
-                                assert_eq!(*hres, WBEM_E_INVALID_QUERY as HRESULT);
-                            }
-                            _ => assert!(false),
-                        }
-                    } else {
-                        assert!(false);
+                Err(wmi_err) => match wmi_err {
+                    WMIError::HResultError { hres } => {
+                        assert_eq!(hres, WBEM_E_INVALID_QUERY as HRESULT);
                     }
-                }
+                    _ => assert!(false),
+                },
             }
         }
     }
@@ -635,7 +628,7 @@ mod tests {
 
             for res in results {
                 match res.get("Caption") {
-                    Some(Variant::String(s)) => assert!(s != ""),
+                    Some(Variant::String(_s)) => assert!(true),
                     _ => assert!(false),
                 }
             }

@@ -21,19 +21,19 @@ default-target = "x86_64-pc-windows-msvc"
 test = ["lazy_static"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3.7", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi"] }
-failure = "0.1.5"
+winapi = { version = "0.3.9", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi"] }
 log = "0.4"
 widestring = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
-lazy_static = { version = "1.2.0", optional = true }
+lazy_static = { version = "1.4.0", optional = true }
+thiserror = "^1"
 
 [build-dependencies]
 little-skeptic = "0.15"
 
 [dev-dependencies]
-lazy_static = "1.2.0"
+lazy_static = "1.4.0"
 serde_json = { version = "1.0" }
 criterion = "0.3"
 little-skeptic = "0.15"

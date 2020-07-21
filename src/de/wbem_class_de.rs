@@ -1,15 +1,13 @@
-use failure::format_err;
 use serde::de::{
     self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, Unexpected,
     VariantAccess, Visitor,
 };
 use serde::forward_to_deserialize_any;
 
-use std::{iter::Peekable};
+use std::iter::Peekable;
 
-
-use crate::error::Error;
 use crate::result_enumerator::IWbemClassWrapper;
+use crate::WMIError;
 
 pub struct Deserializer<'a> {
     // This string starts with the input data and characters are truncated off
@@ -23,7 +21,7 @@ impl<'a> Deserializer<'a> {
     }
 }
 
-pub fn from_wbem_class_obj<T>(wbem_class_obj: &IWbemClassWrapper) -> Result<T, Error>
+pub fn from_wbem_class_obj<T>(wbem_class_obj: &IWbemClassWrapper) -> Result<T, WMIError>
 where
     T: DeserializeOwned,
 {
@@ -44,7 +42,7 @@ impl<'a, 'de> WMIEnum<'a, 'de> {
 }
 
 impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a, 'de> {
-    type Error = Error;
+    type Error = WMIError;
     type Variant = Self;
 
     fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
@@ -57,7 +55,7 @@ impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a, 'de> {
 }
 
 impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
-    type Error = Error;
+    type Error = WMIError;
 
     // Newtype variants can be deserialized directly.
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
@@ -121,7 +119,7 @@ where
     S: AsRef<str>,
     I: Iterator<Item = S>,
 {
-    type Error = Error;
+    type Error = WMIError;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
     where
@@ -142,28 +140,27 @@ where
         let current_field = self
             .fields
             .next()
-            .ok_or_else(|| format_err!("Expected current field to not be None"))?;
+            .ok_or_else(|| WMIError::SerdeError("Expected current field to not be None".into()))?;
 
         let property_value = self
             .de
             .wbem_class_obj
-            .get_property(current_field.as_ref())
-            .map_err(Error::from_err)?;
+            .get_property(current_field.as_ref())?;
 
         seed.deserialize(property_value)
     }
 }
 
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
-    type Error = Error;
+    type Error = WMIError;
 
     fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(Error::from_err(format_err!(
-            "Only structs and maps can be deserialized from WMI objects"
-        )))
+        Err(WMIError::SerdeError(
+            "Only structs and maps can be deserialized from WMI objects".into(),
+        ))
     }
 
     fn deserialize_enum<V>(

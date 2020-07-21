@@ -1,5 +1,5 @@
+use super::WMIError;
 use chrono::prelude::*;
-use failure::{bail, Error};
 use serde::{de, ser};
 use std::fmt;
 use std::str::FromStr;
@@ -10,11 +10,11 @@ use std::str::FromStr;
 pub struct WMIDateTime(pub DateTime<FixedOffset>);
 
 impl FromStr for WMIDateTime {
-    type Err = Error;
+    type Err = WMIError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() < 21 {
-            bail!("Expected {:?} to be at least 21 chars", s)
+            return Err(WMIError::ConvertDatetimeError(s.into()));
         }
 
         let (datetime_part, tz_part) = s.split_at(21);

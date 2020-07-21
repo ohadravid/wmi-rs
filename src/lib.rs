@@ -45,7 +45,7 @@
 //! Using `serde`, it is possible to return a struct representing the the data.
 //!
 //! ```edition2018
-//! # fn main() -> Result<(), failure::Error> {
+//! # fn main() -> Result<(), wmi::WMIError> {
 //! # use wmi::*;
 //! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
 //! use serde::Deserialize;
@@ -106,7 +106,6 @@ pub mod connection;
 pub mod datetime;
 pub mod de;
 pub mod duration;
-pub mod error;
 pub mod query;
 pub mod result_enumerator;
 pub mod safearray;
@@ -119,4 +118,5 @@ pub mod tests;
 pub use connection::{COMLibrary, WMIConnection};
 pub use datetime::WMIDateTime;
 pub use duration::WMIDuration;
+pub use utils::WMIError;
 pub use variant::Variant;

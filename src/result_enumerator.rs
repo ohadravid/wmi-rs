@@ -1,9 +1,8 @@
 use crate::de::wbem_class_de::from_wbem_class_obj;
-use crate::variant::Variant;
 use crate::{
-    connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres,
+    connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres, Variant,
+    WMIError,
 };
-use failure::Error;
 use log::trace;
 use serde::de;
 use std::convert::TryInto;
@@ -38,7 +37,7 @@ impl IWbemClassWrapper {
 
     /// Return the names of all the properties of the given object.
     ///
-    pub fn list_properties(&self) -> Result<Vec<String>, Error> {
+    pub fn list_properties(&self) -> Result<Vec<String>, WMIError> {
         // This will store the properties names from the GetNames call.
         let mut p_names = NULL as *mut SAFEARRAY;
 
@@ -62,8 +61,9 @@ impl IWbemClassWrapper {
         res
     }
 
-    pub fn get_property(&self, property_name: &str) -> Result<Variant, Error> {
-        let name_prop = WideCString::from_str(property_name)?;
+    pub fn get_property(&self, property_name: &str) -> Result<Variant, WMIError> {
+        let name_prop =
+            WideCString::from_str(property_name)?;
 
         let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
 
@@ -84,19 +84,19 @@ impl IWbemClassWrapper {
         Ok(property_value)
     }
 
-    pub fn path(&self) -> Result<String, Error> {
+    pub fn path(&self) -> Result<String, WMIError> {
         self.get_property("__Path").and_then(Variant::try_into)
     }
 
-    pub fn class(&self) -> Result<String, Error> {
+    pub fn class(&self) -> Result<String, WMIError> {
         self.get_property("__Class").and_then(Variant::try_into)
     }
 
-    pub fn into_desr<T>(self) -> Result<T, Error>
+    pub fn into_desr<T>(self) -> Result<T, WMIError>
     where
         T: de::DeserializeOwned,
     {
-        from_wbem_class_obj(&self).map_err(Error::from)
+        from_wbem_class_obj(&self).map_err(WMIError::from)
     }
 }
 
@@ -137,7 +137,7 @@ impl<'a> Drop for QueryResultEnumerator<'a> {
 }
 
 impl<'a> Iterator for QueryResultEnumerator<'a> {
-    type Item = Result<IWbemClassWrapper, Error>;
+    type Item = Result<IWbemClassWrapper, WMIError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut pcls_obj = NULL as *mut IWbemClassObject;
