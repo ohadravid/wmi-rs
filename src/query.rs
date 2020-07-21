@@ -621,18 +621,18 @@ mod tests {
             // "Win32_ShadowCopy",
         ];
 
-        // for class_name in classes.iter() {
-        //     let results: Vec<HashMap<String, Variant>> = wmi_con
-        //         .raw_query(format!("SELECT * FROM {}", class_name))
-        //         .unwrap();
+        for class_name in classes.iter() {
+            let results: Vec<HashMap<String, Variant>> = wmi_con
+                .raw_query(format!("SELECT * FROM {}", class_name))
+                .unwrap();
 
-        //     for res in results {
-        //         match res.get("Caption") {
-        //             Some(Variant::String(s)) => assert!(s != ""),
-        //             _ => assert!(true),
-        //         }
-        //     }
-        // }
+            for res in results {
+                match res.get("Caption") {
+                    Some(Variant::String(s)) => assert!(true),
+                    _ => assert!(false),
+                }
+            }
+        }
 
         // Associators. TODO: Support this in the desr logic (so a Disk can have `Partitions`).
         let associators_classes = [
