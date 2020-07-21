@@ -120,3 +120,16 @@ pub use datetime::WMIDateTime;
 pub use duration::WMIDuration;
 pub use utils::WMIError;
 pub use variant::Variant;
+
+// Cannot use `cfg(test)` here since `rustdoc` won't look at it.
+#[cfg(debug_assertions)]
+mod test_readme {
+    macro_rules! calculated_doc {
+        ($doc:expr, $id:ident) => {
+            #[doc = $doc]
+            enum $id {}
+        }
+    }
+
+    calculated_doc!(include_str!("../README.md"), _DoctestReadme);
+}

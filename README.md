@@ -5,12 +5,11 @@
 [Documentation](https://docs.rs/crate/wmi)
 
 WMI crate for rust.
-Currently in beta.
 
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.4"
+wmi = "0.5"
 ```
 
 
@@ -60,8 +59,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>>  {
 ## License
  
 The `wmi` crate is licensed under either of
-
+```text
     Apache License, Version 2.0, (LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0)
     MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
-
+```
 at your option.

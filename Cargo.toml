@@ -29,14 +29,10 @@ chrono = { version = "0.4", features = ["serde"] }
 lazy_static = { version = "1.4.0", optional = true }
 thiserror = "^1"
 
-[build-dependencies]
-little-skeptic = "0.15"
-
 [dev-dependencies]
 lazy_static = "1.4.0"
 serde_json = { version = "1.0" }
 criterion = "0.3"
-little-skeptic = "0.15"
 
 [[bin]]
 name = "wmiq"
