@@ -47,7 +47,6 @@ impl<T> SafeArrayAccessor<T> {
         let mut lower_bound: i32 = 0;
         let mut upper_bound: i32 = 0;
 
-        #[allow(unused_unsafe)]
         unsafe {
             check_hres(SafeArrayGetLBound(arr, 1, &mut lower_bound as _))?;
             check_hres(SafeArrayGetUBound(arr, 1, &mut upper_bound as _))?;
@@ -81,7 +80,10 @@ impl<T> Drop for SafeArrayAccessor<T> {
     }
 }
 
-pub fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, WMIError> {
+/// # Safety
+///
+/// The caller must ensure that the array is valid and contains only strings.
+pub unsafe fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, WMIError> {
     let items = safe_array_to_vec(arr, VT_BSTR)?;
 
     let string_items = items
@@ -95,7 +97,11 @@ pub fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, 
     Ok(string_items)
 }
 
-pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Variant>, WMIError> {
+
+/// # Safety
+///
+/// The caller must ensure that the array is valid.
+pub unsafe fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Variant>, WMIError> {
     let mut items = vec![];
 
     match item_type {

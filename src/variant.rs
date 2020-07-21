@@ -35,7 +35,12 @@ pub enum Variant {
 }
 
 impl Variant {
-    pub fn from_variant(vt: VARIANT) -> Result<Variant, WMIError> {
+    /// Create a `Variant` instance from a raw `VARIANT`.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe as it is the caller's responsibility to ensure that the VARIANT is correctly initialized.
+    pub unsafe fn from_variant(vt: VARIANT) -> Result<Variant, WMIError> {
         let variant_type: VARTYPE = unsafe { vt.n1.n2().vt };
 
         // variant_type has two 'forms':
@@ -46,7 +51,7 @@ impl Variant {
 
             let item_type = variant_type as u32 & VT_TYPEMASK;
 
-            return Ok(Variant::Array(safe_array_to_vec(*array, item_type as u32)?));
+            return Ok(Variant::Array(unsafe { safe_array_to_vec(*array, item_type as u32)? }));
         }
 
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.

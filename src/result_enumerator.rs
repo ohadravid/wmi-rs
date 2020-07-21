@@ -49,16 +49,15 @@ impl IWbemClassWrapper {
                 (WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY) as i32,
                 ptr::null_mut(),
                 &mut p_names,
-            ))
-        }?;
+            ))?;
+        
 
-        let res = safe_array_to_vec_of_strings(p_names);
+            let res = safe_array_to_vec_of_strings(p_names);
 
-        unsafe {
             check_hres(SafeArrayDestroy(p_names))?;
-        }
 
-        res
+            res
+        }
     }
 
     pub fn get_property(&self, property_name: &str) -> Result<Variant, WMIError> {
@@ -75,13 +74,14 @@ impl IWbemClassWrapper {
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
+        
+
+            let property_value = Variant::from_variant(vt_prop)?;
+
+            VariantClear(&mut vt_prop);
+
+            Ok(property_value)
         }
-
-        let property_value = Variant::from_variant(vt_prop)?;
-
-        unsafe { VariantClear(&mut vt_prop) };
-
-        Ok(property_value)
     }
 
     pub fn path(&self) -> Result<String, WMIError> {
@@ -142,12 +142,8 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut pcls_obj = NULL as *mut IWbemClassObject;
         let mut return_value = 0;
-
-        if self.p_enumerator.is_none() {
-            return None;
-        }
-
-        let raw_enumerator_prt = self.p_enumerator.unwrap().as_ptr();
+        
+        let raw_enumerator_prt = self.p_enumerator?.as_ptr();
 
         let res = unsafe {
             check_hres((*raw_enumerator_prt).Next(
@@ -159,7 +155,7 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
         };
 
         if let Err(e) = res {
-            return Some(Err(e.into()));
+            return Some(Err(e));
         }
 
         if return_value == 0 {
