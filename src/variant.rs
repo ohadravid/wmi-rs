@@ -1,5 +1,4 @@
-use crate::safearray::safe_array_to_vec;
-use anyhow::{bail, format_err, Error};
+use crate::{safearray::safe_array_to_vec, WMIError};
 use std::convert::TryFrom;
 use widestring::WideCStr;
 use winapi::{
@@ -33,7 +32,7 @@ pub enum Variant {
 }
 
 impl Variant {
-    pub fn from_variant(vt: VARIANT) -> Result<Variant, Error> {
+    pub fn from_variant(vt: VARIANT) -> Result<Variant, WMIError> {
         let variant_type: VARTYPE = unsafe { vt.n1.n2().vt };
 
         // variant_type has two 'forms':
@@ -86,7 +85,7 @@ impl Variant {
                 match *value {
                     VARIANT_FALSE => Variant::Bool(false),
                     VARIANT_TRUE => Variant::Bool(true),
-                    _ => bail!("Invalid bool value: {:#X}", value),
+                    _ => return Err(WMIError::ConvertBoolError(*value)),
                 }
             }
             VT_UI1 => {
@@ -111,10 +110,7 @@ impl Variant {
             }
             VT_EMPTY => Variant::Empty,
             VT_NULL => Variant::Null,
-            _ => bail!(
-                "Converting from variant type {:#X} is not implemented yet",
-                variant_type
-            ),
+            _ => return Err(WMIError::ConvertError(variant_type)),
         };
 
         Ok(variant_value)
@@ -124,16 +120,16 @@ impl Variant {
 macro_rules! impl_try_from_variant {
     ($target_type:ty, $variant_type:ident) => {
         impl TryFrom<Variant> for $target_type {
-            type Error = Error;
+            type Error = WMIError;
 
             fn try_from(value: Variant) -> Result<$target_type, Self::Error> {
                 match value {
                     Variant::$variant_type(item) => Ok(item),
-                    other => Err(format_err!(
+                    other => Err(WMIError::Custom(format!(
                         "Variant {:?} cannot be turned into a {}",
                         &other,
                         stringify!($target_type)
-                    )),
+                    ))),
                 }
             }
         }

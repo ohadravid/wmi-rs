@@ -10,7 +10,7 @@ struct SeqAccess {
 }
 
 impl<'de> de::SeqAccess<'de> for SeqAccess {
-    type Error = crate::error::Error;
+    type Error = crate::WMIError;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
     where
@@ -24,7 +24,7 @@ impl<'de> de::SeqAccess<'de> for SeqAccess {
 }
 
 impl<'de> serde::Deserializer<'de> for Variant {
-    type Error = crate::error::Error;
+    type Error = crate::WMIError;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where

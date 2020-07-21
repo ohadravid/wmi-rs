@@ -1,6 +1,5 @@
-use crate::utils::check_hres;
+use crate::utils::{check_hres, WMIError};
 use crate::Variant;
-use anyhow::Error;
 use std::iter::Iterator;
 use std::slice;
 use widestring::WideCStr;
@@ -43,7 +42,7 @@ impl<T> SafeArrayAccessor<T> {
     ///
     /// This function is unsafe as it is the caller's responsibility to verify that the array is
     /// of items of type T.
-    pub unsafe fn new(arr: *mut SAFEARRAY) -> Result<Self, Error> {
+    pub unsafe fn new(arr: *mut SAFEARRAY) -> Result<Self, WMIError> {
         let mut p_data = NULL;
         let mut lower_bound: i32 = 0;
         let mut upper_bound: i32 = 0;
@@ -81,7 +80,7 @@ impl<T> Drop for SafeArrayAccessor<T> {
     }
 }
 
-pub fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, Error> {
+pub fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, WMIError> {
     let items = safe_array_to_vec(arr, VT_BSTR)?;
 
     let string_items = items
@@ -95,7 +94,7 @@ pub fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, 
     Ok(string_items)
 }
 
-pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Variant>, Error> {
+pub fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Variant>, WMIError> {
     let mut items = vec![];
 
     match item_type {
