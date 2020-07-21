@@ -1,9 +1,9 @@
-use failure::Fail;
+use thiserror::Error;
 use winapi::shared::ntdef::HRESULT;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum WMIError {
-    #[fail(display = "HRESULT Call failed with: {:#X}", hres)]
+    #[error("HRESULT Call failed with: {hres:#X}")]
     HResultError { hres: HRESULT },
 }
 

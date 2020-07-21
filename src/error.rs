@@ -4,10 +4,10 @@ use std::fmt::{self, Debug, Display};
 use serde::de;
 use serde::ser;
 
-use failure::format_err;
+use anyhow::format_err;
 
 pub struct Error {
-    err: failure::Error,
+    err: anyhow::Error,
 }
 
 impl Error {
@@ -56,8 +56,8 @@ impl ser::Error for Error {
     }
 }
 
-impl std::convert::From<failure::Error> for Error {
-    fn from(err: failure::Error) -> Self {
+impl std::convert::From<anyhow::Error> for Error {
+    fn from(err: anyhow::Error) -> Self {
         Self { err }
     }
 }

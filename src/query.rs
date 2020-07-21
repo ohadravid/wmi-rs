@@ -1,7 +1,7 @@
 use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::result_enumerator::{IWbemClassWrapper, QueryResultEnumerator};
 use crate::{connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres};
-use failure::{format_err, Error};
+use anyhow::{format_err, Error};
 use log::trace;
 use serde::de;
 use std::collections::HashMap;
@@ -498,9 +498,7 @@ mod tests {
         for res in enumerator {
             match res {
                 Ok(_) => assert!(false),
-                Err(e) => {
-                    let cause = e.as_fail();
-
+                Err(cause) => {
                     if let Some(wmi_err) = cause.downcast_ref::<WMIError>() {
                         match wmi_err {
                             WMIError::HResultError { hres } => {

@@ -1,5 +1,5 @@
 use crate::safearray::safe_array_to_vec;
-use failure::{bail, format_err, Error};
+use anyhow::{bail, format_err, Error};
 use std::convert::TryFrom;
 use widestring::WideCStr;
 use winapi::{

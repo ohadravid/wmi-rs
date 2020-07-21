@@ -1,5 +1,5 @@
 use crate::utils::check_hres;
-use failure::Error;
+use anyhow::Error;
 use log::debug;
 use std::ptr;
 use std::ptr::NonNull;

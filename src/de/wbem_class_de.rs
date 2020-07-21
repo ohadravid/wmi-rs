@@ -1,4 +1,4 @@
-use failure::format_err;
+use anyhow::format_err;
 use serde::de::{
     self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, Unexpected,
     VariantAccess, Visitor,

@@ -1,6 +1,6 @@
 use crate::utils::check_hres;
 use crate::Variant;
-use failure::Error;
+use anyhow::Error;
 use std::iter::Iterator;
 use std::slice;
 use widestring::WideCStr;

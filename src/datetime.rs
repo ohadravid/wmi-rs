@@ -1,5 +1,5 @@
 use chrono::prelude::*;
-use failure::{bail, Error};
+use anyhow::{bail, Error};
 use serde::{de, ser};
 use std::fmt;
 use std::str::FromStr;

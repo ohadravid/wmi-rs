@@ -3,7 +3,7 @@ use crate::variant::Variant;
 use crate::{
     connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres,
 };
-use failure::Error;
+use anyhow::Error;
 use log::trace;
 use serde::de;
 use std::convert::TryInto;
