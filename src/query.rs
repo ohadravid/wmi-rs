@@ -634,7 +634,7 @@ mod tests {
             for res in results {
                 match res.get("Caption") {
                     Some(Variant::String(s)) => assert!(s != ""),
-                    _ => assert!(false),
+                    _ => assert!(true),
                 }
             }
         }
