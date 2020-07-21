@@ -157,7 +157,7 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -185,7 +185,7 @@ impl WMIConnection {
     /// use wmi::*;
     /// use serde::Deserialize;
     ///
-    /// fn main() -> Result<(), failure::Error> {
+    /// fn main() -> Result<(), wmi::WMIError> {
     ///     let con = WMIConnection::new(COMLibrary::new()?.into())?;
     ///
     ///     #[derive(Deserialize, Debug)]
@@ -230,7 +230,7 @@ impl WMIConnection {
     /// If more than one object is found, all but the first are ignored.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -258,7 +258,7 @@ impl WMIConnection {
     /// It's better to use the `get_by_path` method, since this function is more low level.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -302,7 +302,7 @@ impl WMIConnection {
     /// This is useful when the type of the object at the path in known at compile time.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
@@ -320,7 +320,7 @@ impl WMIConnection {
     /// or if the object is only of a few possible types, deserialize it to an enum:
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use std::collections::HashMap;
     /// # use wmi::*;
     /// # use serde::Deserialize;
@@ -393,7 +393,7 @@ impl WMIConnection {
     /// See https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-diskdrivetodiskpartition for example.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), failure::Error> {
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
