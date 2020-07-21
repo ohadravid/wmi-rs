@@ -31,8 +31,6 @@ pub enum WMIError {
     DeserializeValueError(#[from] de::value::Error),
     #[error("No results returned")]
     ResultEmpty,
-    #[error("{0}")]
-    Custom(String),
 }
 
 impl de::Error for WMIError {
