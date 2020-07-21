@@ -628,7 +628,7 @@ mod tests {
 
             for res in results {
                 match res.get("Caption") {
-                    Some(Variant::String(_s)) => assert!(true),
+                    Some(Variant::String(_)) | Some(Variant::Null) => assert!(true),
                     _ => assert!(false),
                 }
             }
@@ -721,6 +721,27 @@ mod tests {
         for part in results {
             assert!(part.Caption.contains("Partition #"));
         }
+    }
+
+    #[test]
+    fn it_can_query_floats() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_ReliabilityStabilityMetrics {
+            SystemStabilityIndex: f64,
+        }
+
+        let metric = wmi_con.get::<Win32_ReliabilityStabilityMetrics>().unwrap();
+        assert!(metric.SystemStabilityIndex >= 0.0);
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_WinSAT {
+            CPUScore: f32,
+        }
+
+        let sat = wmi_con.get::<Win32_WinSAT>().unwrap();
+        assert!(sat.CPUScore >= 0.0);
     }
 
     #[test]
