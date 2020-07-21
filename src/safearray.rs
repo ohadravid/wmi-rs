@@ -47,6 +47,7 @@ impl<T> SafeArrayAccessor<T> {
         let mut lower_bound: i32 = 0;
         let mut upper_bound: i32 = 0;
 
+        #[allow(unused_unsafe)]
         unsafe {
             check_hres(SafeArrayGetLBound(arr, 1, &mut lower_bound as _))?;
             check_hres(SafeArrayGetUBound(arr, 1, &mut upper_bound as _))?;
