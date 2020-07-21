@@ -125,7 +125,7 @@ macro_rules! impl_try_from_variant {
             fn try_from(value: Variant) -> Result<$target_type, Self::Error> {
                 match value {
                     Variant::$variant_type(item) => Ok(item),
-                    other => Err(WMIError::Custom(format!(
+                    other => Err(WMIError::ConvertVariantError(format!(
                         "Variant {:?} cannot be turned into a {}",
                         &other,
                         stringify!($target_type)

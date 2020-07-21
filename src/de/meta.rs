@@ -73,6 +73,7 @@ where
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::Variant;

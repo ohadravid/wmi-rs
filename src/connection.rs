@@ -1,5 +1,4 @@
-use crate::utils::check_hres;
-use anyhow::Error;
+use crate::utils::{check_hres, WMIError};
 use log::debug;
 use std::ptr;
 use std::ptr::NonNull;
@@ -34,7 +33,7 @@ pub struct COMLibrary {}
 impl COMLibrary {
     /// `CoInitialize`s the COM library for use by the calling thread.
     ///
-    pub fn new() -> Result<Self, Error> {
+    pub fn new() -> Result<Self, WMIError> {
         unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
 
         let instance = Self {};
@@ -46,7 +45,7 @@ impl COMLibrary {
 
     /// `CoInitialize`s the COM library for use by the calling thread, but without setting the security context.
     ///
-    pub fn without_security() -> Result<Self, Error> {
+    pub fn without_security() -> Result<Self, WMIError> {
         unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
 
         let instance = Self {};
@@ -54,7 +53,7 @@ impl COMLibrary {
         Ok(instance)
     }
 
-    fn init_security(&self) -> Result<(), Error> {
+    fn init_security(&self) -> Result<(), WMIError> {
         unsafe {
             check_hres(CoInitializeSecurity(
                 NULL,
@@ -91,7 +90,7 @@ pub struct WMIConnection {
 ///
 impl WMIConnection {
     /// Creates a connection with a default `CIMV2` namespace path.
-    pub fn new(com_lib: Rc<COMLibrary>) -> Result<Self, Error> {
+    pub fn new(com_lib: Rc<COMLibrary>) -> Result<Self, WMIError> {
         Self::with_namespace_path("ROOT\\CIMV2", com_lib)
     }
 
@@ -108,7 +107,7 @@ impl WMIConnection {
     pub fn with_namespace_path(
         namespace_path: &str,
         com_lib: Rc<COMLibrary>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, WMIError> {
         let mut instance = Self {
             _com_con: com_lib,
             p_loc: None,
@@ -132,7 +131,7 @@ impl WMIConnection {
         self.p_loc.unwrap().as_ptr()
     }
 
-    fn create_locator(&mut self) -> Result<(), Error> {
+    fn create_locator(&mut self) -> Result<(), WMIError> {
         debug!("Calling CoCreateInstance for CLSID_WbemLocator");
 
         let mut p_loc = NULL;
@@ -154,7 +153,7 @@ impl WMIConnection {
         Ok(())
     }
 
-    fn create_services(&mut self, path: &str) -> Result<(), Error> {
+    fn create_services(&mut self, path: &str) -> Result<(), WMIError> {
         debug!("Calling ConnectServer");
 
         let mut p_svc = ptr::null_mut::<IWbemServices>();
@@ -181,7 +180,7 @@ impl WMIConnection {
         Ok(())
     }
 
-    fn set_proxy(&self) -> Result<(), Error> {
+    fn set_proxy(&self) -> Result<(), WMIError> {
         debug!("Calling CoSetProxyBlanket");
 
         unsafe {
@@ -217,6 +216,7 @@ impl Drop for WMIConnection {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

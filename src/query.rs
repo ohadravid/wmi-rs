@@ -251,7 +251,7 @@ impl WMIConnection {
         results
             .into_iter()
             .next()
-            .ok_or_else(|| WMIError::Custom("No results returned"))
+            .ok_or_else(|| WMIError::ResultEmpty)
     }
 
     /// Get a WMI object by path, and return a wrapper around a WMI pointer.
@@ -628,7 +628,7 @@ mod tests {
 
             for res in results {
                 match res.get("Caption") {
-                    Some(Variant::String(s)) => assert!(true),
+                    Some(Variant::String(_s)) => assert!(true),
                     _ => assert!(false),
                 }
             }

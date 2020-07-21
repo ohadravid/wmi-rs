@@ -1,5 +1,4 @@
-
-use anyhow::{bail, Error};
+use super::WMIError;
 use serde::{de, ser};
 use std::fmt;
 use std::str::FromStr;
@@ -11,11 +10,11 @@ use std::time::Duration;
 pub struct WMIDuration(pub Duration);
 
 impl FromStr for WMIDuration {
-    type Err = Error;
+    type Err = WMIError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() != 25 {
-            bail!("Expected {:?} to be at 25 chars", s)
+            return Err(WMIError::ConvertDurationError(s.into()));
         }
 
         let (seconds_part, reminder) = s.split_at(14);
