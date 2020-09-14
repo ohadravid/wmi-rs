@@ -79,7 +79,7 @@ impl Drop for COMLibrary {
 }
 
 pub struct WMIConnection {
-    _com_con: Rc<COMLibrary>,
+    _com_con: Option<Rc<COMLibrary>>,
     p_loc: Option<NonNull<IWbemLocator>>,
     p_svc: Option<NonNull<IWbemServices>>,
 }
@@ -89,6 +89,16 @@ pub struct WMIConnection {
 /// Currently does not support remote providers (e.g connecting to other computers).
 ///
 impl WMIConnection {
+    fn create_and_set_proxy(&mut self,  namespace_path: Option<&str>) -> Result<(), WMIError> {
+        self.create_locator()?;
+
+        self.create_services(namespace_path.unwrap_or("ROOT\\CIMV2"))?;
+
+        self.set_proxy()?;
+
+        Ok(())
+    }
+    
     /// Creates a connection with a default `CIMV2` namespace path.
     pub fn new(com_lib: Rc<COMLibrary>) -> Result<Self, WMIError> {
         Self::with_namespace_path("ROOT\\CIMV2", com_lib)
@@ -109,16 +119,41 @@ impl WMIConnection {
         com_lib: Rc<COMLibrary>,
     ) -> Result<Self, WMIError> {
         let mut instance = Self {
-            _com_con: com_lib,
+            _com_con: Some(com_lib),
             p_loc: None,
             p_svc: None,
         };
 
-        instance.create_locator()?;
+        instance.create_and_set_proxy(Some(namespace_path))?;
 
-        instance.create_services(namespace_path)?;
+        Ok(instance)
+    }
+    
+    /// Like `with_namespace_path`, but assumes that COM is managed externally.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe as it is the caller's responsibility to ensure that COM is initialized and will not be uninitialized before the connection object is dropped.
+    /// 
+    /// ```edition2018
+    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// let _initialized_com = COMLibrary::new()?;
+    ///
+    /// // Later, in the same thread.
+    /// let wmi_con = unsafe { WMIConnection::with_initialized_com(Some("ROOT\\CIMV2"))? };
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub unsafe fn with_initialized_com(namespace_path: Option<&str>) -> Result<Self, WMIError> {
+        let mut instance = Self {
+            _com_con: None,
+            p_loc: None,
+            p_svc: None,
+        };
 
-        instance.set_proxy()?;
+        instance.create_and_set_proxy(namespace_path)?;
 
         Ok(instance)
     }

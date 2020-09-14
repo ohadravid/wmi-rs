@@ -9,7 +9,7 @@ WMI (Windows Management Instrumentation) crate for rust.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.5"
+wmi = "0.6"
 ```
 
 
