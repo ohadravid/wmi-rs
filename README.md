@@ -1,8 +1,7 @@
 # wmi
 [![Build Status](https://dev.azure.com/ohadrv/wmi-rs/_apis/build/status/ohadravid.wmi-rs?branchName=master)](https://dev.azure.com/ohadrv/wmi-rs/_build/latest?definitionId=1&branchName=master)
-![crates.io](https://img.shields.io/crates/v/wmi.svg)
-
-[Documentation](https://docs.rs/crate/wmi)
+[![crates.io](https://img.shields.io/crates/v/wmi.svg)](https://crates.io/crates/wmi)
+[![docs.rs](https://docs.rs/wmi/badge.svg)](https://docs.rs/crate/wmi)
 
 WMI (Windows Management Instrumentation) crate for rust.
 
