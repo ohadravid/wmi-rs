@@ -526,6 +526,16 @@ mod tests {
     }
 
     #[test]
+    fn it_can_query_a_hashmap() {
+        let wmi_con = wmi_con();
+
+        let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT Name FROM Win32_OperatingSystem").unwrap();
+
+        let results_as_json = serde_json::to_string(&results).unwrap();
+        assert!(results_as_json.starts_with(r#"[{"Name":"Microsoft Windows"#));
+    }
+
+    #[test]
     fn it_fails_gracefully_when_querying_a_struct() {
         let wmi_con = wmi_con();
 
