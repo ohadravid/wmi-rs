@@ -5,11 +5,13 @@ use winapi::{
     shared::wtypes::*,
     um::{oaidl::SAFEARRAY, oaidl::VARIANT},
 };
+use serde::Serialize;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(untagged)]
 pub enum Variant {
     Empty,
     Null,
