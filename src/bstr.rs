@@ -7,13 +7,14 @@ use winapi::{
 };
 use std::convert::TryFrom;
 use std::ptr::{null, NonNull};
+use std::ops::Drop;
 
 /// A non-null [BSTR]
 ///
 /// [BSTR]:         https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr
 pub(crate) struct BStr(NonNull<OLECHAR>);
 
-impl std::ops::Drop for BStr {
+impl Drop for BStr {
     fn drop(&mut self) {
         unsafe { SysFreeString(self.as_bstr()) }
     }
