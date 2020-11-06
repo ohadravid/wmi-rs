@@ -1,9 +1,9 @@
+use crate::BStr;
 use crate::utils::{check_hres, WMIError};
 use log::debug;
 use std::ptr;
 use std::ptr::NonNull;
 use std::rc::Rc;
-use widestring::WideCString;
 use winapi::{
     shared::{
         ntdef::NULL,
@@ -193,11 +193,11 @@ impl WMIConnection {
 
         let mut p_svc = ptr::null_mut::<IWbemServices>();
 
-        let object_path_bstr = WideCString::from_str(path)?;
+        let object_path_bstr = BStr::from_str(path)?;
 
         unsafe {
             check_hres((*self.loc()).ConnectServer(
-                object_path_bstr.as_ptr() as *mut _,
+                object_path_bstr.as_bstr(),
                 ptr::null_mut(),
                 ptr::null_mut(),
                 ptr::null_mut(),

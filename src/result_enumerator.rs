@@ -1,5 +1,6 @@
 use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::{
+    BStr,
     connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres, Variant,
     WMIError,
 };
@@ -7,7 +8,6 @@ use log::trace;
 use serde::de;
 use std::convert::TryInto;
 use std::{mem, ptr, ptr::NonNull};
-use widestring::WideCString;
 use winapi::um::oaidl::VARIANT;
 use winapi::um::oleauto::VariantClear;
 use winapi::{
@@ -61,14 +61,13 @@ impl IWbemClassWrapper {
     }
 
     pub fn get_property(&self, property_name: &str) -> Result<Variant, WMIError> {
-        let name_prop =
-            WideCString::from_str(property_name)?;
+        let name_prop = BStr::from_str(property_name)?;
 
         let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
 
         unsafe {
             (*self.inner.unwrap().as_ptr()).Get(
-                name_prop.as_ptr() as *mut _,
+                name_prop.as_bstr(),
                 0,
                 &mut vt_prop,
                 ptr::null_mut(),

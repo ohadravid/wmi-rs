@@ -103,6 +103,7 @@
 #![allow(unused_unsafe)]
 #![cfg(windows)]
 
+mod bstr;
 pub mod connection;
 pub mod datetime;
 pub mod de;
@@ -116,6 +117,7 @@ pub mod variant;
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
 
+use bstr::BStr;
 pub use connection::{COMLibrary, WMIConnection};
 pub use datetime::WMIDateTime;
 pub use duration::WMIDuration;

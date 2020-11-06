@@ -1,3 +1,4 @@
+use crate::BStr;
 use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::result_enumerator::{IWbemClassWrapper, QueryResultEnumerator};
 use crate::{
@@ -8,7 +9,6 @@ use serde::de;
 use std::collections::HashMap;
 use std::ptr;
 use std::ptr::NonNull;
-use widestring::WideCString;
 use winapi::um::wbemcli::IWbemClassObject;
 use winapi::{
     shared::ntdef::NULL,
@@ -132,15 +132,15 @@ impl WMIConnection {
         &self,
         query: impl AsRef<str>,
     ) -> Result<QueryResultEnumerator, WMIError> {
-        let query_language = WideCString::from_str("WQL")?;
-        let query = WideCString::from_str(query)?;
+        let query_language = BStr::from_str("WQL")?;
+        let query = BStr::from_str(query.as_ref())?;
 
         let mut p_enumerator = NULL as *mut IEnumWbemClassObject;
 
         unsafe {
             check_hres((*self.svc()).ExecQuery(
-                query_language.as_ptr() as *mut _,
-                query.as_ptr() as *mut _,
+                query_language.as_bstr(),
+                query.as_bstr(),
                 (WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY) as i32,
                 ptr::null_mut(),
                 &mut p_enumerator,
@@ -279,13 +279,13 @@ impl WMIConnection {
         &self,
         object_path: impl AsRef<str>,
     ) -> Result<IWbemClassWrapper, WMIError> {
-        let object_path = WideCString::from_str(object_path.as_ref())?;
+        let object_path = BStr::from_str(object_path.as_ref())?;
 
         let mut pcls_obj = NULL as *mut IWbemClassObject;
 
         unsafe {
             check_hres((*self.svc()).GetObject(
-                object_path.as_ptr() as *mut _,
+                object_path.as_bstr(),
                 WBEM_FLAG_RETURN_WBEM_COMPLETE as i32,
                 ptr::null_mut(),
                 &mut pcls_obj,

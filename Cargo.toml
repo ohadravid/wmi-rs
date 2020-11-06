@@ -21,7 +21,7 @@ default-target = "x86_64-pc-windows-msvc"
 test = ["lazy_static"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3.9", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi"] }
+winapi = { version = "0.3.9", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi", "wtypes", "wtypesbase"] }
 log = "0.4"
 widestring = "0.4"
 serde = { version = "1.0", features = ["derive"] }
