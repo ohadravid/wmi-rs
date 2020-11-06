@@ -149,7 +149,7 @@ impl WMIConnection {
 
         trace!("Got enumerator {:?}", p_enumerator);
 
-        Ok(QueryResultEnumerator::new(self, p_enumerator))
+        Ok(unsafe { QueryResultEnumerator::new(self, p_enumerator) })
     }
 
     /// Execute a free-text query and deserialize the results.
@@ -293,7 +293,7 @@ impl WMIConnection {
             ))?;
         }
 
-        let pcls_wrapper = IWbemClassWrapper::new(NonNull::new(pcls_obj));
+        let pcls_wrapper = unsafe { IWbemClassWrapper::new(NonNull::new(pcls_obj)) };
 
         Ok(pcls_wrapper)
     }

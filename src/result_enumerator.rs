@@ -31,7 +31,7 @@ pub struct IWbemClassWrapper {
 }
 
 impl IWbemClassWrapper {
-    pub fn new(ptr: Option<NonNull<IWbemClassObject>>) -> Self {
+    pub unsafe fn new(ptr: Option<NonNull<IWbemClassObject>>) -> Self {
         Self { inner: ptr }
     }
 
@@ -118,7 +118,7 @@ pub struct QueryResultEnumerator<'a> {
 }
 
 impl<'a> QueryResultEnumerator<'a> {
-    pub fn new(wmi_con: &'a WMIConnection, p_enumerator: *mut IEnumWbemClassObject) -> Self {
+    pub unsafe fn new(wmi_con: &'a WMIConnection, p_enumerator: *mut IEnumWbemClassObject) -> Self {
         Self {
             _wmi_con: wmi_con,
             p_enumerator: NonNull::new(p_enumerator),
@@ -168,7 +168,7 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             pcls_obj
         );
 
-        let pcls_wrapper = IWbemClassWrapper::new(NonNull::new(pcls_obj));
+        let pcls_wrapper = unsafe { IWbemClassWrapper::new(NonNull::new(pcls_obj)) };
 
         Some(Ok(pcls_wrapper))
     }
