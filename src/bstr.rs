@@ -1,5 +1,6 @@
 use crate::WMIError;
 use winapi::{
+    shared::ntdef::LPCWSTR,
     shared::wtypes::BSTR,
     shared::wtypesbase::OLECHAR,
     um::oleauto::*,
@@ -31,6 +32,10 @@ impl BStr {
     }
 
     pub fn as_bstr(&self) -> BSTR {
+        self.0.as_ptr()
+    }
+
+    pub fn as_lpcwstr(&self) -> LPCWSTR {
         self.0.as_ptr()
     }
 }

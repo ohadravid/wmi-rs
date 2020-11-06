@@ -67,7 +67,7 @@ impl IWbemClassWrapper {
 
         unsafe {
             (*self.inner.unwrap().as_ptr()).Get(
-                name_prop.as_bstr(),
+                name_prop.as_lpcwstr(),
                 0,
                 &mut vt_prop,
                 ptr::null_mut(),
