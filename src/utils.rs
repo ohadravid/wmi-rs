@@ -4,6 +4,7 @@ use thiserror::Error;
 use winapi::shared::{ntdef::HRESULT, wtypes::VARTYPE};
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum WMIError {
     #[error("HRESULT Call failed with: {hres:#X}")]
     HResultError { hres: HRESULT },
@@ -25,6 +26,10 @@ pub enum WMIError {
     ConvertDatetimeError(String),
     #[error("Expected {0:?} to be at 25 chars")]
     ConvertDurationError(String),
+    #[error("Length {0} was too long to convert")]
+    ConvertLengthError(u64),
+    #[error("Failed to allocate")]
+    ConvertAllocateError,
     #[error("{0}")]
     SerdeError(String),
     #[error(transparent)]
