@@ -99,8 +99,8 @@ where
                             }
                         }
                         FilterValue::Number(n) => format!("{}", n),
-                        FilterValue::Str(s) => format!("\"{}\"", s),
-                        FilterValue::String(s) => format!("\"{}\"", s),
+                        FilterValue::Str(s) => quote_and_escape_wql_str(s),
+                        FilterValue::String(s) => quote_and_escape_wql_str(&s),
                     };
 
                     conditions.push(format!("{} = {}", field, value));
@@ -122,6 +122,30 @@ where
     );
 
     Ok(query_text)
+}
+
+/// Quote/escape a string for WQL.
+///
+/// [2.2.1 WQL Query] references [DMTF-DSP0004] ("CIM") which, in reading section "4.11.1 String Constants",
+/// seems to only require that `\` and `"` be escaped.  It's underspecified in CIM what happens with unicode
+/// values - perhaps `\xNNNN` escaping would be appropriate for a more general purpouse CIM string escaping
+/// function - but in my testing on Windows 10.0.19041.572, it seems that such values do *not* need to be
+/// escaped for WQL, and are treated as their expected unicode values just fine.
+///
+/// [2.2.1 WQL Query]:  https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-wmi/6c8a38f4-4ee1-47cb-99f1-b42718a575ce
+/// [DMTF-DSP0004]:     https://www.dmtf.org/sites/default/files/standards/documents/DSP0004V2.3_final.pdf
+fn quote_and_escape_wql_str(s: &str) -> String {
+    let mut o = String::new();
+    o.push('"');
+    for ch in s.chars() {
+        match ch {
+            '\"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            ch   => o.push(ch),
+        }
+    }
+    o.push('"');
+    o
 }
 
 impl WMIConnection {
@@ -752,6 +776,68 @@ mod tests {
 
         let sat = wmi_con.get::<Win32_WinSAT>().unwrap();
         assert!(sat.CPUScore >= 0.0);
+    }
+
+    #[test]
+    fn it_can_query_quotes_and_slashes() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_Service {
+            Name: String,
+
+            /// Name="LSM" (among other services?) lacks a PathName
+            /// PathName is a great source of quote marks and back slashes surounding paths into "Program Files" to test escaping against
+            PathName: Option<String>,
+        }
+
+        let services = wmi_con.query::<Win32_Service>().unwrap();
+        assert!(services.len() >= 1);
+
+        // Checking every service with `\"` and `\\` in their PathName s would be too slow (60+ seconds!), so just check one
+        let service = services.iter().find(|service| service.PathName.as_ref().map_or(false, |path_name| path_name.contains("\"") && path_name.contains("\\"))).unwrap();
+
+        let mut filters = HashMap::new();
+        filters.insert(String::from("Name"), FilterValue::String(service.Name.clone()));
+        filters.insert(String::from("PathName"), FilterValue::String(service.PathName.as_ref().unwrap().clone()));
+        let services_filtered = wmi_con.filtered_query::<Win32_Service>(&filters).unwrap();
+
+        assert!(services_filtered.len() >= 1, "Unable to find service {:?} via filters", service.Name);
+    }
+
+    #[test]
+    fn it_can_query_unicode() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_Product {
+            /// Yes, there are products without names, such as:
+            /// IdentifyingNumber="{9AC08E99-230B-47e8-9721-4577B7F124EA}"
+            /// Which appears to be Microsoft Office related.
+            Name: Option<String>,
+
+            /// Occasionally contains things like TradeMark symbols - ™ - U+2122
+            /// Example:  "PlayStation™Now"
+            Caption: Option<String>,
+        }
+
+        let products = wmi_con.query::<Win32_Product>().unwrap(); // This seriously takes 23+ seconds
+        assert!(products.len() >= 1);
+
+        // Win32_Product queries are extremely expensive, so only query one unicode-laden product at most.
+        // Also, it's pretty likely you don't have any products with unicode in their captions, so don't fail if none are found.
+        let product = products.iter().find(|p| p.Caption.as_ref().map_or(false, |c| c.chars().any(|ch| ch > 0xFF as char)));
+        if let Some(product) = product {
+            let mut filters = HashMap::new();
+            if let Some(name) = product.Name.as_ref() {
+                filters.insert(String::from("Name"), FilterValue::String(name.clone()));
+            }
+            if let Some(caption) = product.Caption.as_ref() {
+                filters.insert(String::from("Caption"), FilterValue::String(caption.clone()));
+            }
+            let products_filtered = wmi_con.filtered_query::<Win32_Product>(&filters).unwrap();
+            assert!(products_filtered.len() >= 1, "Unable to find {:?} via filters", product);
+        }
     }
 
     #[test]
