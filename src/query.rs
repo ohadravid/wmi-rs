@@ -798,7 +798,7 @@ mod tests {
         let mut filters = HashMap::new();
         filters.insert(String::from("Name"), FilterValue::String(tmp_dir_path.clone()));
         let directory = wmi_con.filtered_query::<Win32_Directory>(&filters).unwrap().pop().unwrap();
-        assert_eq!(directory.Name, tmp_dir_path);
+        assert_eq!(directory.Name.to_lowercase(), tmp_dir_path.to_lowercase());
     }
 
     #[test]
