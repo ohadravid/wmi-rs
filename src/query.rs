@@ -604,10 +604,11 @@ mod tests {
         filters.insert("C2".to_string(), FilterValue::String("b".to_string()));
         filters.insert("C3".to_string(), FilterValue::Number(42));
         filters.insert("C4".to_string(), FilterValue::Bool(false));
+        filters.insert("C5".to_string(), FilterValue::String(r#"with " and \ chars"#.to_string()));
 
         let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
-        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false"#;
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars""#;
 
         assert_eq!(query, select_part + where_part);
     }
@@ -784,65 +785,20 @@ mod tests {
     }
 
     #[test]
-    fn it_can_query_quotes_and_slashes() {
+    fn it_can_query_slashes_and_unicode() {
+        let tmp_dir = tempdir::TempDir::new("PlayStation™Now").unwrap();
         let wmi_con = wmi_con();
-
+        let tmp_dir_path = tmp_dir.path().to_string_lossy().to_string();
+        
         #[derive(Deserialize, Debug)]
-        struct Win32_Service {
+        struct Win32_Directory {
             Name: String,
-
-            /// Name="LSM" (among other services?) lacks a PathName
-            /// PathName is a great source of quote marks and back slashes surounding paths into "Program Files" to test escaping against
-            PathName: Option<String>,
         }
-
-        let services = wmi_con.query::<Win32_Service>().unwrap();
-        assert!(services.len() >= 1);
-
-        // Checking every service with `\"` and `\\` in their PathName s would be too slow (60+ seconds!), so just check one
-        let service = services.iter().find(|service| service.PathName.as_ref().map_or(false, |path_name| path_name.contains("\"") && path_name.contains("\\"))).unwrap();
 
         let mut filters = HashMap::new();
-        filters.insert(String::from("Name"), FilterValue::String(service.Name.clone()));
-        filters.insert(String::from("PathName"), FilterValue::String(service.PathName.as_ref().unwrap().clone()));
-        let services_filtered = wmi_con.filtered_query::<Win32_Service>(&filters).unwrap();
-
-        assert!(services_filtered.len() >= 1, "Unable to find service {:?} via filters", service.Name);
-    }
-
-    #[test]
-    fn it_can_query_unicode() {
-        let wmi_con = wmi_con();
-
-        #[derive(Deserialize, Debug)]
-        struct Win32_Product {
-            /// Yes, there are products without names, such as:
-            /// IdentifyingNumber="{9AC08E99-230B-47e8-9721-4577B7F124EA}"
-            /// Which appears to be Microsoft Office related.
-            Name: Option<String>,
-
-            /// Occasionally contains things like TradeMark symbols - ™ - U+2122
-            /// Example:  "PlayStation™Now"
-            Caption: Option<String>,
-        }
-
-        let products = wmi_con.query::<Win32_Product>().unwrap(); // This seriously takes 23+ seconds
-        assert!(products.len() >= 1);
-
-        // Win32_Product queries are extremely expensive, so only query one unicode-laden product at most.
-        // Also, it's pretty likely you don't have any products with unicode in their captions, so don't fail if none are found.
-        let product = products.iter().find(|p| p.Caption.as_ref().map_or(false, |c| c.chars().any(|ch| ch > 0xFF as char)));
-        if let Some(product) = product {
-            let mut filters = HashMap::new();
-            if let Some(name) = product.Name.as_ref() {
-                filters.insert(String::from("Name"), FilterValue::String(name.clone()));
-            }
-            if let Some(caption) = product.Caption.as_ref() {
-                filters.insert(String::from("Caption"), FilterValue::String(caption.clone()));
-            }
-            let products_filtered = wmi_con.filtered_query::<Win32_Product>(&filters).unwrap();
-            assert!(products_filtered.len() >= 1, "Unable to find {:?} via filters", product);
-        }
+        filters.insert(String::from("Name"), FilterValue::String(tmp_dir_path.clone()));
+        let directory = wmi_con.filtered_query::<Win32_Directory>(&filters).unwrap().pop().unwrap();
+        assert_eq!(directory.Name, tmp_dir_path);
     }
 
     #[test]
