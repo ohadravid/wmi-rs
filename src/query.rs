@@ -128,14 +128,19 @@ where
 ///
 /// [2.2.1 WQL Query] references [DMTF-DSP0004] ("CIM") which, in reading section "4.11.1 String Constants",
 /// seems to only require that `\` and `"` be escaped.  It's underspecified in CIM what happens with unicode
-/// values - perhaps `\xNNNN` escaping would be appropriate for a more general purpouse CIM string escaping
+/// values - perhaps `\xNNNN` escaping would be appropriate for a more general purpose CIM string escaping
 /// function - but in my testing on Windows 10.0.19041.572, it seems that such values do *not* need to be
 /// escaped for WQL, and are treated as their expected unicode values just fine.
 ///
 /// [2.2.1 WQL Query]:  https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-wmi/6c8a38f4-4ee1-47cb-99f1-b42718a575ce
 /// [DMTF-DSP0004]:     https://www.dmtf.org/sites/default/files/standards/documents/DSP0004V2.3_final.pdf
-fn quote_and_escape_wql_str(s: &str) -> String {
-    let mut o = String::new();
+///
+/// ```edition2018
+/// # use wmi::query::quote_and_escape_wql_str;
+/// assert_eq!(quote_and_escape_wql_str(r#"C:\Path\With"In Name"#), r#""C:\\Path\\With\"In Name""#);
+/// ```
+pub fn quote_and_escape_wql_str(s: &str) -> String {
+    let mut o = String::with_capacity(s.as_bytes().len() + 2);
     o.push('"');
     for ch in s.chars() {
         match ch {
