@@ -68,8 +68,50 @@ where
         None =>  Err(de::Error::custom("Expected a named struct. \
             Hint: You cannot use a HashMap<...> in this context because it requires the struct to have a name")),
         Some(name) => {
+            validate_identifier(name)?;
+            for field in fields.into_iter().flatten() {
+                validate_identifier(field)?;
+            }
+
             Ok((name, fields.unwrap()))
         }
+    }
+}
+
+/// Validate a namespace/class/property name.
+///
+/// From [DMTF-DSP0004], Appendix F: Unicode Usage:
+///
+/// > ...<br>
+/// > Therefore, all namespace, class and property names are identifiers composed as follows:<br>
+/// > Initial identifier characters must be in set S1, where S1 = {U+005F, U+0041...U+005A, U+0061...U+007A, U+0080...U+FFEF) \[This is alphabetic, plus underscore\]<br>
+/// > All following characters must be in set S2 where S2 = S1 union {U+0030...U+0039} \[This is alphabetic, underscore, plus Arabic numerals 0 through 9.\]<br>
+///
+/// [DMTF-DSP0004]:     https://www.dmtf.org/sites/default/files/standards/documents/DSP0004V2.3_final.pdf
+fn validate_identifier<E: serde::de::Error>(s: &str) -> Result<&str, E> {
+    fn is_s1(ch: char) -> bool {
+        match ch {
+            '\u{005f}'                  => true,
+            '\u{0041}' ..= '\u{005A}'   => true,
+            '\u{0061}' ..= '\u{007A}'   => true,
+            '\u{0080}' ..= '\u{FFEF}'   => true,
+            _other                      => false,
+        }
+    }
+
+    fn is_s2(ch: char) -> bool {
+        match ch {
+            '\u{0030}' ..= '\u{0039}'   => true,
+            _other                      => is_s1(ch),
+        }
+    }
+
+    let mut chars = s.chars();
+    match chars.next() {
+        None                            => Err(de::Error::custom("An empty string is not a valid namespace, class, or property name")),
+        Some(ch) if !is_s1(ch)          => Err(de::Error::custom("An identifier must start with '_' or an alphabetic character")),
+        Some(_) if !chars.all(is_s2)    => Err(de::Error::custom("An identifier must only consist of '_', alphabetic, or numeric characters")),
+        Some(_)                         => Ok(s),
     }
 }
 
@@ -108,6 +150,22 @@ mod tests {
 
         assert_eq!(name, "Win32_OperatingSystem");
         assert_eq!(fields, ["Caption", "Name"]);
+    }
+
+    #[test]
+    fn it_fails_for_sqli() {
+        #[derive(Deserialize, Debug)]
+        #[serde(rename = "Evil\\Struct\\Name")]
+        struct EvilStructName {}
+
+        #[derive(Deserialize, Debug)]
+        struct EvilFieldName {
+            #[serde(rename = "Evil\"Field\"Name")]
+            field: String,
+        }
+
+        struct_name_and_fields::<EvilStructName>().unwrap_err();
+        struct_name_and_fields::<EvilFieldName>().unwrap_err();
     }
 
     #[test]
