@@ -4,6 +4,8 @@ use crate::result_enumerator::{IWbemClassWrapper, QueryResultEnumerator};
 use crate::{
     connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres, WMIError,
 };
+#[cfg(feature = "async-query")]
+use crate::query_sink::QuerySink;
 use log::trace;
 use serde::de;
 use std::collections::HashMap;
@@ -19,6 +21,17 @@ use winapi::{
         },
     },
 };
+#[cfg(feature = "async-query")]
+use winapi::{
+    um::{
+        wbemcli::IWbemObjectSink,
+        wbemcli::{
+            WBEM_FLAG_BIDIRECTIONAL,
+        },
+    },
+};
+#[cfg(feature = "async-query")]
+use com_ptr::ComPtr;
 
 pub enum FilterValue {
     Bool(bool),
@@ -470,6 +483,40 @@ impl WMIConnection {
 
         self.raw_query(&query)
     }
+
+    // Execute the given query in async way, returns result in a Sink.
+    #[cfg(feature = "async-query")]
+    fn exec_async_query_native_wrapper(
+        &self,
+        query: impl AsRef<str>,
+    ) -> Result<ComPtr<IWbemObjectSink>, WMIError> {
+        let query_language = BStr::from_str("WQL")?;
+        let query = BStr::from_str(query.as_ref())?;
+
+        unsafe {
+            // ExecQueryAsync needs a *mut ptr, so we encapsulate in a Box to keep a ref to the sink
+            let pp_sink = Box::new(QuerySink::new_ptr());
+
+            if let Err(e) = check_hres((*self.svc()).ExecQueryAsync(
+                query_language.as_bstr(),
+                query.as_bstr(),
+                WBEM_FLAG_BIDIRECTIONAL as i32,
+                ptr::null_mut(),
+                *pp_sink,
+            )) {
+                // We need to manually release the Sink in case of error
+                (**pp_sink).Release();
+                return Err(e);
+            }
+
+            // Wrap to a ComPtr, that handles release
+            let p_sink: ComPtr<IWbemObjectSink> = ComPtr::from_raw(*pp_sink);
+            trace!("Got initialized Sink: {:?}", p_sink);
+            
+            Ok(p_sink)
+        }
+    }
+    
 }
 
 #[allow(non_snake_case)]

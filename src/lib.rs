@@ -114,6 +114,9 @@ pub mod safearray;
 pub mod utils;
 pub mod variant;
 
+#[cfg(feature = "async-query")]
+pub mod query_sink;
+
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
 
