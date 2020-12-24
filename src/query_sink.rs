@@ -24,7 +24,7 @@ use crate::result_enumerator::IWbemClassWrapper;
 /// [Sink]: https://en.wikipedia.org/wiki/Sink_(computing)
 /// # https://docs.microsoft.com/fr-fr/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer-asynchronously
 #[repr(C)]
-#[derive(ComImpl, Debug)]
+#[derive(ComImpl)]
 #[interfaces(IWbemObjectSink)]
 pub struct QuerySink {
     vtbl: VTable<IWbemObjectSinkVtbl>,
@@ -41,24 +41,29 @@ impl QuerySink {
 
 #[com_impl::com_impl]
 unsafe impl IWbemObjectSink for QuerySink {
-    /// Method called through FFI by WMI to populate the Sink
-    ///
     pub unsafe fn indicate(
         &self,
         lObjectCount: c_long,
         apObjArray: *mut *mut IWbemClassObject
     ) -> HRESULT {
         trace!("Indicate call with {} objects", lObjectCount);
+        // apObjArray The array memory itself is read-only, and is owned by the caller of the method.
+        // Call AddRef on each element of apObjArray to borrow.
+        // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
 
-        // TODO: check ObjectCount
+        // TODO: Document when ObjectCount is <=0
+        if lObjectCount <= 0 {
+            return WBEM_NO_ERROR as i32;
+        }
 
         unsafe {
             // TODO: check if pointers are non null
-            // TODO: check if we need to iterate to lObjectCount or lObjectCount+/-1
             // Iterate over result array to extract ClassObjects
             for i in 0..lObjectCount {
                 let p_el = *apObjArray.offset(i as isize);
                 let wbemClassObject = IWbemClassWrapper::new(NonNull::new(p_el));
+                // call to AddRef because object will be held after the end of Indicate
+                wbemClassObject.add_ref();
                 // TODO: store wbemCLassObject in ThreadSafe Array
                 trace!("{:?}", wbemClassObject.list_properties());
             }

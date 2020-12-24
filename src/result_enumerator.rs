@@ -97,6 +97,12 @@ impl IWbemClassWrapper {
     {
         from_wbem_class_obj(&self).map_err(WMIError::from)
     }
+
+    pub unsafe fn add_ref(&self) {
+        unsafe {
+            (*self.inner.unwrap().as_ptr()).AddRef();
+        }
+    }
 }
 
 impl Drop for IWbemClassWrapper {
