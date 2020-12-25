@@ -15,6 +15,7 @@ use winapi::um::wbemcli::{IWbemObjectSink, IWbemObjectSinkVtbl};
 use com_impl::{ComImpl, VTable, Refcount};
 use log::trace;
 use std::ptr::NonNull;
+use wio::com::ComPtr;
 use crate::result_enumerator::IWbemClassWrapper;
 
 /// Implementation for IWbemObjectSink.
@@ -32,12 +33,12 @@ pub struct QuerySink {
 }
 
 impl QuerySink {
-    pub fn new_ptr() -> *mut IWbemObjectSink {
+    pub fn new() -> ComPtr<IWbemObjectSink> {
         let ptr = QuerySink::create_raw();
-        ptr as *mut IWbemObjectSink
+        let ptr = ptr as *mut IWbemObjectSink;
+        unsafe { ComPtr::from_raw(ptr) }
     }
 }
-
 
 #[com_impl::com_impl]
 unsafe impl IWbemObjectSink for QuerySink {
@@ -62,8 +63,8 @@ unsafe impl IWbemObjectSink for QuerySink {
             for i in 0..lObjectCount {
                 let p_el = *apObjArray.offset(i as isize);
                 let wbemClassObject = IWbemClassWrapper::new(NonNull::new(p_el));
-                // call to AddRef because object will be held after the end of Indicate
-                wbemClassObject.add_ref();
+                // TODO: call AddRef because object will be held after the end of Indicate
+                //wbemClassObject.add_ref();
                 // TODO: store wbemCLassObject in ThreadSafe Array
                 trace!("{:?}", wbemClassObject.list_properties());
             }

@@ -31,7 +31,7 @@ use winapi::{
     },
 };
 #[cfg(feature = "async-query")]
-use com_ptr::ComPtr;
+use wio::com::ComPtr;
 
 pub enum FilterValue {
     Bool(bool),
@@ -493,24 +493,17 @@ impl WMIConnection {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
-        unsafe {
-            // ExecQueryAsync needs a *mut ptr, so we encapsulate in a Box to keep a ref to the sink
-            let pp_sink = Box::new(QuerySink::new_ptr());
+        let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new();
 
-            if let Err(e) = check_hres((*self.svc()).ExecQueryAsync(
+        unsafe {
+            check_hres((*self.svc()).ExecQueryAsync(
                 query_language.as_bstr(),
                 query.as_bstr(),
                 WBEM_FLAG_BIDIRECTIONAL as i32,
                 ptr::null_mut(),
-                *pp_sink,
-            )) {
-                // We need to manually release the Sink in case of error
-                (**pp_sink).Release();
-                return Err(e);
-            }
+                p_sink.as_raw(),
+            ))?;
 
-            // Wrap to a ComPtr, that handles release
-            let p_sink: ComPtr<IWbemObjectSink> = ComPtr::from_raw(*pp_sink);
             trace!("Got initialized Sink: {:?}", p_sink);
             
             Ok(p_sink)
