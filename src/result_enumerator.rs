@@ -98,7 +98,10 @@ impl IWbemClassWrapper {
         from_wbem_class_obj(&self).map_err(WMIError::from)
     }
 
-    pub unsafe fn add_ref(&self) {
+    /// Increments the reference count for the underlying pointer to the COM object.
+    /// You should call this method whenever you make a copy of an interface pointer
+    /// # https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref
+    pub fn add_ref(&self) {
         unsafe {
             (*self.inner.unwrap().as_ptr()).AddRef();
         }
