@@ -64,10 +64,11 @@ unsafe impl IWbemObjectSink for QuerySink {
         let mut result = Vec::<IWbemClassWrapper>::with_capacity(lObjectCount);
 
         unsafe {
-            // TODO: check if pointers are non null
             // Iterate over input array to extract ClassObjects
             for i in 0..lObjectCount {
                 let p_el = *apObjArray.offset(i as isize);
+                // TODO: inform WMI if pointer is null instead
+                assert!(!p_el.is_null());
                 let wbemClassObject = IWbemClassWrapper::new(NonNull::new(p_el));
                 // call AddRef because object will be held after the end of Indicate
                 wbemClassObject.add_ref();
@@ -77,6 +78,7 @@ unsafe impl IWbemObjectSink for QuerySink {
 
         // send the result to the receiver
         if let Err(e) = tx.try_send(result) {
+            // TODO: send error back to WMI
             warn!("Error while sending result: {}", e);
         }
 
@@ -103,7 +105,7 @@ mod tests {
     use crate::tests::fixtures::*;
 
     #[async_std::test]
-    async fn it_works_async() {
+    async fn it_should_use_async_channel_to_send_result() {
         let con = wmi_con();
         let (tx, rx) = async_channel::unbounded();
         let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
@@ -121,8 +123,8 @@ mod tests {
 
         assert_eq!(rx.len(), 1);
 
-        println!("Number of senders: {}", rx.sender_count());
-        println!("Number of receivers: {}", rx.receiver_count());
+        assert_eq!(rx.sender_count(), 1);
+        assert_eq!(rx.receiver_count(), 1);
         let result: Vec::<IWbemClassWrapper> = rx.recv().await.unwrap();
         
         assert_eq!(result.len(), 2);
