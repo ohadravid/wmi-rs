@@ -115,8 +115,14 @@ mod tests {
 
         let mut arr = vec![ptr, ptr2];
 
+        assert_eq!(rx.len(), 0);
+
         unsafe {p_sink.Indicate(arr.len() as i32, arr.as_mut_ptr());}
 
+        assert_eq!(rx.len(), 1);
+
+        println!("Number of senders: {}", rx.sender_count());
+        println!("Number of receivers: {}", rx.receiver_count());
         let result: Vec::<IWbemClassWrapper> = rx.recv().await.unwrap();
         
         assert_eq!(result.len(), 2);
