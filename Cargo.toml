@@ -18,8 +18,8 @@ keywords = ["wmi", "com", "win32"]
 default-target = "x86_64-pc-windows-msvc"
 
 [features]
-test = ["lazy_static"]
-async-query = ["com-impl", "wio"]
+test = ["lazy_static", "async-std"]
+async-query = ["com-impl", "wio", "async-channel"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3.9", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi", "wtypes", "wtypesbase"] }
@@ -32,12 +32,15 @@ thiserror = "^1"
 # dependencies for async queries
 com-impl = {version = "0.1.1", optional = true}
 wio = {version = "0.2.2", optional = true}
+async-channel = {version = "1.5.1", optional = true}
+async-std = { version = "1.8.0",  features = ["attributes"], optional = true }
 
 [dev-dependencies]
 lazy_static = "1.4.0"
 serde_json = { version = "1.0" }
 criterion = "0.3"
 tempdir = "0.3"
+async-std = "1.8.0"
 
 [[bin]]
 name = "wmiq"

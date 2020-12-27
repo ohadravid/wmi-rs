@@ -486,14 +486,15 @@ impl WMIConnection {
 
     // Execute the given query in async way, returns result in a Sink.
     #[cfg(feature = "async-query")]
-    fn exec_async_query_native_wrapper(
+    pub fn exec_async_query_native_wrapper(
         &self,
         query: impl AsRef<str>,
     ) -> Result<ComPtr<IWbemObjectSink>, WMIError> {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
-        let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new();
+        let (tx, _rx) = async_channel::unbounded();
+        let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
 
         unsafe {
             check_hres((*self.svc()).ExecQueryAsync(
