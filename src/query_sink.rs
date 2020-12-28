@@ -2,6 +2,7 @@ use winapi::{
     um::wbemcli::{
         {IWbemClassObject,IWbemObjectSink, IWbemObjectSinkVtbl},
         WBEM_NO_ERROR,
+        WBEM_STATUS_COMPLETE,
     },
     shared::{
         ntdef::HRESULT,
@@ -88,11 +89,20 @@ unsafe impl IWbemObjectSink for QuerySink {
 
     pub unsafe fn set_status(
         &self,
-        _lFlags: c_long,
+        lFlags: c_long,
         _hResult: HRESULT,
         _strParam: BSTR,
         _pObjParam: *mut IWbemClassObject
     ) -> HRESULT {
+        // SetStatus is called only once as flag=WBEM_FLAG_BIDIRECTIONAL in ExecQueryAsync
+        // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-setstatus
+        // If you do not specify WBEM_FLAG_SEND_STATUS when calling your provider or service method,
+        // you are guaranteed to receive one and only one call to SetStatus
+
+        if lFlags == WBEM_STATUS_COMPLETE as i32 {
+            trace!("End of async result, closing transmitter");
+            self.sender.close();
+        }
         WBEM_NO_ERROR as i32
     }
 }
@@ -104,6 +114,7 @@ unsafe impl IWbemObjectSink for QuerySink {
 mod tests {
     use super::*;
     use crate::tests::fixtures::*;
+    use winapi::shared::ntdef::NULL;
 
     #[async_std::test]
     async fn it_should_use_async_channel_to_send_result() {
@@ -159,5 +170,17 @@ mod tests {
         }
 
         assert_eq!(rx.len(), 0);
+    }
+
+    #[test]
+    fn it_should_close_async_channel_after_set_status_call() {
+        let (tx, rx) = async_channel::unbounded();
+        let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
+
+        assert!(!rx.is_closed());
+
+        unsafe {p_sink.SetStatus(WBEM_STATUS_COMPLETE as i32, 0, NULL as BSTR, NULL as *mut IWbemClassObject);}
+
+        assert!(rx.is_closed());
     }
 }
