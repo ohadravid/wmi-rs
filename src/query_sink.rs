@@ -1,23 +1,24 @@
 use winapi::{
     um::wbemcli::{
-        IWbemClassObject,
+        {IWbemClassObject,IWbemObjectSink, IWbemObjectSinkVtbl},
         WBEM_NO_ERROR,
     },
     shared::{
         ntdef::HRESULT,
         wtypes::BSTR,
+        winerror::E_POINTER,
     },
     ctypes::{
         c_long,
     },
 };
-use winapi::um::wbemcli::{IWbemObjectSink, IWbemObjectSinkVtbl};
 use com_impl::{ComImpl, VTable, Refcount};
 use log::{trace, warn};
 use std::ptr::NonNull;
 use wio::com::ComPtr;
 use async_channel::Sender;
 use crate::result_enumerator::IWbemClassWrapper;
+use crate::WMIError;
 
 /// Implementation for IWbemObjectSink.
 /// This [Sink] receives asynchronously the result of the query,
@@ -31,11 +32,11 @@ use crate::result_enumerator::IWbemClassWrapper;
 pub struct QuerySink {
     vtbl: VTable<IWbemObjectSinkVtbl>,
     refcount: Refcount,
-    sender: Sender<Vec<IWbemClassWrapper>>,
+    sender: Sender<Result<IWbemClassWrapper, WMIError>>,
 }
 
 impl QuerySink {
-    pub fn new(sender: Sender<Vec<IWbemClassWrapper>>) -> ComPtr<IWbemObjectSink> {
+    pub fn new(sender: Sender<Result<IWbemClassWrapper, WMIError>>) -> ComPtr<IWbemObjectSink> {
         let ptr = QuerySink::create_raw(sender);
         let ptr = ptr as *mut IWbemObjectSink;
         unsafe { ComPtr::from_raw(ptr) }
@@ -50,10 +51,6 @@ unsafe impl IWbemObjectSink for QuerySink {
         apObjArray: *mut *mut IWbemClassObject
     ) -> HRESULT {
         trace!("Indicate call with {} objects", lObjectCount);
-        // apObjArray The array memory itself is read-only, and is owned by the caller of the method.
-        // Call AddRef on each element of apObjArray to borrow.
-        // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
-
         // TODO: Document when ObjectCount is <=0
         if lObjectCount <= 0 {
             return WBEM_NO_ERROR as i32;
@@ -61,25 +58,29 @@ unsafe impl IWbemObjectSink for QuerySink {
 
         let lObjectCount = lObjectCount as usize;
         let tx = self.sender.clone();
-        let mut result = Vec::<IWbemClassWrapper>::with_capacity(lObjectCount);
 
         unsafe {
-            // Iterate over input array to extract ClassObjects
+            // The array memory of apObjArray is read-only, and is owned by the caller of the Indicate method.
+            // The call to AddRef on each element of apObjArray to borrow is done by the IWbemClassWrapper::clone
+            // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
             for i in 0..lObjectCount {
+                // iterate over apObjArray elements
                 let p_el = *apObjArray.offset(i as isize);
-                // TODO: inform WMI if pointer is null instead
-                assert!(!p_el.is_null());
-                let wbemClassObject = IWbemClassWrapper::new(NonNull::new(p_el));
-                // call AddRef because object will be held after the end of Indicate
-                wbemClassObject.add_ref();
-                result.push(wbemClassObject);
+                // check for null pointer before cloning
+                if p_el.is_null() {
+                    // TODO: check how Indicate error code are handled by WMI
+                    // TODO: inform receiver with tx.try_send(Err(...))
+                    // See https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
+                    return E_POINTER;
+                }
+                // extend ClassObject lifespan beyond scope of Indicate method
+                let wbemClassObject = IWbemClassWrapper::clone(NonNull::new(p_el));
+                // send the result to the receiver
+                if let Err(e) = tx.try_send(Ok(wbemClassObject)) {
+                    // TODO: send error back to WMI
+                    warn!("Error while sending object: {}", e);
+                }
             }
-        }
-
-        // send the result to the receiver
-        if let Err(e) = tx.try_send(result) {
-            // TODO: send error back to WMI
-            warn!("Error while sending result: {}", e);
         }
 
         WBEM_NO_ERROR as i32
@@ -120,18 +121,33 @@ mod tests {
         assert_eq!(rx.len(), 0);
 
         unsafe {p_sink.Indicate(arr.len() as i32, arr.as_mut_ptr());}
+        // tests on ref count after Indicate call
+        unsafe {
+            let refcount = ptr.as_ref().unwrap().Release();
+            assert_eq!(refcount, 1);
+            let refcount = ptr2.as_ref().unwrap().Release();
+            assert_eq!(refcount, 1);
+        }
 
-        assert_eq!(rx.len(), 1);
+        assert_eq!(rx.len(), 2);
 
         assert_eq!(rx.sender_count(), 1);
         assert_eq!(rx.receiver_count(), 1);
-        let result: Vec::<IWbemClassWrapper> = rx.recv().await.unwrap();
-        
-        assert_eq!(result.len(), 2);
 
-        for obj in &result {
-            assert_eq!(obj.class().unwrap().as_str(), "Win32_OperatingSystem");
+        if let Ok(first) = rx.recv().await.unwrap() {
+            assert_eq!(first.class().unwrap().as_str(), "Win32_OperatingSystem");
+        } else {
+            assert!(false);
+        }
+        
+        assert_eq!(rx.len(), 1);
+
+        if let Ok(second) = rx.recv().await.unwrap() {
+            assert_eq!(second.class().unwrap().as_str(), "Win32_OperatingSystem");
+        } else {
+            assert!(false);
         }
 
+        assert_eq!(rx.len(), 0);
     }
 }

@@ -35,6 +35,17 @@ impl IWbemClassWrapper {
         Self { inner: ptr }
     }
 
+    /// Creates a copy of the pointer and calls [AddRef] to increment Reference Count
+    /// See [Managing the lifetime of an object] in the documentation
+    /// [Managing the lifetime of an object]: https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object
+    /// [AddRef]: https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref
+    ///
+    pub unsafe fn clone(ptr: Option<NonNull<IWbemClassObject>>) -> Self {
+        let refcount = (ptr.unwrap().as_ref()).AddRef();
+        trace!("Reference count: {}", refcount);
+        Self::new(ptr)
+    }
+
     /// Return the names of all the properties of the given object.
     ///
     pub fn list_properties(&self) -> Result<Vec<String>, WMIError> {
@@ -96,15 +107,6 @@ impl IWbemClassWrapper {
         T: de::DeserializeOwned,
     {
         from_wbem_class_obj(&self).map_err(WMIError::from)
-    }
-
-    /// Increments the reference count for the underlying pointer to the COM object.
-    /// You should call this method whenever you make a copy of an interface pointer
-    /// # https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref
-    pub fn add_ref(&self) {
-        unsafe {
-            (*self.inner.unwrap().as_ptr()).AddRef();
-        }
     }
 }
 
