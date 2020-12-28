@@ -120,13 +120,23 @@ mod tests {
 
         assert_eq!(rx.len(), 0);
 
+        // tests on ref count before Indicate call
+        unsafe {
+            let test_ptr = &ptr;
+            let refcount = test_ptr.as_ref().unwrap().AddRef();
+            assert_eq!(refcount, 2);
+            let refcount = test_ptr.as_ref().unwrap().Release();
+            assert_eq!(refcount, 1);
+        }
+
         unsafe {p_sink.Indicate(arr.len() as i32, arr.as_mut_ptr());}
         // tests on ref count after Indicate call
         unsafe {
-            let refcount = ptr.as_ref().unwrap().Release();
-            assert_eq!(refcount, 1);
-            let refcount = ptr2.as_ref().unwrap().Release();
-            assert_eq!(refcount, 1);
+            let test_ptr = &ptr;
+            let refcount = test_ptr.as_ref().unwrap().AddRef();
+            assert_eq!(refcount, 3);
+            let refcount = test_ptr.as_ref().unwrap().Release();
+            assert_eq!(refcount, 2);
         }
 
         assert_eq!(rx.len(), 2);
