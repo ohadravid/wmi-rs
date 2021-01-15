@@ -934,7 +934,7 @@ mod tests {
             System(Win32_SystemAccount),
             #[serde(rename = "Win32_UserAccount")]
             User(Win32_UserAccount),
-        };
+        }
 
         for account in accounts_in_group {
             let raw_account = wmi_con.get_raw_by_path(&account.__Path).unwrap();
