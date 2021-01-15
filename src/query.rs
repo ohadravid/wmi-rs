@@ -961,6 +961,7 @@ mod tests {
     use futures::executor::block_on;
 
     #[test]
+    #[cfg(feature = "async-query")]
     fn _async_it_works_async() {
         let wmi_con = wmi_con();
 
