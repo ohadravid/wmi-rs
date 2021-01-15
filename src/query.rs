@@ -32,6 +32,8 @@ use winapi::{
 };
 #[cfg(feature = "async-query")]
 use wio::com::ComPtr;
+#[cfg(feature = "async-query")]
+use futures::stream::StreamExt;
 
 pub enum FilterValue {
     Bool(bool),
@@ -486,14 +488,14 @@ impl WMIConnection {
 
     // Execute the given query in async way, returns result in a Sink.
     #[cfg(feature = "async-query")]
-    pub fn exec_async_query_native_wrapper(
+    pub async fn exec_async_query_native_wrapper(
         &self,
         query: impl AsRef<str>,
-    ) -> Result<ComPtr<IWbemObjectSink>, WMIError> {
+    ) -> Result<Vec<Result<IWbemClassWrapper, WMIError>>, WMIError> {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
-        let (tx, _rx) = async_channel::unbounded();
+        let (tx, rx) = async_channel::unbounded();
         let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
 
         unsafe {
@@ -504,11 +506,12 @@ impl WMIConnection {
                 ptr::null_mut(),
                 p_sink.as_raw(),
             ))?;
-
-            trace!("Got initialized Sink: {:?}", p_sink);
             
-            Ok(p_sink)
         }
+
+        // TODO: transform to Result<Vec<IWbemClassWrapper>, WMIError>
+        // TODO: try not to use collect as it adds dependency to futures::stream::StreamExt
+        Ok(rx.collect::<Vec<_>>().await)
     }
     
 }
