@@ -956,4 +956,20 @@ mod tests {
             let _raw_account: User = wmi_con.get_by_path(&account.__Path).unwrap();
         }
     }
+
+    #[cfg(feature = "async-query")]
+    use futures::executor::block_on;
+
+    #[test]
+    fn _async_it_works_async() {
+        let wmi_con = wmi_con();
+
+        let result = block_on(wmi_con
+            .exec_async_query_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem"))
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+
+        println!("{:?}", result);
+    }
 }
