@@ -185,15 +185,20 @@ mod tests {
         assert!(rx.is_closed());
     }
 
-    #[test]
-    fn _async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
-        let (tx, _rx) = async_channel::unbounded();
+    #[async_std::test]
+    async fn _async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
+        let (tx, rx) = async_channel::unbounded();
         let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
 
         let mut arr = vec![NULL as *mut IWbemClassObject];
         let result;
 
         unsafe { result = p_sink.Indicate(1, arr.as_mut_ptr()) }
+
+        match rx.recv().await.unwrap() {
+            Err(WMIError::NullPointerResult) => assert!(true),
+            _ => assert!(false),
+        }
 
         assert_eq!(result, E_POINTER);
     }
