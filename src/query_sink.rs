@@ -7,7 +7,7 @@ use winapi::{
     shared::{
         ntdef::HRESULT,
         wtypes::BSTR,
-        winerror::E_POINTER,
+        winerror::{E_POINTER, E_FAIL},
     },
     ctypes::{
         c_long,
@@ -21,11 +21,12 @@ use async_channel::Sender;
 use crate::result_enumerator::IWbemClassWrapper;
 use crate::WMIError;
 
-/// Implementation for IWbemObjectSink.
+/// Implementation for [IWbemObjectSink].
 /// This [Sink] receives asynchronously the result of the query,
 /// through Indicate calls. When finished,the SetStatus method
 /// is called.
 /// [Sink]: https://en.wikipedia.org/wiki/Sink_(computing)
+/// [IWbemObjectSink]: https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nn-wbemcli-iwbemobjectsink
 /// # https://docs.microsoft.com/fr-fr/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer-asynchronously
 #[repr(C)]
 #[derive(ComImpl)]
@@ -44,6 +45,7 @@ impl QuerySink {
     }
 }
 
+// AddRef and Release methods are provided by com_impl
 #[com_impl::com_impl]
 unsafe impl IWbemObjectSink for QuerySink {
     pub unsafe fn indicate(
@@ -62,25 +64,24 @@ unsafe impl IWbemObjectSink for QuerySink {
 
         unsafe {
             // The array memory of apObjArray is read-only, and is owned by the caller of the Indicate method.
-            // The call to AddRef on each element of apObjArray to borrow is done by the IWbemClassWrapper::clone
+            // IWbemClassWrapper::clone calls AddRef on each element of apObjArray to borrow them.
             // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
+            // For error codes, see https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
             for i in 0..lObjectCount {
-                // iterate over apObjArray elements
-                let p_el = *apObjArray.offset(i as isize);
-                // check for null pointer before cloning
-                if p_el.is_null() {
-                    // TODO: check how Indicate error code are handled by WMI
-                    // TODO: inform receiver with tx.try_send(Err(...))
-                    // See https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
+                if let Some(p_el) = NonNull::new(*apObjArray.offset(i as isize)) {
+                    let wbemClassObject = IWbemClassWrapper::clone(p_el);
+
+                    if let Err(e) = tx.try_send(Ok(wbemClassObject)) {
+                        warn!("Error while sending object through async_channel: {}", e);
+                        return E_FAIL;
+                    }
+                } else {
+                    if let Err(e) = tx.try_send(Err(WMIError::NullPointerResult)) {
+                        warn!("Error while sending error code through async_channel: {}", e);
+                    }
                     return E_POINTER;
                 }
-                // extend ClassObject lifespan beyond scope of Indicate method
-                let wbemClassObject = IWbemClassWrapper::clone(NonNull::new(p_el));
-                // send the result to the receiver
-                if let Err(e) = tx.try_send(Ok(wbemClassObject)) {
-                    // TODO: send error back to WMI
-                    warn!("Error while sending object: {}", e);
-                }
+                
             }
         }
 
@@ -117,7 +118,7 @@ mod tests {
     use winapi::shared::ntdef::NULL;
 
     #[async_std::test]
-    async fn it_should_use_async_channel_to_send_result() {
+    async fn _async_it_should_use_async_channel_to_send_result() {
         let con = wmi_con();
         let (tx, rx) = async_channel::unbounded();
         let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
@@ -173,7 +174,7 @@ mod tests {
     }
 
     #[test]
-    fn it_should_close_async_channel_after_set_status_call() {
+    fn _async_it_should_close_async_channel_after_set_status_call() {
         let (tx, rx) = async_channel::unbounded();
         let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
 
@@ -182,5 +183,18 @@ mod tests {
         unsafe {p_sink.SetStatus(WBEM_STATUS_COMPLETE as i32, 0, NULL as BSTR, NULL as *mut IWbemClassObject);}
 
         assert!(rx.is_closed());
+    }
+
+    #[test]
+    fn _async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
+        let (tx, _rx) = async_channel::unbounded();
+        let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
+
+        let mut arr = vec![NULL as *mut IWbemClassObject];
+        let result;
+
+        unsafe { result = p_sink.Indicate(1, arr.as_mut_ptr()) }
+
+        assert_eq!(result, E_POINTER);
     }
 }

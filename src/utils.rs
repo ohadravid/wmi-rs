@@ -36,6 +36,8 @@ pub enum WMIError {
     DeserializeValueError(#[from] de::value::Error),
     #[error("No results returned")]
     ResultEmpty,
+    #[error("Null pointer was sent as part of query result")]
+    NullPointerResult,
 }
 
 impl de::Error for WMIError {

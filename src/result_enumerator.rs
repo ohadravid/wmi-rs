@@ -40,10 +40,10 @@ impl IWbemClassWrapper {
     /// [Managing the lifetime of an object]: https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object
     /// [AddRef]: https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref
     ///
-    pub unsafe fn clone(ptr: Option<NonNull<IWbemClassObject>>) -> Self {
-        let refcount = (ptr.unwrap().as_ref()).AddRef();
+    pub unsafe fn clone(ptr: NonNull<IWbemClassObject>) -> Self {
+        let refcount = ptr.as_ref().AddRef();
         trace!("Reference count: {}", refcount);
-        Self::new(ptr)
+        Self::new(Some(ptr))
     }
 
     /// Return the names of all the properties of the given object.
