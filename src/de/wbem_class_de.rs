@@ -455,7 +455,7 @@ mod tests {
             System(Win32_SystemAccount),
             #[serde(rename = "Win32_UserAccount")]
             User(Win32_UserAccount),
-        }
+        };
 
         let user: Win32_UserAccount = wmi_con.get().unwrap();
 
