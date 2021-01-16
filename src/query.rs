@@ -499,6 +499,12 @@ impl WMIConnection {
         let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
 
         unsafe {
+            // FIXME hack the RefCount
+            p_sink.AddRef();
+            p_sink.AddRef();
+            p_sink.AddRef();
+            p_sink.AddRef();
+
             check_hres((*self.svc()).ExecQueryAsync(
                 query_language.as_bstr(),
                 query.as_bstr(),

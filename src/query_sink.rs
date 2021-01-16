@@ -1,7 +1,7 @@
 use winapi::{
     um::wbemcli::{
         {IWbemClassObject,IWbemObjectSink, IWbemObjectSinkVtbl},
-        WBEM_NO_ERROR,
+        WBEM_S_NO_ERROR,
         WBEM_STATUS_COMPLETE,
     },
     shared::{
@@ -56,7 +56,7 @@ unsafe impl IWbemObjectSink for QuerySink {
         trace!("Indicate call with {} objects", lObjectCount);
         // TODO: Document when ObjectCount is <=0
         if lObjectCount <= 0 {
-            return WBEM_NO_ERROR as i32;
+            return WBEM_S_NO_ERROR as i32;
         }
 
         let lObjectCount = lObjectCount as usize;
@@ -85,7 +85,7 @@ unsafe impl IWbemObjectSink for QuerySink {
             }
         }
 
-        WBEM_NO_ERROR as i32
+        WBEM_S_NO_ERROR as i32
     }
 
     pub unsafe fn set_status(
@@ -104,7 +104,7 @@ unsafe impl IWbemObjectSink for QuerySink {
             trace!("End of async result, closing transmitter");
             self.sender.close();
         }
-        WBEM_NO_ERROR as i32
+        WBEM_S_NO_ERROR as i32
     }
 }
 
