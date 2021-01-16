@@ -33,7 +33,7 @@ use winapi::{
 #[cfg(feature = "async-query")]
 use wio::com::ComPtr;
 #[cfg(feature = "async-query")]
-use futures::stream::StreamExt;
+use futures::stream::Stream;
 
 pub enum FilterValue {
     Bool(bool),
@@ -488,10 +488,10 @@ impl WMIConnection {
 
     // Execute the given query in async way, returns result in a Sink.
     #[cfg(feature = "async-query")]
-    pub async fn exec_async_query_native_wrapper(
+    pub fn exec_async_query_native_wrapper(
         &self,
         query: impl AsRef<str>,
-    ) -> Result<Vec<Result<IWbemClassWrapper, WMIError>>, WMIError> {
+    ) -> Result<impl Stream<Item=Result<IWbemClassWrapper, WMIError>>, WMIError> {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
@@ -515,9 +515,7 @@ impl WMIConnection {
             
         }
 
-        // TODO: transform to Result<Vec<IWbemClassWrapper>, WMIError>
-        // TODO: try not to use collect as it adds dependency to futures::stream::StreamExt
-        Ok(rx.collect::<Vec<_>>().await)
+        Ok(rx)
     }
     
 }
@@ -964,16 +962,18 @@ mod tests {
     }
 
     #[cfg(feature = "async-query")]
-    use futures::executor::block_on;
+    use futures::stream::StreamExt;
 
-    #[test]
+    #[async_std::test]
     #[cfg(feature = "async-query")]
-    fn _async_it_works_async() {
+    async fn _async_it_works_async() {
         let wmi_con = wmi_con();
 
-        let result = block_on(wmi_con
-            .exec_async_query_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem"))
-            .unwrap();
+        let result = wmi_con
+            .exec_async_query_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
 
         assert_eq!(result.len(), 1);
 
