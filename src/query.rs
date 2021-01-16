@@ -4,8 +4,6 @@ use crate::result_enumerator::{IWbemClassWrapper, QueryResultEnumerator};
 use crate::{
     connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres, WMIError,
 };
-#[cfg(feature = "async-query")]
-use crate::query_sink::QuerySink;
 use log::trace;
 use serde::de;
 use std::collections::HashMap;
@@ -21,19 +19,6 @@ use winapi::{
         },
     },
 };
-#[cfg(feature = "async-query")]
-use winapi::{
-    um::{
-        wbemcli::IWbemObjectSink,
-        wbemcli::{
-            WBEM_FLAG_BIDIRECTIONAL,
-        },
-    },
-};
-#[cfg(feature = "async-query")]
-use wio::com::ComPtr;
-#[cfg(feature = "async-query")]
-use futures::stream::Stream;
 
 pub enum FilterValue {
     Bool(bool),
@@ -486,38 +471,6 @@ impl WMIConnection {
         self.raw_query(&query)
     }
 
-    // Execute the given query in async way, returns result in a Sink.
-    #[cfg(feature = "async-query")]
-    pub fn exec_async_query_native_wrapper(
-        &self,
-        query: impl AsRef<str>,
-    ) -> Result<impl Stream<Item=Result<IWbemClassWrapper, WMIError>>, WMIError> {
-        let query_language = BStr::from_str("WQL")?;
-        let query = BStr::from_str(query.as_ref())?;
-
-        let (tx, rx) = async_channel::unbounded();
-        let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
-
-        unsafe {
-            // FIXME hack the RefCount
-            p_sink.AddRef();
-            p_sink.AddRef();
-            p_sink.AddRef();
-            p_sink.AddRef();
-
-            check_hres((*self.svc()).ExecQueryAsync(
-                query_language.as_bstr(),
-                query.as_bstr(),
-                WBEM_FLAG_BIDIRECTIONAL as i32,
-                ptr::null_mut(),
-                p_sink.as_raw(),
-            ))?;
-            
-        }
-
-        Ok(rx)
-    }
-    
 }
 
 #[allow(non_snake_case)]
@@ -959,24 +912,5 @@ mod tests {
             // Enum based desr.
             let _raw_account: User = wmi_con.get_by_path(&account.__Path).unwrap();
         }
-    }
-
-    #[cfg(feature = "async-query")]
-    use futures::stream::StreamExt;
-
-    #[async_std::test]
-    #[cfg(feature = "async-query")]
-    async fn _async_it_works_async() {
-        let wmi_con = wmi_con();
-
-        let result = wmi_con
-            .exec_async_query_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
-            .unwrap()
-            .collect::<Vec<_>>()
-            .await;
-
-        assert_eq!(result.len(), 1);
-
-        println!("{:?}", result);
     }
 }
