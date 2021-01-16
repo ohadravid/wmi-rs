@@ -116,8 +116,9 @@ pub mod variant;
 
 #[cfg(feature = "async-query")]
 pub mod async_query;
+// Keep QuerySink implementation private
 #[cfg(feature = "async-query")]
-pub mod query_sink;
+pub(crate) mod query_sink;
 
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
