@@ -35,10 +35,12 @@ impl IWbemClassWrapper {
         Self { inner: ptr }
     }
 
-    /// Creates a copy of the pointer and calls [AddRef] to increment Reference Count
-    /// See [Managing the lifetime of an object] in the documentation
-    /// [Managing the lifetime of an object]: https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object
-    /// [AddRef]: https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref
+    /// Creates a copy of the pointer and calls 
+    /// [AddRef](https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref)
+    /// to increment Reference Count.
+    ///
+    /// See [Managing the lifetime of an object](https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object)
+    /// and [Rules for managing Ref count](https://docs.microsoft.com/en-us/windows/win32/com/rules-for-managing-reference-counts)
     ///
     pub unsafe fn clone(ptr: NonNull<IWbemClassObject>) -> Self {
         let refcount = ptr.as_ref().AddRef();

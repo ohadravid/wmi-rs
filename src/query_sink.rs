@@ -21,13 +21,12 @@ use async_channel::Sender;
 use crate::result_enumerator::IWbemClassWrapper;
 use crate::WMIError;
 
-/// Implementation for [IWbemObjectSink].
-/// This [Sink] receives asynchronously the result of the query,
+/// Implementation for [IWbemObjectSink](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nn-wbemcli-iwbemobjectsink).
+/// This [Sink](https://en.wikipedia.org/wiki/Sink_(computing)) 
+/// receives asynchronously the result of the query,
 /// through Indicate calls. When finished,the SetStatus method
 /// is called.
-/// [Sink]: https://en.wikipedia.org/wiki/Sink_(computing)
-/// [IWbemObjectSink]: https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nn-wbemcli-iwbemobjectsink
-/// # https://docs.microsoft.com/fr-fr/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer-asynchronously
+/// # <https://docs.microsoft.com/fr-fr/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer-asynchronously>
 #[repr(C)]
 #[derive(ComImpl)]
 #[interfaces(IWbemObjectSink)]
@@ -45,7 +44,7 @@ impl QuerySink {
     }
 }
 
-// AddRef and Release methods are provided by com_impl
+// QueryInterface, AddRef and Release methods are provided by com_impl
 #[com_impl::com_impl]
 unsafe impl IWbemObjectSink for QuerySink {
     pub unsafe fn indicate(

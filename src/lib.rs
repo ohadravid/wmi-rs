@@ -96,6 +96,31 @@
 //!
 //! Most native objects has an equivalent wrapper struct which implements `Drop` for that data.
 //!
+//! # Async Query
+//!
+//! Async queries are available behind the feature flag `async-query`.
+//! In Cargo.toml:
+//! ```toml
+//! wmi = { version = "x.y.z",  features = ["async-query"] }
+//! ```
+//! You now have access to additionnal methods on [`WMIConnection`](WMIConnection).
+//!
+//! ```edition2018
+//! # use wmi::*;
+//! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+//! use futures::executor::block_on;
+//! use futures::StreamExt;
+//! let results = block_on(wmi_con
+//!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+//!     .unwrap().collect::<Vec<_>>());
+//! ```
+//!
+//! Or in an `async` block:
+//! ```ignore
+//! let results = wmi_con
+//!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+//!     .unwrap().collect::<Vec<_>>().await;
+//! ```
 //!
 //!
 #![allow(non_camel_case_types)]

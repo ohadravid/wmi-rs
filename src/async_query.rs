@@ -1,3 +1,14 @@
+//! # Async query support
+//! This module does not export anything, as it provides additionnal 
+//! methods on [`WMIConnection`](WMIConnection)
+//!
+//! You only have to activate the `async-query` feature flag in Cargo.toml to use them.
+//! ```toml
+//! wmi = { version = "x.y.z",  features = ["async-query"] }
+//! ```
+//! 
+//! 
+
 use crate::BStr;
 use crate::result_enumerator::IWbemClassWrapper;
 use crate::{
@@ -16,10 +27,17 @@ use winapi::{
 use wio::com::ComPtr;
 use futures::stream::Stream;
 
+///
+/// ### Aditionnal async methods
+/// **Following methods are implemented under the
+/// `async-query` feature flag.**
+///
 impl WMIConnection {
-    /// Execute the given query in async way, returns Stream of result.
+    /// Wrapper for the [ExecQueryAsync](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execqueryasync)
+    /// method. Provides safety checks, and returns results
+    /// as a Stream instead of the original Sink.
     ///
-    pub fn exec_async_query_native_wrapper(
+    pub fn exec_query_async_native_wrapper(
         &self,
         query: impl AsRef<str>,
     ) -> Result<impl Stream<Item=Result<IWbemClassWrapper, WMIError>>, WMIError> {
@@ -31,10 +49,8 @@ impl WMIConnection {
 
         unsafe {
             // FIXME hack the RefCount
-            p_sink.AddRef();
-            p_sink.AddRef();
-            p_sink.AddRef();
-            p_sink.AddRef();
+            // https://github.com/Connicpu/com-impl/issues/1
+            for _ in 0..4 { p_sink.AddRef(); }
 
             check_hres((*self.svc()).ExecQueryAsync(
                 query_language.as_bstr(),
@@ -42,13 +58,10 @@ impl WMIConnection {
                 WBEM_FLAG_BIDIRECTIONAL as i32,
                 ptr::null_mut(),
                 p_sink.as_raw(),
-            ))?;
-            
+            ))?;   
         }
-
         Ok(rx)
     }
-    
 }
 
 #[allow(non_snake_case)]
@@ -63,7 +76,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let result = wmi_con
-            .exec_async_query_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+            .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
             .unwrap()
             .collect::<Vec<_>>()
             .await;
