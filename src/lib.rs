@@ -106,6 +106,7 @@
 //! You now have access to additionnal methods on [`WMIConnection`](WMIConnection).
 //!
 //! ```edition2018
+//! # #[cfg(feature = "async-query")] {
 //! # use wmi::*;
 //! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
 //! use futures::executor::block_on;
@@ -113,6 +114,7 @@
 //! let results = block_on(wmi_con
 //!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
 //!     .unwrap().collect::<Vec<_>>());
+//! # }
 //! ```
 //!
 //! Or in an `async` block:
