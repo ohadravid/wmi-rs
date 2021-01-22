@@ -48,10 +48,6 @@ impl WMIConnection {
         let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
 
         unsafe {
-            // FIXME hack the RefCount
-            // https://github.com/Connicpu/com-impl/issues/1
-            for _ in 0..4 { p_sink.AddRef(); }
-
             check_hres((*self.svc()).ExecQueryAsync(
                 query_language.as_bstr(),
                 query.as_bstr(),

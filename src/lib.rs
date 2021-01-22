@@ -103,7 +103,7 @@
 //! ```toml
 //! wmi = { version = "x.y.z",  features = ["async-query"] }
 //! ```
-//! You now have access to additionnal methods on [`WMIConnection`](WMIConnection).
+//! You now have access to additionnal methods on [`WMIConnection`](WMIConnection#aditionnal-async-methods).
 //!
 //! ```edition2018
 //! # #[cfg(feature = "async-query")] {
