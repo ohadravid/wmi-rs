@@ -25,7 +25,8 @@ use winapi::{
     },
 };
 use wio::com::ComPtr;
-use futures::stream::Stream;
+use serde::de;
+use futures::stream::{Stream, StreamExt};
 
 ///
 /// ### Aditionnal async methods
@@ -58,6 +59,37 @@ impl WMIConnection {
         }
         Ok(rx)
     }
+
+    /// Async version of the raw_query
+    /// Execute a free-text query and deserialize the results.
+    /// Can be used either with a struct (like `query` and `filtered_query`),
+    /// but also with a generic map.
+    ///
+    /// ```edition2018
+    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # use wmi::*;
+    /// # use std::collections::HashMap;
+    /// # use futures::executor::block_on;
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// let results: Vec<HashMap<String, Variant>> = block_on(con.async_raw_query("SELECT Name FROM Win32_OperatingSystem"))?;
+    /// #   Ok(())
+    /// # }
+    /// ```
+    pub async fn async_raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, WMIError>
+    where
+        T: de::DeserializeOwned,
+    {
+        self
+            .exec_query_async_native_wrapper(query)?
+            .map(|item| match item {
+                Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
+                Err(e) => Err(e),
+            })
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect()
+    }
 }
 
 #[allow(non_snake_case)]
@@ -65,6 +97,8 @@ impl WMIConnection {
 #[cfg(test)]
 mod tests {
     use crate::tests::fixtures::*;
+    use crate::Variant;
+    use std::collections::HashMap;
     use futures::stream::StreamExt;
 
     #[async_std::test]
@@ -78,5 +112,38 @@ mod tests {
             .await;
 
         assert_eq!(result.len(), 1);
+    }
+
+    #[async_std::test]
+    async fn _async_it_handles_invalid_query() {
+        let wmi_con = wmi_con();
+
+        let result = wmi_con
+            .exec_query_async_native_wrapper("invalid query")
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+
+            assert_eq!(result.len(), 0);
+    }
+
+    #[async_std::test]
+    async fn _async_it_provides_raw_query_result() {
+        let wmi_con = wmi_con();
+        
+        let results: Vec<HashMap<String, Variant>> =
+            wmi_con.async_raw_query("SELECT * FROM Win32_GroupUser").await.unwrap();
+
+        for res in results {
+            match res.get("GroupComponent") {
+                Some(Variant::String(s)) => assert!(s != ""),
+                _ => assert!(false),
+            }
+
+            match res.get("PartComponent") {
+                Some(Variant::String(s)) => assert!(s != ""),
+                _ => assert!(false),
+            }
+        }
     }
 }
