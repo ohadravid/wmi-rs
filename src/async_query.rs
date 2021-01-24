@@ -26,7 +26,7 @@ use winapi::{
 };
 use wio::com::ComPtr;
 use serde::de;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::{Stream, TryStreamExt, StreamExt};
 
 ///
 /// ### Aditionnal async methods
@@ -85,10 +85,8 @@ impl WMIConnection {
                 Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
                 Err(e) => Err(e),
             })
-            .collect::<Vec<_>>()
+            .try_collect::<Vec<_>>()
             .await
-            .into_iter()
-            .collect()
     }
 }
 
