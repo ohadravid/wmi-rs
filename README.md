@@ -55,6 +55,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>>  {
 }
 ```
 
+## Async Queries
+
+WMI supports async queries, with methods like [ExecAsyncQuery](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execqueryasync).
+
+This crate provides async methods under the `async-query` flag:
+
+```toml
+# Cargo.toml
+[dependencies]
+wmi = { version = "x.y", features = ["async-query"] }
+```
+
+The methods become available on `WMIConnection`
+
+```rust
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+    
+use wmi::{COMLibrary, Variant, WMIConnection};
+use std::collections::HashMap;
+use futures::executor::block_on;
+
+fn main() -> Result<(), Box<dyn std::error::Error>>  {
+    let com_con = COMLibrary::new()?;
+    let wmi_con = WMIConnection::new(com_con.into())?;
+    
+    block_on(exec_async_query(&wmi_con))?;
+    
+    Ok(())
+}
+
+async fn exec_async_query(con: &WMIConnection) -> Result<(), Box<dyn std::error::Error>> {
+    let results: Vec<HashMap<String, Variant>> = 
+        con.async_raw_query("SELECT * FROM Win32_OperatingSystem").await?;
+
+    for os in results {
+        println!("{:#?}", os);
+    }
+
+    Ok(())
+}
+```
+
 ## License
  
 The `wmi` crate is licensed under either of
