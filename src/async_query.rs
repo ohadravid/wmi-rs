@@ -60,7 +60,7 @@ impl WMIConnection {
         Ok(rx)
     }
 
-    /// Async version of the raw_query
+    /// Async version of [`raw_query`](WMIConnection#method.raw_query)
     /// Execute a free-text query and deserialize the results.
     /// Can be used either with a struct (like `query` and `filtered_query`),
     /// but also with a generic map.
