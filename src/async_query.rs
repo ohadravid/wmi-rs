@@ -12,7 +12,9 @@
 use crate::BStr;
 use crate::result_enumerator::IWbemClassWrapper;
 use crate::{
-    connection::WMIConnection, utils::check_hres, WMIError,
+    connection::WMIConnection,
+    utils::check_hres,
+    WMIResult,
 };
 use crate::query_sink::QuerySink;
 use std::ptr;
@@ -41,14 +43,17 @@ impl WMIConnection {
     pub fn exec_query_async_native_wrapper(
         &self,
         query: impl AsRef<str>,
-    ) -> Result<impl Stream<Item=Result<IWbemClassWrapper, WMIError>>, WMIError> {
+    ) -> WMIResult<impl Stream<Item=WMIResult<IWbemClassWrapper>>> {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
         let (tx, rx) = async_channel::unbounded();
+        // ComPtr keeps an internal RefCount with initial value = 1
         let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
 
         unsafe {
+            // As p_sink.RefCount = 1 before this call,
+            // p_sink won't be dropped at the end of ExecQueryAsync
             check_hres((*self.svc()).ExecQueryAsync(
                 query_language.as_bstr(),
                 query.as_bstr(),
@@ -66,16 +71,23 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # use futures::executor::block_on;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
-    /// let results: Vec<HashMap<String, Variant>> = block_on(con.async_raw_query("SELECT Name FROM Win32_OperatingSystem"))?;
+    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// #   block_on(exec_async_query())?;
     /// #   Ok(())
     /// # }
+
+    /// async fn exec_async_query() -> WMIResult<Vec<HashMap<String, Variant>>> {
+    ///    use futures::stream::TryStreamExt;
+    ///    let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    ///    let results: Vec<HashMap<String, Variant>> = 
+    ///        con.async_raw_query("SELECT Name FROM Win32_OperatingSystem").await?;
+    ///    Ok(results)
+    /// }
     /// ```
-    pub async fn async_raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, WMIError>
+    pub async fn async_raw_query<T>(&self, query: impl AsRef<str>) -> WMIResult<Vec<T>>
     where
         T: de::DeserializeOwned,
     {
@@ -130,7 +142,8 @@ mod tests {
         let wmi_con = wmi_con();
         
         let results: Vec<HashMap<String, Variant>> =
-            wmi_con.async_raw_query("SELECT * FROM Win32_GroupUser").await.unwrap();
+            wmi_con.async_raw_query("SELECT * FROM Win32_GroupUser")
+            .await.unwrap();
 
         for res in results {
             match res.get("GroupComponent") {

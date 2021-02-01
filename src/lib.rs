@@ -105,7 +105,7 @@
 //! ```
 //! You now have access to additionnal methods on [`WMIConnection`](WMIConnection#aditionnal-async-methods).
 //!
-//! ```edition2018
+//! ```ignore
 //! # #[cfg(feature = "async-query")] {
 //! # use wmi::*;
 //! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
@@ -154,7 +154,7 @@ use bstr::BStr;
 pub use connection::{COMLibrary, WMIConnection};
 pub use datetime::WMIDateTime;
 pub use duration::WMIDuration;
-pub use utils::WMIError;
+pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 
 // Cannot use `cfg(test)` here since `rustdoc` won't look at it.

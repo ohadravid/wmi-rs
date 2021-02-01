@@ -47,13 +47,13 @@ impl QuerySink {
 // QueryInterface, AddRef and Release methods are provided by com_impl
 #[com_impl::com_impl]
 unsafe impl IWbemObjectSink for QuerySink {
-    pub unsafe fn indicate(
+    unsafe fn indicate(
         &self,
         lObjectCount: c_long,
         apObjArray: *mut *mut IWbemClassObject
     ) -> HRESULT {
         trace!("Indicate call with {} objects", lObjectCount);
-        // TODO: Document when ObjectCount is <=0
+        // Case of an incorrect or too restrictive query
         if lObjectCount <= 0 {
             return WBEM_S_NO_ERROR as i32;
         }
@@ -62,8 +62,11 @@ unsafe impl IWbemObjectSink for QuerySink {
         let tx = self.sender.clone();
 
         unsafe {
-            // The array memory of apObjArray is read-only, and is owned by the caller of the Indicate method.
-            // IWbemClassWrapper::clone calls AddRef on each element of apObjArray to borrow them.
+            // The array memory of apObjArray is read-only 
+            // and is owned by the caller of the Indicate method.
+            // IWbemClassWrapper::clone calls AddRef on each element 
+            // of apObjArray to make sure that they are not released, 
+            // according to COM rules.
             // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
             // For error codes, see https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
             for i in 0..lObjectCount {
@@ -87,7 +90,7 @@ unsafe impl IWbemObjectSink for QuerySink {
         WBEM_S_NO_ERROR as i32
     }
 
-    pub unsafe fn set_status(
+    unsafe fn set_status(
         &self,
         lFlags: c_long,
         _hResult: HRESULT,

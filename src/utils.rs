@@ -61,3 +61,6 @@ pub fn check_hres(hres: HRESULT) -> Result<(), WMIError> {
 
     Ok(())
 }
+
+/// Alias type for `Result<T, WMIError>`
+pub type WMIResult<T> = Result<T, WMIError>;
