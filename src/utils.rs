@@ -36,6 +36,8 @@ pub enum WMIError {
     DeserializeValueError(#[from] de::value::Error),
     #[error("No results returned")]
     ResultEmpty,
+    #[error("Null pointer was sent as part of query result")]
+    NullPointerResult,
 }
 
 impl de::Error for WMIError {
@@ -59,3 +61,6 @@ pub fn check_hres(hres: HRESULT) -> Result<(), WMIError> {
 
     Ok(())
 }
+
+/// Alias type for `Result<T, WMIError>`
+pub type WMIResult<T> = Result<T, WMIError>;

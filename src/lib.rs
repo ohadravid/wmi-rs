@@ -96,6 +96,33 @@
 //!
 //! Most native objects has an equivalent wrapper struct which implements `Drop` for that data.
 //!
+//! # Async Query
+//!
+//! Async queries are available behind the feature flag `async-query`.
+//! In Cargo.toml:
+//! ```toml
+//! wmi = { version = "x.y.z",  features = ["async-query"] }
+//! ```
+//! You now have access to additionnal methods on [`WMIConnection`](WMIConnection#aditionnal-async-methods).
+//!
+//! ```ignore
+//! # #[cfg(feature = "async-query")] {
+//! # use wmi::*;
+//! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+//! use futures::executor::block_on;
+//! use futures::StreamExt;
+//! let results = block_on(wmi_con
+//!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+//!     .unwrap().collect::<Vec<_>>());
+//! # }
+//! ```
+//!
+//! Or in an `async` block:
+//! ```ignore
+//! let results = wmi_con
+//!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+//!     .unwrap().collect::<Vec<_>>().await;
+//! ```
 //!
 //!
 #![allow(non_camel_case_types)]
@@ -114,6 +141,12 @@ pub mod safearray;
 pub mod utils;
 pub mod variant;
 
+#[cfg(feature = "async-query")]
+pub mod async_query;
+// Keep QuerySink implementation private
+#[cfg(feature = "async-query")]
+pub(crate) mod query_sink;
+
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
 
@@ -121,7 +154,7 @@ use bstr::BStr;
 pub use connection::{COMLibrary, WMIConnection};
 pub use datetime::WMIDateTime;
 pub use duration::WMIDuration;
-pub use utils::WMIError;
+pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 
 // Cannot use `cfg(test)` here since `rustdoc` won't look at it.
