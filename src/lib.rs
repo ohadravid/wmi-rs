@@ -87,7 +87,7 @@
 //! Deserializing data from WMI and into Rust is done via `serde` and is implemented in the [`de`][de] module.
 //! More info can be found in `serde`'s documentation about [writing a data format].
 //! The deserializer will either use the field names defined on the output struct,
-//! or retrieve all field names from WMI if the ouput is a `HashMap`.
+//! or retrieve all field names from WMI if the output is a `HashMap`.
 //!
 //! [writing a data format]: https://serde.rs/data-format.html
 //!
@@ -103,9 +103,9 @@
 //! ```toml
 //! wmi = { version = "x.y.z",  features = ["async-query"] }
 //! ```
-//! You now have access to additionnal methods on [`WMIConnection`](WMIConnection#aditionnal-async-methods).
+//! You now have access to additional methods on [`WMIConnection`](WMIConnection#additional-async-methods).
 //!
-//! ```ignore
+//! ```
 //! # #[cfg(feature = "async-query")] {
 //! # use wmi::*;
 //! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
@@ -116,13 +116,33 @@
 //!     .unwrap().collect::<Vec<_>>());
 //! # }
 //! ```
+//! It it also possible to return a struct representing the the data.
 //!
-//! Or in an `async` block:
-//! ```ignore
-//! let results = wmi_con
-//!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
-//!     .unwrap().collect::<Vec<_>>().await;
+//! ```edition2018
+//! # fn main() -> Result<(), wmi::WMIError> {
+//! # use wmi::*;
+//! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+//! use serde::Deserialize;
+//! use wmi::WMIDateTime;
+//!
+//! #[derive(Deserialize, Debug)]
+//! #[serde(rename = "Win32_OperatingSystem")]
+//! #[serde(rename_all = "PascalCase")]
+//! struct OperatingSystem {
+//!     caption: String,
+//!     debug: bool,
+//!     last_boot_up_time: WMIDateTime,
+//! }
+//!
+//! let results: Vec<OperatingSystem> = wmi_con.query()?;
+//!
+//! for os in results {
+//!     println!("{:#?}", os);
+//! }
+//! #   Ok(())
+//! # }
 //! ```
+//!
 //!
 //!
 #![allow(non_camel_case_types)]
@@ -151,6 +171,7 @@ pub(crate) mod query_sink;
 pub mod tests;
 
 use bstr::BStr;
+pub use query::{FilterValue, build_query};
 pub use connection::{COMLibrary, WMIConnection};
 pub use datetime::WMIDateTime;
 pub use duration::WMIDuration;

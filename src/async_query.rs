@@ -1,5 +1,5 @@
 //! # Async query support
-//! This module does not export anything, as it provides additionnal 
+//! This module does not export anything, as it provides additional 
 //! methods on [`WMIConnection`](WMIConnection)
 //!
 //! You only have to activate the `async-query` feature flag in Cargo.toml to use them.
@@ -9,7 +9,7 @@
 //! 
 //! 
 
-use crate::BStr;
+use crate::{BStr, query::{FilterValue, build_query}};
 use crate::result_enumerator::IWbemClassWrapper;
 use crate::{
     connection::WMIConnection,
@@ -17,7 +17,7 @@ use crate::{
     WMIResult,
 };
 use crate::query_sink::QuerySink;
-use std::ptr;
+use std::{collections::HashMap, ptr};
 use winapi::{
     um::{
         wbemcli::IWbemObjectSink,
@@ -31,7 +31,7 @@ use serde::de;
 use futures::stream::{Stream, TryStreamExt, StreamExt};
 
 ///
-/// ### Aditionnal async methods
+/// ### Additional async methods
 /// **Following methods are implemented under the
 /// `async-query` feature flag.**
 ///
@@ -78,14 +78,13 @@ impl WMIConnection {
     /// #   block_on(exec_async_query())?;
     /// #   Ok(())
     /// # }
-
-    /// async fn exec_async_query() -> WMIResult<Vec<HashMap<String, Variant>>> {
-    ///    use futures::stream::TryStreamExt;
-    ///    let con = WMIConnection::new(COMLibrary::new()?.into())?;
-    ///    let results: Vec<HashMap<String, Variant>> = 
-    ///        con.async_raw_query("SELECT Name FROM Win32_OperatingSystem").await?;
-    ///    Ok(results)
-    /// }
+    /// #
+    /// # async fn exec_async_query() -> WMIResult<()> {
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// use futures::stream::TryStreamExt;
+    /// let results: Vec<HashMap<String, Variant>> = con.async_raw_query("SELECT Name FROM Win32_OperatingSystem").await?;
+    /// #   Ok(())
+    /// # }
     /// ```
     pub async fn async_raw_query<T>(&self, query: impl AsRef<str>) -> WMIResult<Vec<T>>
     where
@@ -99,6 +98,53 @@ impl WMIConnection {
             })
             .try_collect::<Vec<_>>()
             .await
+    }
+
+    
+    /// Query all the objects of type T.
+    ///
+    /// ```edition2018
+    /// # use wmi::*;
+    /// # use std::collections::HashMap;
+    /// # use futures::executor::block_on;
+    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// #   block_on(exec_async_query())?;
+    /// #   Ok(())
+    /// # }
+    /// #
+    /// # async fn exec_async_query() -> WMIResult<()> {
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// use serde::Deserialize;
+    /// #[derive(Deserialize, Debug)]
+    /// struct Win32_Process {
+    ///     Name: String,
+    /// }
+    ///
+    /// let procs: Vec<Win32_Process> = con.async_query().await?;
+    /// #   Ok(())
+    /// # }
+    /// ```
+    pub async fn async_query<T>(&self) -> WMIResult<Vec<T>>
+    where
+        T: de::DeserializeOwned,
+    {
+        let query_text = build_query::<T>(None)?;
+
+        self.async_raw_query(&query_text).await
+    }
+
+    /// Query all the objects of type T, while filtering according to `filters`.
+    ///
+    pub async fn async_filtered_query<T>(
+        &self,
+        filters: &HashMap<String, FilterValue>,
+    ) -> WMIResult<Vec<T>>
+    where
+        T: de::DeserializeOwned,
+    {
+        let query_text = build_query::<T>(Some(&filters))?;
+
+        self.async_raw_query(&query_text).await
     }
 }
 

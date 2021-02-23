@@ -75,7 +75,7 @@ impl From<bool> for FilterValue {
 /// "SELECT Caption, Debug FROM Win32_OperatingSystem";
 /// ```
 ///
-fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> Result<String, WMIError>
+pub fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> Result<String, WMIError>
 where
     T: de::Deserialize<'de>,
 {
@@ -187,9 +187,9 @@ impl WMIConnection {
     ///
     /// ```edition2018
     /// # fn main() -> Result<(), wmi::WMIError> {
-    /// # use wmi::*;
     /// # use std::collections::HashMap;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// use wmi::*;
+    /// let con = WMIConnection::new(COMLibrary::new()?.into())?;
     /// let results: Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem")?;
     /// #   Ok(())
     /// # }
@@ -211,25 +211,20 @@ impl WMIConnection {
     /// Query all the objects of type T.
     ///
     /// ```edition2018
+    /// # fn main() -> Result<(), wmi::WMIError> {
     /// use wmi::*;
     /// use serde::Deserialize;
     ///
-    /// fn main() -> Result<(), wmi::WMIError> {
-    ///     let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// let con = WMIConnection::new(COMLibrary::new()?.into())?;
     ///
-    ///     #[derive(Deserialize, Debug)]
-    ///     struct Win32_Process {
-    ///         Name: String,
-    ///     }
-    ///
-    ///     let procs: Vec<Win32_Process> = con.query()?;
-    ///
-    ///     for proc in procs {
-    ///        println!("{:?}", proc);
-    ///     }
-    ///
-    ///     Ok(())
+    /// #[derive(Deserialize, Debug)]
+    /// struct Win32_Process {
+    ///     Name: String,
     /// }
+    ///
+    /// let procs: Vec<Win32_Process> = con.query()?;
+    /// #   Ok(())
+    /// # }
     /// ```
     pub fn query<T>(&self) -> Result<Vec<T>, WMIError>
     where
@@ -242,6 +237,29 @@ impl WMIConnection {
 
     /// Query all the objects of type T, while filtering according to `filters`.
     ///
+    /// ```edition2018
+    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # use std::collections::HashMap;
+    /// use wmi::*;
+    /// use serde::Deserialize;
+    ///
+    /// let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    ///
+    /// #[derive(Deserialize, Debug)]
+    /// struct Win32_Process {
+    ///     Name: String,
+    /// }
+    ///
+    /// let mut filters = HashMap::new();
+    ///
+    /// filters.insert("Name".to_owned(), FilterValue::Str("cargo.exe"));
+    ///
+    /// let results = con.filtered_query::<Win32_Process>(&filters).unwrap();
+    ///
+    /// assert!(results.len() >= 1);
+    /// #   Ok(())
+    /// # }
+    /// ```
     pub fn filtered_query<T>(
         &self,
         filters: &HashMap<String, FilterValue>,
@@ -260,13 +278,14 @@ impl WMIConnection {
     ///
     /// ```edition2018
     /// # fn main() -> Result<(), wmi::WMIError> {
-    /// # use wmi::*;
-    /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// use wmi::*;
+    /// use serde::Deserialize;
     /// #[derive(Deserialize)]
     /// struct Win32_OperatingSystem {
     ///     Name: String,
     /// }
+    ///
+    /// let con = WMIConnection::new(COMLibrary::new()?.into())?;
     /// let os = con.get::<Win32_OperatingSystem>()?;
     /// #   Ok(())
     /// # }
@@ -893,7 +912,7 @@ mod tests {
             System(Win32_SystemAccount),
             #[serde(rename = "Win32_UserAccount")]
             User(Win32_UserAccount),
-        };
+        }
 
         for account in accounts_in_group {
             let raw_account = wmi_con.get_raw_by_path(&account.__Path).unwrap();
