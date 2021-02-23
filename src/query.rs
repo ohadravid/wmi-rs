@@ -188,8 +188,8 @@ impl WMIConnection {
     /// ```edition2018
     /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use std::collections::HashMap;
-    /// use wmi::*;
-    /// let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # use wmi::*;
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
     /// let results: Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem")?;
     /// #   Ok(())
     /// # }
@@ -240,11 +240,9 @@ impl WMIConnection {
     /// ```edition2018
     /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use std::collections::HashMap;
-    /// use wmi::*;
+    /// # use wmi::*;
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
     /// use serde::Deserialize;
-    ///
-    /// let con = WMIConnection::new(COMLibrary::new()?.into())?;
-    ///
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_Process {
     ///     Name: String,
@@ -278,14 +276,14 @@ impl WMIConnection {
     ///
     /// ```edition2018
     /// # fn main() -> Result<(), wmi::WMIError> {
-    /// use wmi::*;
+    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # use wmi::*;
     /// use serde::Deserialize;
     /// #[derive(Deserialize)]
     /// struct Win32_OperatingSystem {
     ///     Name: String,
     /// }
     ///
-    /// let con = WMIConnection::new(COMLibrary::new()?.into())?;
     /// let os = con.get::<Win32_OperatingSystem>()?;
     /// #   Ok(())
     /// # }
@@ -374,21 +372,20 @@ impl WMIConnection {
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
     ///
-    /// # #[derive(Deserialize, Debug, PartialEq)]
-    /// # struct Win32_Group {
-    /// #     __Path: String,
-    /// # }
-    /// #
-    /// # let mut filters = HashMap::new();
-    /// # filters.insert("Name".into(), "Administrators".into());
-    /// #
-    /// #
-    /// # let admin_group: Win32_Group = con
-    /// #     .filtered_query(&filters)?
-    /// #     .into_iter()
-    /// #     .next()
-    /// #     .unwrap();
+    /// #[derive(Deserialize, Debug, PartialEq)]
+    /// struct Win32_Group {
+    ///     __Path: String,
+    /// }
     ///
+    /// let mut filters = HashMap::new();
+    /// filters.insert("Name".into(), "Administrators".into());
+    ///
+    ///
+    /// let admin_group: Win32_Group = con
+    ///     .filtered_query(&filters)?
+    ///     .into_iter()
+    ///     .next()
+    ///     .unwrap();
     ///
     /// #[derive(Deserialize, Debug, PartialEq)]
     /// struct Win32_Account {

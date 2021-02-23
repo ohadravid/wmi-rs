@@ -12,9 +12,12 @@
 //! Before using WMI, a connection must be created.
 //!
 //! ```rust
+//! # fn main() -> Result<(), wmi::WMIError> {
 //! use wmi::{COMLibrary, WMIConnection};
-//! let com_con = COMLibrary::new().unwrap();
-//! let wmi_con = WMIConnection::new(com_con.into()).unwrap();
+//! let com_con = COMLibrary::new()?;
+//! let wmi_con = WMIConnection::new(com_con.into())?;
+//! #   Ok(())
+//! # }
 //! ```
 //!
 //! There are multiple ways to get data from the OS using this crate.
@@ -29,8 +32,9 @@
 //! Using this enum, we can execute a simple WMI query and inspect the results.
 //!
 //! ```edition2018
-//! # use wmi::*;
-//! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+//! # fn main() -> Result<(), wmi::WMIError> {
+//! use wmi::*;
+//! let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
 //! use std::collections::HashMap;
 //! use wmi::Variant;
 //! let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem").unwrap();
@@ -38,6 +42,8 @@
 //! for os in results {
 //!     println!("{:#?}", os);
 //! }
+//! #   Ok(())
+//! # }
 //! ```
 //!
 //! # Using strongly typed data structures
@@ -47,7 +53,7 @@
 //! ```edition2018
 //! # fn main() -> Result<(), wmi::WMIError> {
 //! # use wmi::*;
-//! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+//! # let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
 //! use serde::Deserialize;
 //! use wmi::WMIDateTime;
 //!
@@ -105,25 +111,28 @@
 //! ```
 //! You now have access to additional methods on [`WMIConnection`](WMIConnection#additional-async-methods).
 //!
-//! ```
-//! # #[cfg(feature = "async-query")] {
-//! # use wmi::*;
-//! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
-//! use futures::executor::block_on;
+//! ```edition2018
+//! # use futures::executor::block_on;
+//! # block_on(exec_async_query()).unwrap();
+//! # async fn exec_async_query() -> Result<(), wmi::WMIError> {
+//! use wmi::*;
 //! use futures::StreamExt;
-//! let results = block_on(wmi_con
-//!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
-//!     .unwrap().collect::<Vec<_>>());
+//! let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
+//! let results = wmi_con
+//!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")?
+//!     .collect::<Vec<_>>().await;
+//! #   Ok(())
 //! # }
 //! ```
 //! It it also possible to return a struct representing the the data.
 //!
 //! ```edition2018
-//! # fn main() -> Result<(), wmi::WMIError> {
-//! # use wmi::*;
-//! # let wmi_con = WMIConnection::new(COMLibrary::new().unwrap().into()).unwrap();
+//! # use futures::executor::block_on;
+//! # block_on(exec_async_query()).unwrap();
+//! # async fn exec_async_query() -> Result<(), wmi::WMIError> {
+//! use wmi::*;
+//! let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
 //! use serde::Deserialize;
-//! use wmi::WMIDateTime;
 //!
 //! #[derive(Deserialize, Debug)]
 //! #[serde(rename = "Win32_OperatingSystem")]
@@ -134,7 +143,7 @@
 //!     last_boot_up_time: WMIDateTime,
 //! }
 //!
-//! let results: Vec<OperatingSystem> = wmi_con.query()?;
+//! let results: Vec<OperatingSystem> = wmi_con.async_query().await?;
 //!
 //! for os in results {
 //!     println!("{:#?}", os);
