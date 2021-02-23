@@ -8,7 +8,7 @@ WMI (Windows Management Instrumentation) crate for rust.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.7"
+wmi = "0.8"
 ```
 
 
@@ -19,7 +19,6 @@ Queries can be deserialized info a free-form `HashMap` or a `struct`:
 ```rust
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-    
 use serde::Deserialize;
 use wmi::{COMLibrary, Variant, WMIConnection, WMIDateTime};
 use std::collections::HashMap;
@@ -64,7 +63,7 @@ This crate provides async methods under the `async-query` flag:
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = { version = "x.y", features = ["async-query"] }
+wmi = { version = "0.8", features = ["async-query"] }
 ```
 
 The methods become available on `WMIConnection`
@@ -72,8 +71,8 @@ The methods become available on `WMIConnection`
 ```rust
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-    
-use wmi::{COMLibrary, Variant, WMIConnection};
+use serde::Deserialize;
+use wmi::{COMLibrary, Variant, WMIConnection, WMIDateTime};
 use std::collections::HashMap;
 use futures::executor::block_on;
 
@@ -86,14 +85,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>>  {
     Ok(())
 }
 
-async fn exec_async_query(con: &WMIConnection) -> Result<(), Box<dyn std::error::Error>> {
+async fn exec_async_query(wmi_con: &WMIConnection) -> Result<(), Box<dyn std::error::Error>> {
     let results: Vec<HashMap<String, Variant>> = 
-        con.async_raw_query("SELECT * FROM Win32_OperatingSystem").await?;
+        wmi_con.async_raw_query("SELECT * FROM Win32_OperatingSystem").await?;
 
     for os in results {
         println!("{:#?}", os);
     }
-
+    
+    #[derive(Deserialize, Debug)]
+    struct Win32_OperatingSystem {
+        Caption: String,
+        Name: String,
+        CurrentTimeZone: i16,
+        Debug: bool,
+        EncryptionLevel: u32,
+        ForegroundApplicationBoost: u8,
+        LastBootUpTime: WMIDateTime,
+    }
+    
+    let results: Vec<Win32_OperatingSystem> = wmi_con.async_query().await?;
+    
+    for os in results {
+        println!("{:#?}", os);
+    }
+    
     Ok(())
 }
 ```
