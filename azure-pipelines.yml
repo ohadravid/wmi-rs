@@ -32,7 +32,7 @@ steps:
   - script: cargo build --release
     displayName: Cargo build
 
-  - script: cargo test
+  - script: cargo test --all-features
     displayName: Cargo test
 
   - script: |

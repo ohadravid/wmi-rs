@@ -1,5 +1,5 @@
 # wmi
-[![Build Status](https://dev.azure.com/ohadrv/wmi-rs/_apis/build/status/ohadravid.wmi-rs?branchName=master)](https://dev.azure.com/ohadrv/wmi-rs/_build/latest?definitionId=1&branchName=master)
+[![Build Status](https://dev.azure.com/ohadrv/wmi-rs/_apis/build/status/ohadravid.wmi-rs?branchName=main)](https://dev.azure.com/ohadrv/wmi-rs/_build/latest?definitionId=1&branchName=main)
 [![crates.io](https://img.shields.io/crates/v/wmi.svg)](https://crates.io/crates/wmi)
 [![docs.rs](https://docs.rs/wmi/badge.svg)](https://docs.rs/crate/wmi)
 
