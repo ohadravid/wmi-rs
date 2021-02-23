@@ -250,18 +250,3 @@ impl Drop for WMIConnection {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let com_con = COMLibrary::new().unwrap();
-        let wmi_con = WMIConnection::new(com_con.into()).unwrap();
-
-        let p_svc = wmi_con.svc();
-
-        assert_eq!(p_svc.is_null(), false);
-    }
-}
