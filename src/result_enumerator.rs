@@ -27,11 +27,11 @@ use winapi::{
 ///
 #[derive(Debug)]
 pub struct IWbemClassWrapper {
-    pub inner: Option<NonNull<IWbemClassObject>>,
+    pub inner: NonNull<IWbemClassObject>,
 }
 
 impl IWbemClassWrapper {
-    pub unsafe fn new(ptr: Option<NonNull<IWbemClassObject>>) -> Self {
+    pub unsafe fn new(ptr: NonNull<IWbemClassObject>) -> Self {
         Self { inner: ptr }
     }
 
@@ -45,7 +45,7 @@ impl IWbemClassWrapper {
     pub unsafe fn clone(ptr: NonNull<IWbemClassObject>) -> Self {
         let refcount = ptr.as_ref().AddRef();
         trace!("Reference count: {}", refcount);
-        Self::new(Some(ptr))
+        Self::new(ptr)
     }
 
     /// Return the names of all the properties of the given object.
@@ -54,7 +54,7 @@ impl IWbemClassWrapper {
         // This will store the properties names from the GetNames call.
         let mut p_names = NULL as *mut SAFEARRAY;
 
-        let ptr = self.inner.unwrap().as_ptr();
+        let ptr = self.inner.as_ptr();
 
         unsafe {
             check_hres((*ptr).GetNames(
@@ -79,18 +79,18 @@ impl IWbemClassWrapper {
         let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
 
         unsafe {
-            (*self.inner.unwrap().as_ptr()).Get(
+            check_hres((*self.inner.as_ptr()).Get(
                 name_prop.as_lpcwstr(),
                 0,
                 &mut vt_prop,
                 ptr::null_mut(),
                 ptr::null_mut(),
-            );
+            ))?;
         
 
             let property_value = Variant::from_variant(vt_prop)?;
 
-            VariantClear(&mut vt_prop);
+            check_hres(VariantClear(&mut vt_prop))?;
 
             Ok(property_value)
         }
@@ -114,12 +114,10 @@ impl IWbemClassWrapper {
 
 impl Drop for IWbemClassWrapper {
     fn drop(&mut self) {
-        if let Some(pcls_obj) = self.inner {
-            let ptr = pcls_obj.as_ptr();
+        let ptr = self.inner.as_ptr();
 
-            unsafe {
-                (*ptr).Release();
-            }
+        unsafe {
+            (*ptr).Release();
         }
     }
 }
@@ -180,8 +178,11 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             pcls_obj
         );
 
-        let pcls_wrapper = unsafe { IWbemClassWrapper::new(NonNull::new(pcls_obj)) };
+        let pcls_ptr = NonNull::new(pcls_obj).ok_or(WMIError::NullPointerResult);
 
-        Some(Ok(pcls_wrapper))
+        match pcls_ptr {
+            Err(e) => Some(Err(e)),
+            Ok(pcls_ptr) => Some(Ok( unsafe { IWbemClassWrapper::new(pcls_ptr) })),
+        }
     }
 }

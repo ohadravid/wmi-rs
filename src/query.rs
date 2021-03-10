@@ -339,7 +339,9 @@ impl WMIConnection {
             ))?;
         }
 
-        let pcls_wrapper = unsafe { IWbemClassWrapper::new(NonNull::new(pcls_obj)) };
+        let pcls_ptr = NonNull::new(pcls_obj).ok_or(WMIError::NullPointerResult)?;
+
+        let pcls_wrapper = unsafe { IWbemClassWrapper::new(pcls_ptr) };
 
         Ok(pcls_wrapper)
     }

@@ -132,8 +132,8 @@ mod tests {
 
         let raw_os = con.get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#).unwrap();
         let raw_os2 = con.get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#).unwrap();
-        let ptr: *mut IWbemClassObject = raw_os.inner.unwrap().as_ptr();
-        let ptr2: *mut IWbemClassObject = raw_os2.inner.unwrap().as_ptr();
+        let ptr: *mut IWbemClassObject = raw_os.inner.as_ptr();
+        let ptr2: *mut IWbemClassObject = raw_os2.inner.as_ptr();
 
         let mut arr = vec![ptr, ptr2];
 
