@@ -160,7 +160,7 @@ mod tests {
     use futures::stream::StreamExt;
 
     #[async_std::test]
-    async fn _async_it_works_async() {
+    async fn async_it_works_async() {
         let wmi_con = wmi_con();
 
         let result = wmi_con
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn _async_it_handles_invalid_query() {
+    async fn async_it_handles_invalid_query() {
         let wmi_con = wmi_con();
 
         let result = wmi_con
@@ -182,11 +182,11 @@ mod tests {
             .collect::<Vec<_>>()
             .await;
 
-            assert_eq!(result.len(), 0);
+        assert_eq!(result.len(), 0);
     }
 
     #[async_std::test]
-    async fn _async_it_provides_raw_query_result() {
+    async fn async_it_provides_raw_query_result() {
         let wmi_con = wmi_con();
         
         let results: Vec<HashMap<String, Variant>> =
