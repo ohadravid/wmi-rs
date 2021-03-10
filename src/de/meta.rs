@@ -2,7 +2,7 @@ use serde::de::{self, Deserialize, Deserializer, Visitor};
 use serde::forward_to_deserialize_any;
 
 /// Return the fields of a struct.
-/// Taken directly from https://github.com/serde-rs/serde/issues/1110
+/// Taken directly from <https://github.com/serde-rs/serde/issues/1110>
 ///
 pub fn struct_name_and_fields<'de, T>(
 ) -> Result<(&'static str, &'static [&'static str]), serde::de::value::Error>

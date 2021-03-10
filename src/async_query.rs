@@ -16,17 +16,17 @@ use crate::{
     utils::check_hres,
     WMIResult,
 };
-use crate::query_sink::QuerySink;
+use crate::query_sink::{QuerySink, IWbemObjectSink};
 use std::{collections::HashMap, ptr};
+use com::production::ClassAllocation;
+use com::AbiTransferable;
 use winapi::{
     um::{
-        wbemcli::IWbemObjectSink,
         wbemcli::{
             WBEM_FLAG_BIDIRECTIONAL,
         },
     },
 };
-use wio::com::ComPtr;
 use serde::de;
 use futures::stream::{Stream, TryStreamExt, StreamExt};
 
@@ -48,20 +48,22 @@ impl WMIConnection {
         let query = BStr::from_str(query.as_ref())?;
 
         let (tx, rx) = async_channel::unbounded();
-        // ComPtr keeps an internal RefCount with initial value = 1
-        let p_sink: ComPtr<IWbemObjectSink> = QuerySink::new(tx);
-
+        // The internal RefCount has initial value = 1.
+        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(Some(tx));
+        let p_sink_handel = p_sink.query_interface::<IWbemObjectSink>().unwrap();
+ 
         unsafe {
-            // As p_sink.RefCount = 1 before this call,
+            // As p_sink's RefCount = 1 before this call,
             // p_sink won't be dropped at the end of ExecQueryAsync
             check_hres((*self.svc()).ExecQueryAsync(
                 query_language.as_bstr(),
                 query.as_bstr(),
                 WBEM_FLAG_BIDIRECTIONAL as i32,
                 ptr::null_mut(),
-                p_sink.as_raw(),
+                p_sink_handel.get_abi().as_ptr() as * mut _,
             ))?;   
         }
+
         Ok(rx)
     }
 
@@ -158,7 +160,7 @@ mod tests {
     use futures::stream::StreamExt;
 
     #[async_std::test]
-    async fn _async_it_works_async() {
+    async fn async_it_works_async() {
         let wmi_con = wmi_con();
 
         let result = wmi_con
@@ -171,7 +173,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn _async_it_handles_invalid_query() {
+    async fn async_it_handles_invalid_query() {
         let wmi_con = wmi_con();
 
         let result = wmi_con
@@ -180,11 +182,11 @@ mod tests {
             .collect::<Vec<_>>()
             .await;
 
-            assert_eq!(result.len(), 0);
+        assert_eq!(result.len(), 0);
     }
 
     #[async_std::test]
-    async fn _async_it_provides_raw_query_result() {
+    async fn async_it_provides_raw_query_result() {
         let wmi_con = wmi_con();
         
         let results: Vec<HashMap<String, Variant>> =
