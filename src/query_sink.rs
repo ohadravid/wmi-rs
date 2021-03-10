@@ -40,6 +40,7 @@ com::interfaces! {
 
 
 com::class! {
+    // Option is required because `Default` is required by the `class!` macro.
     pub class QuerySink: IWbemObjectSink {
         sender: Option<Sender<Result<IWbemClassWrapper, WMIError>>>,
     }
