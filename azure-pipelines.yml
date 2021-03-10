@@ -29,7 +29,7 @@ steps:
     displayName: Install rust (windows)
     condition: eq( variables['Agent.OS'], 'Windows_NT' )
 
-  - script: cargo build --release
+  - script: cargo build --all-features
     displayName: Cargo build
 
   - script: cargo test --all-features

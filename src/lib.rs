@@ -86,7 +86,7 @@
 //! # Internals
 //!
 //! [`WMIConnection`](WMIConnection) is used to create and execute a WMI query, returning
-//! [`IWbemClassWrapper`](query::IWbemClassWrapper) which is a wrapper for a WMI object pointer.
+//! [`IWbemClassWrapper`](result_enumerator::IWbemClassWrapper) which is a wrapper for a WMI object pointer.
 //!
 //! Then, [`from_wbem_class_obj`](de::wbem_class_de::from_wbem_class_obj) is used to create a Rust struct with the equivalent data.
 //!
