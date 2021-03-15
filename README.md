@@ -14,7 +14,7 @@ wmi = "0.8"
 
 ## Examples
 
-Queries can be deserialized info a free-form `HashMap` or a `struct`:
+Queries can be deserialized into a free-form `HashMap` or a `struct`:
 
 ```rust
 #![allow(non_camel_case_types)]
