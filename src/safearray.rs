@@ -121,9 +121,9 @@ pub unsafe fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<V
                 items.push(Variant::String(item.to_string()?));
             }
         }
-            // TODO: Add support for all other types of arrays.
-            _ => {return Err(WMIError::UnimplementedArrayItem)},
-        }
+        // TODO: Add support for all other types of arrays.
+        _ => {return Err(WMIError::UnimplementedArrayItem)},
+    }
 
     Ok(items)
 }
