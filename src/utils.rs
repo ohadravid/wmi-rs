@@ -38,6 +38,8 @@ pub enum WMIError {
     ResultEmpty,
     #[error("Null pointer was sent as part of query result")]
     NullPointerResult,
+    #[error("Unimplemeted array item in query")]
+    UnimplementedArrayItem,
 }
 
 impl de::Error for WMIError {

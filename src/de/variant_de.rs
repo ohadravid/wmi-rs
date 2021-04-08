@@ -158,6 +158,7 @@ impl<'de> Deserialize<'de> for Variant {
             where
                 V: de::MapAccess<'de>,
             {
+                // TODO: Add support for map type
                 unimplemented!()
             }
         }
