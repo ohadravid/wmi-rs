@@ -122,7 +122,7 @@ pub unsafe fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<V
             }
         }
         // TODO: Add support for all other types of arrays.
-        _ => unimplemented!(),
+        _ => {return Err(WMIError::UnimplementedArrayItem)},
     }
 
     Ok(items)
