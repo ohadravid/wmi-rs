@@ -100,6 +100,36 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             #[inline]
+            fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E> {
+                Ok(Variant::I4(value))
+            }
+
+            #[inline]
+            fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E> {
+                Ok(Variant::UI4(value))
+            }
+
+            #[inline]
+            fn visit_i16<E>(self, value: i16) -> Result<Self::Value, E> {
+                Ok(Variant::I2(value))
+            }
+            
+            #[inline]
+            fn visit_u16<E>(self, value: u16) -> Result<Self::Value, E> {
+                Ok(Variant::UI2(value))
+            }
+            
+            #[inline]
+            fn visit_i8<E>(self, value: i8) -> Result<Self::Value, E> {
+                Ok(Variant::I1(value))
+            }
+            
+            #[inline]
+            fn visit_u8<E>(self, value: u8) -> Result<Self::Value, E> {
+                Ok(Variant::UI1(value))
+            }
+
+            #[inline]
             fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
                 Ok(Variant::R8(value))
             }
