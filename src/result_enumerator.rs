@@ -76,16 +76,19 @@ impl IWbemClassWrapper {
 
         let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
 
+        let mut cim_type = 0;
+
         unsafe {
             check_hres((*self.inner.as_ptr()).Get(
                 name_prop.as_lpcwstr(),
                 0,
                 &mut vt_prop,
-                ptr::null_mut(),
+                &mut cim_type,
                 ptr::null_mut(),
             ))?;
 
-            let property_value = Variant::from_variant(vt_prop)?;
+            let property_value =
+                Variant::from_variant(vt_prop)?.convert_into_cim_type(cim_type as _)?;
 
             check_hres(VariantClear(&mut vt_prop))?;
 

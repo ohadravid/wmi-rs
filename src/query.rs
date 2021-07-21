@@ -664,6 +664,7 @@ mod tests {
     fn it_can_query_all_classes() {
         let wmi_con = wmi_con();
         let classes = [
+            "CIM_ComputerSystem",
             "Win32_Service",
             "Win32_Process",
             "Win32_OperatingSystem",
@@ -789,6 +790,71 @@ mod tests {
     }
 
     #[test]
+    fn it_can_query_correct_variant_types() {
+        let wmi_con = wmi_con();
+        let mut results: Vec<HashMap<String, Variant>> = wmi_con
+            .raw_query("SELECT SystemStabilityIndex FROM Win32_ReliabilityStabilityMetrics")
+            .unwrap();
+
+        match results.pop().unwrap().values().next() {
+            Some(&Variant::R8(_v)) => assert!(true),
+            _ => assert!(false),
+        }
+
+        let mut results: Vec<HashMap<String, Variant>> = wmi_con
+            .raw_query("SELECT FreePhysicalMemory FROM Win32_OperatingSystem")
+            .unwrap();
+
+        match results.pop().unwrap().values().next() {
+            Some(&Variant::UI8(_v)) => assert!(true),
+            _ => {
+                assert!(false)
+            }
+        }
+
+        let mut results: Vec<HashMap<String, Variant>> = wmi_con
+            .raw_query("SELECT MaxNumberOfProcesses FROM Win32_OperatingSystem")
+            .unwrap();
+
+        match results.pop().unwrap().values().next() {
+            Some(&Variant::UI4(_v)) => assert!(true),
+            _ => assert!(false),
+        }
+
+        let mut results: Vec<HashMap<String, Variant>> = wmi_con
+            .raw_query("SELECT ForegroundApplicationBoost FROM Win32_OperatingSystem")
+            .unwrap();
+
+        match results.pop().unwrap().values().next() {
+            Some(&Variant::UI1(_v)) => assert!(true),
+            _ => assert!(false),
+        }
+
+        let mut results: Vec<HashMap<String, Variant>> = wmi_con
+            .raw_query("SELECT Roles FROM CIM_ComputerSystem")
+            .unwrap();
+
+        match results.pop().unwrap().values().next() {
+            Some(Variant::Array(ref v)) => match v.get(0) {
+                None | Some(Variant::String(_)) => assert!(true),
+                _ => assert!(false),
+            },
+            _ => assert!(false),
+        }
+
+        let mut results: Vec<HashMap<String, Variant>> = wmi_con
+            .raw_query("SELECT * FROM CIM_ComputerSystem")
+            .unwrap();
+
+        match results.pop().unwrap().get("OEMLogoBitmap") {
+            Some(Variant::Array(ref v)) => {
+                assert!(v.is_empty());
+            }
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
     fn it_can_query_floats() {
         let wmi_con = wmi_con();
 
@@ -807,6 +873,29 @@ mod tests {
 
         let sat = wmi_con.get::<Win32_WinSAT>().unwrap();
         assert!(sat.CPUScore >= 0.0);
+    }
+
+    #[test]
+    fn it_can_query_arrays() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            MUILanguages: Vec<String>,
+        }
+
+        let os = wmi_con.get::<Win32_OperatingSystem>().unwrap();
+        assert!(!os.MUILanguages.is_empty());
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_ComputerSystem {
+            BootStatus: Vec<u16>,
+            PowerManagementCapabilities: Vec<u16>,
+        }
+
+        let cs = wmi_con.get::<Win32_ComputerSystem>().unwrap();
+        assert!(!cs.BootStatus.is_empty());
+        assert!(cs.PowerManagementCapabilities.is_empty());
     }
 
     #[test]
@@ -857,7 +946,7 @@ mod tests {
 
         assert_eq!(
             proc_by_path_hashmap.get("ProcessId").unwrap(),
-            &Variant::I8(proc.ProcessId)
+            &Variant::UI4(proc.ProcessId as _)
         );
     }
 

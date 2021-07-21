@@ -10,8 +10,6 @@ use crate::result_enumerator::IWbemClassWrapper;
 use crate::WMIError;
 
 pub struct Deserializer<'a> {
-    // This string starts with the input data and characters are truncated off
-    // the beginning as data is parsed.
     pub wbem_class_obj: &'a IWbemClassWrapper,
 }
 
