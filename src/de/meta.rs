@@ -91,27 +91,33 @@ where
 fn validate_identifier<E: serde::de::Error>(s: &str) -> Result<&str, E> {
     fn is_s1(ch: char) -> bool {
         match ch {
-            '\u{005f}'                  => true,
-            '\u{0041}' ..= '\u{005A}'   => true,
-            '\u{0061}' ..= '\u{007A}'   => true,
-            '\u{0080}' ..= '\u{FFEF}'   => true,
-            _other                      => false,
+            '\u{005f}' => true,
+            '\u{0041}'..='\u{005A}' => true,
+            '\u{0061}'..='\u{007A}' => true,
+            '\u{0080}'..='\u{FFEF}' => true,
+            _other => false,
         }
     }
 
     fn is_s2(ch: char) -> bool {
         match ch {
-            '\u{0030}' ..= '\u{0039}'   => true,
-            _other                      => is_s1(ch),
+            '\u{0030}'..='\u{0039}' => true,
+            _other => is_s1(ch),
         }
     }
 
     let mut chars = s.chars();
     match chars.next() {
-        None                            => Err(de::Error::custom("An empty string is not a valid namespace, class, or property name")),
-        Some(ch) if !is_s1(ch)          => Err(de::Error::custom("An identifier must start with '_' or an alphabetic character")),
-        Some(_) if !chars.all(is_s2)    => Err(de::Error::custom("An identifier must only consist of '_', alphabetic, or numeric characters")),
-        Some(_)                         => Ok(s),
+        None => Err(de::Error::custom(
+            "An empty string is not a valid namespace, class, or property name",
+        )),
+        Some(ch) if !is_s1(ch) => Err(de::Error::custom(
+            "An identifier must start with '_' or an alphabetic character",
+        )),
+        Some(_) if !chars.all(is_s2) => Err(de::Error::custom(
+            "An identifier must only consist of '_', alphabetic, or numeric characters",
+        )),
+        Some(_) => Ok(s),
     }
 }
 

@@ -1,8 +1,7 @@
 use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::{
-    BStr,
-    connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres, Variant,
-    WMIError,
+    connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres, BStr,
+    Variant, WMIError,
 };
 use log::trace;
 use serde::de;
@@ -35,7 +34,7 @@ impl IWbemClassWrapper {
         Self { inner: ptr }
     }
 
-    /// Creates a copy of the pointer and calls 
+    /// Creates a copy of the pointer and calls
     /// [AddRef](https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref)
     /// to increment Reference Count.
     ///
@@ -63,7 +62,6 @@ impl IWbemClassWrapper {
                 ptr::null_mut(),
                 &mut p_names,
             ))?;
-        
 
             let res = safe_array_to_vec_of_strings(p_names);
 
@@ -86,7 +84,6 @@ impl IWbemClassWrapper {
                 ptr::null_mut(),
                 ptr::null_mut(),
             ))?;
-        
 
             let property_value = Variant::from_variant(vt_prop)?;
 
@@ -152,7 +149,7 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut pcls_obj = NULL as *mut IWbemClassObject;
         let mut return_value = 0;
-        
+
         let raw_enumerator_prt = self.p_enumerator?.as_ptr();
 
         let res = unsafe {
@@ -182,7 +179,7 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
 
         match pcls_ptr {
             Err(e) => Some(Err(e)),
-            Ok(pcls_ptr) => Some(Ok( unsafe { IWbemClassWrapper::new(pcls_ptr) })),
+            Ok(pcls_ptr) => Some(Ok(unsafe { IWbemClassWrapper::new(pcls_ptr) })),
         }
     }
 }

@@ -1,13 +1,10 @@
 use crate::WMIError;
-use winapi::{
-    shared::ntdef::LPCWSTR,
-    shared::wtypes::BSTR,
-    shared::wtypesbase::OLECHAR,
-    um::oleauto::*,
-};
 use std::convert::TryFrom;
-use std::ptr::{null, NonNull};
 use std::ops::Drop;
+use std::ptr::{null, NonNull};
+use winapi::{
+    shared::ntdef::LPCWSTR, shared::wtypes::BSTR, shared::wtypesbase::OLECHAR, um::oleauto::*,
+};
 
 /// A non-null [BSTR]
 ///
@@ -25,7 +22,10 @@ impl BStr {
         let len = s.encode_utf16().count();
         let len32 = u32::try_from(len).map_err(|_| WMIError::ConvertLengthError(len as _))?;
 
-        let bstr = BStr(NonNull::new(unsafe { SysAllocStringLen(null(), len32) }).ok_or(WMIError::ConvertAllocateError)?);
+        let bstr = BStr(
+            NonNull::new(unsafe { SysAllocStringLen(null(), len32) })
+                .ok_or(WMIError::ConvertAllocateError)?,
+        );
         for (i, cu) in s.encode_utf16().enumerate() {
             unsafe { std::ptr::write(bstr.0.as_ptr().add(i), cu) };
         }

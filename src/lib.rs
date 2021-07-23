@@ -180,10 +180,10 @@ pub(crate) mod query_sink;
 pub mod tests;
 
 use bstr::BStr;
-pub use query::{FilterValue, build_query};
 pub use connection::{COMLibrary, WMIConnection};
 pub use datetime::WMIDateTime;
 pub use duration::WMIDuration;
+pub use query::{build_query, FilterValue};
 pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 
@@ -194,7 +194,7 @@ mod test_readme {
         ($doc:expr, $id:ident) => {
             #[doc = $doc]
             enum $id {}
-        }
+        };
     }
 
     calculated_doc!(include_str!("../README.md"), _DoctestReadme);

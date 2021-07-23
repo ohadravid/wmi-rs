@@ -1,5 +1,5 @@
-use crate::BStr;
 use crate::utils::{check_hres, WMIError};
+use crate::BStr;
 use log::debug;
 use std::ptr;
 use std::ptr::NonNull;
@@ -89,7 +89,7 @@ pub struct WMIConnection {
 /// Currently does not support remote providers (e.g connecting to other computers).
 ///
 impl WMIConnection {
-    fn create_and_set_proxy(&mut self,  namespace_path: Option<&str>) -> Result<(), WMIError> {
+    fn create_and_set_proxy(&mut self, namespace_path: Option<&str>) -> Result<(), WMIError> {
         self.create_locator()?;
 
         self.create_services(namespace_path.unwrap_or("ROOT\\CIMV2"))?;
@@ -98,7 +98,7 @@ impl WMIConnection {
 
         Ok(())
     }
-    
+
     /// Creates a connection with a default `CIMV2` namespace path.
     pub fn new(com_lib: Rc<COMLibrary>) -> Result<Self, WMIError> {
         Self::with_namespace_path("ROOT\\CIMV2", com_lib)
@@ -128,13 +128,13 @@ impl WMIConnection {
 
         Ok(instance)
     }
-    
+
     /// Like `with_namespace_path`, but assumes that COM is managed externally.
     ///
     /// # Safety
     ///
     /// This function is unsafe as it is the caller's responsibility to ensure that COM is initialized and will not be uninitialized before the connection object is dropped.
-    /// 
+    ///
     /// ```edition2018
     /// # fn main() -> Result<(), wmi::WMIError> {
     /// # use wmi::*;

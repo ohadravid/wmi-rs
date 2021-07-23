@@ -97,11 +97,13 @@ pub unsafe fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<St
     Ok(string_items)
 }
 
-
 /// # Safety
 ///
 /// The caller must ensure that the array is valid.
-pub unsafe fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<Vec<Variant>, WMIError> {
+pub unsafe fn safe_array_to_vec(
+    arr: *mut SAFEARRAY,
+    item_type: u32,
+) -> Result<Vec<Variant>, WMIError> {
     let mut items = vec![];
 
     match item_type {
@@ -122,7 +124,7 @@ pub unsafe fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> Result<V
             }
         }
         // TODO: Add support for all other types of arrays.
-        _ => {return Err(WMIError::UnimplementedArrayItem)},
+        _ => return Err(WMIError::UnimplementedArrayItem),
     }
 
     Ok(items)

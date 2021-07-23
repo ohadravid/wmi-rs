@@ -1,11 +1,11 @@
 use crate::{safearray::safe_array_to_vec, WMIError};
+use serde::Serialize;
 use std::convert::TryFrom;
 use widestring::WideCStr;
 use winapi::{
     shared::wtypes::*,
     um::{oaidl::SAFEARRAY, oaidl::VARIANT},
 };
-use serde::Serialize;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
@@ -53,7 +53,9 @@ impl Variant {
 
             let item_type = variant_type as u32 & VT_TYPEMASK;
 
-            return Ok(Variant::Array(unsafe { safe_array_to_vec(*array, item_type as u32)? }));
+            return Ok(Variant::Array(unsafe {
+                safe_array_to_vec(*array, item_type as u32)?
+            }));
         }
 
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.

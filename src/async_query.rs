@@ -1,34 +1,27 @@
 //! # Async query support
-//! This module does not export anything, as it provides additional 
+//! This module does not export anything, as it provides additional
 //! methods on [`WMIConnection`](WMIConnection)
 //!
 //! You only have to activate the `async-query` feature flag in Cargo.toml to use them.
 //! ```toml
 //! wmi = { version = "x.y.z",  features = ["async-query"] }
 //! ```
-//! 
-//! 
+//!
+//!
 
-use crate::{BStr, query::{FilterValue, build_query}};
+use crate::query_sink::{IWbemObjectSink, QuerySink};
 use crate::result_enumerator::IWbemClassWrapper;
+use crate::{connection::WMIConnection, utils::check_hres, WMIResult};
 use crate::{
-    connection::WMIConnection,
-    utils::check_hres,
-    WMIResult,
+    query::{build_query, FilterValue},
+    BStr,
 };
-use crate::query_sink::{QuerySink, IWbemObjectSink};
-use std::{collections::HashMap, ptr};
 use com::production::ClassAllocation;
 use com::AbiTransferable;
-use winapi::{
-    um::{
-        wbemcli::{
-            WBEM_FLAG_BIDIRECTIONAL,
-        },
-    },
-};
+use futures::stream::{Stream, StreamExt, TryStreamExt};
 use serde::de;
-use futures::stream::{Stream, TryStreamExt, StreamExt};
+use std::{collections::HashMap, ptr};
+use winapi::um::wbemcli::WBEM_FLAG_BIDIRECTIONAL;
 
 ///
 /// ### Additional async methods
@@ -43,7 +36,7 @@ impl WMIConnection {
     pub fn exec_query_async_native_wrapper(
         &self,
         query: impl AsRef<str>,
-    ) -> WMIResult<impl Stream<Item=WMIResult<IWbemClassWrapper>>> {
+    ) -> WMIResult<impl Stream<Item = WMIResult<IWbemClassWrapper>>> {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
@@ -51,7 +44,7 @@ impl WMIConnection {
         // The internal RefCount has initial value = 1.
         let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(Some(tx));
         let p_sink_handel = p_sink.query_interface::<IWbemObjectSink>().unwrap();
- 
+
         unsafe {
             // As p_sink's RefCount = 1 before this call,
             // p_sink won't be dropped at the end of ExecQueryAsync
@@ -60,8 +53,8 @@ impl WMIConnection {
                 query.as_bstr(),
                 WBEM_FLAG_BIDIRECTIONAL as i32,
                 ptr::null_mut(),
-                p_sink_handel.get_abi().as_ptr() as * mut _,
-            ))?;   
+                p_sink_handel.get_abi().as_ptr() as *mut _,
+            ))?;
         }
 
         Ok(rx)
@@ -92,8 +85,7 @@ impl WMIConnection {
     where
         T: de::DeserializeOwned,
     {
-        self
-            .exec_query_async_native_wrapper(query)?
+        self.exec_query_async_native_wrapper(query)?
             .map(|item| match item {
                 Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
                 Err(e) => Err(e),
@@ -102,7 +94,6 @@ impl WMIConnection {
             .await
     }
 
-    
     /// Query all the objects of type T.
     ///
     /// ```edition2018
@@ -156,8 +147,8 @@ impl WMIConnection {
 mod tests {
     use crate::tests::fixtures::*;
     use crate::Variant;
-    use std::collections::HashMap;
     use futures::stream::StreamExt;
+    use std::collections::HashMap;
 
     #[async_std::test]
     async fn async_it_works_async() {
@@ -188,10 +179,11 @@ mod tests {
     #[async_std::test]
     async fn async_it_provides_raw_query_result() {
         let wmi_con = wmi_con();
-        
-        let results: Vec<HashMap<String, Variant>> =
-            wmi_con.async_raw_query("SELECT * FROM Win32_GroupUser")
-            .await.unwrap();
+
+        let results: Vec<HashMap<String, Variant>> = wmi_con
+            .async_raw_query("SELECT * FROM Win32_GroupUser")
+            .await
+            .unwrap();
 
         for res in results {
             match res.get("GroupComponent") {

@@ -1,6 +1,6 @@
-use crate::BStr;
 use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::result_enumerator::{IWbemClassWrapper, QueryResultEnumerator};
+use crate::BStr;
 use crate::{
     connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres, WMIError,
 };
@@ -75,7 +75,9 @@ impl From<bool> for FilterValue {
 /// "SELECT Caption, Debug FROM Win32_OperatingSystem";
 /// ```
 ///
-pub fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> Result<String, WMIError>
+pub fn build_query<'de, T>(
+    filters: Option<&HashMap<String, FilterValue>>,
+) -> Result<String, WMIError>
 where
     T: de::Deserialize<'de>,
 {
@@ -146,7 +148,7 @@ pub fn quote_and_escape_wql_str(s: &str) -> String {
         match ch {
             '\"' => o.push_str("\\\""),
             '\\' => o.push_str("\\\\"),
-            ch   => o.push(ch),
+            ch => o.push(ch),
         }
     }
     o.push('"');
@@ -576,7 +578,9 @@ mod tests {
     fn it_can_query_a_hashmap() {
         let wmi_con = wmi_con();
 
-        let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT Name FROM Win32_OperatingSystem").unwrap();
+        let results: Vec<HashMap<String, Variant>> = wmi_con
+            .raw_query("SELECT Name FROM Win32_OperatingSystem")
+            .unwrap();
 
         let results_as_json = serde_json::to_string(&results).unwrap();
         assert!(results_as_json.starts_with(r#"[{"Name":"Microsoft Windows"#));
@@ -622,7 +626,10 @@ mod tests {
         filters.insert("C2".to_string(), FilterValue::String("b".to_string()));
         filters.insert("C3".to_string(), FilterValue::Number(42));
         filters.insert("C4".to_string(), FilterValue::Bool(false));
-        filters.insert("C5".to_string(), FilterValue::String(r#"with " and \ chars"#.to_string()));
+        filters.insert(
+            "C5".to_string(),
+            FilterValue::String(r#"with " and \ chars"#.to_string()),
+        );
 
         let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
@@ -807,15 +814,22 @@ mod tests {
         let tmp_dir = tempdir::TempDir::new("PlayStation™Now").unwrap();
         let wmi_con = wmi_con();
         let tmp_dir_path = tmp_dir.path().to_string_lossy().to_string();
-        
+
         #[derive(Deserialize, Debug)]
         struct Win32_Directory {
             Name: String,
         }
 
         let mut filters = HashMap::new();
-        filters.insert(String::from("Name"), FilterValue::String(tmp_dir_path.clone()));
-        let directory = wmi_con.filtered_query::<Win32_Directory>(&filters).unwrap().pop().unwrap();
+        filters.insert(
+            String::from("Name"),
+            FilterValue::String(tmp_dir_path.clone()),
+        );
+        let directory = wmi_con
+            .filtered_query::<Win32_Directory>(&filters)
+            .unwrap()
+            .pop()
+            .unwrap();
         assert_eq!(directory.Name.to_lowercase(), tmp_dir_path.to_lowercase());
     }
 
