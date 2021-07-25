@@ -8,7 +8,7 @@ WMI (Windows Management Instrumentation) crate for rust.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.8"
+wmi = "0.9"
 ```
 
 
@@ -63,7 +63,7 @@ This crate provides async methods under the `async-query` flag:
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = { version = "0.8", features = ["async-query"] }
+wmi = { version = "0.9", features = ["async-query"] }
 ```
 
 The methods become available on `WMIConnection`
