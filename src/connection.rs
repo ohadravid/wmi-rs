@@ -12,6 +12,7 @@ use winapi::{
             RPC_C_IMP_LEVEL_IMPERSONATE,
         },
         wtypesbase::CLSCTX_INPROC_SERVER,
+        winerror::RPC_E_TOO_LATE,
     },
     um::{
         combaseapi::{
@@ -38,7 +39,14 @@ impl COMLibrary {
 
         let instance = Self {};
 
-        instance.init_security()?;
+        match instance.init_security() {
+            // All is fine
+            Ok(()) => {}
+            // Security was already initialize, this is fine
+            Err(WMIError::HResultError{ hres }) if hres == RPC_E_TOO_LATE => {}
+            // Otherwise fail
+            Err(err) => return Err(err),
+        }
 
         Ok(instance)
     }
