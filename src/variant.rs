@@ -63,6 +63,8 @@ macro_rules! cast_num {
             Ok(Variant::R4($var as f32))
         } else if $cim_type == wbemcli::CIM_REAL64 {
             Ok(Variant::R8($var as f64))
+        } else if $cim_type == wbemcli::CIM_CHAR16 {
+            Ok(Variant::String(String::from_utf16(&[$var as u16])?))
         } else {
             Err(WMIError::ConvertVariantError(format!(
                 "Value {:?} cannot be turned into a CIMTYPE {}",
@@ -436,6 +438,14 @@ mod tests {
         let variant = Variant::String("1.0".to_string());
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::R8(1.0));
+    }
+
+    #[test]
+    fn it_convert_into_cim_char16() {
+        let cim_type = wbemcli::CIM_CHAR16;
+        let variant = Variant::UI2(67);
+        let converted = variant.convert_into_cim_type(cim_type).unwrap();
+        assert_eq!(converted, Variant::String("C".to_string()));
     }
 
     #[test]
