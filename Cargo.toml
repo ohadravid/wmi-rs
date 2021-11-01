@@ -1,6 +1,6 @@
 [package]
 name = "wmi"
-version = "0.9.1"
+version = "0.9.2"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -29,8 +29,8 @@ serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 lazy_static = { version = "1.4.0", optional = true }
 thiserror = "^1"
-async-channel = {version = "1.5.1", optional = true}
-async-std = { version = "1.8.0",  features = ["attributes"], optional = true }
+async-channel = {version = "1.6", optional = true}
+async-std = { version = "1.10",  features = ["attributes"], optional = true }
 futures = { version = "0.3", optional = true}
 com = { version = "0.6", features = ["production"], optional = true }
 
