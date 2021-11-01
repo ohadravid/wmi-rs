@@ -418,6 +418,8 @@ impl WMIConnection {
     ///     System(Win32_SystemAccount),
     ///     #[serde(rename = "Win32_UserAccount")]
     ///     User(Win32_UserAccount),
+    ///     #[serde(rename = "Win32_Group")]
+    ///     Group(Win32_Group),
     /// };
     ///
     /// for account in accounts_in_group {
@@ -1014,6 +1016,8 @@ mod tests {
             System(Win32_SystemAccount),
             #[serde(rename = "Win32_UserAccount")]
             User(Win32_UserAccount),
+            #[serde(rename = "Win32_Group")]
+            Group(Win32_Group),
         }
 
         for account in accounts_in_group {
