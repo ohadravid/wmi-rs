@@ -43,7 +43,7 @@ impl WMIConnection {
         let (tx, rx) = async_channel::unbounded();
         // The internal RefCount has initial value = 1.
         let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(Some(tx));
-        let p_sink_handel = p_sink.query_interface::<IWbemObjectSink>().unwrap();
+        let p_sink_handel = IWbemObjectSink::from(&**p_sink);
 
         unsafe {
             // As p_sink's RefCount = 1 before this call,
