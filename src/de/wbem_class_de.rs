@@ -269,7 +269,7 @@ mod tests {
             assert_eq!(w.EncryptionLevel, 256);
             assert_eq!(w.ForegroundApplicationBoost, 2);
             assert_eq!(
-                w.LastBootUpTime.0.timezone().local_minus_utc() / 60,
+                w.LastBootUpTime.0.offset().whole_seconds() / 60,
                 w.CurrentTimeZone as i32
             );
         }

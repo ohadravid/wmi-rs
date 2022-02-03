@@ -594,6 +594,7 @@ mod tests {
 
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
+            #[allow(dead_code)]
             NoSuchField: String,
         }
 
@@ -606,6 +607,7 @@ mod tests {
     fn it_builds_correct_query_without_filters() {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
+            #[allow(dead_code)]
             Caption: String,
         }
 
@@ -619,6 +621,7 @@ mod tests {
     fn it_builds_correct_query() {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
+            #[allow(dead_code)]
             Caption: String,
         }
 
@@ -767,6 +770,7 @@ mod tests {
         #[derive(Deserialize, Debug)]
         struct Win32_DiskDrive {
             __Path: String,
+            #[allow(dead_code)]
             Caption: String,
         }
 

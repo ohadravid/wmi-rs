@@ -12,8 +12,12 @@ pub enum WMIError {
     ParseIntError(#[from] std::num::ParseIntError),
     #[error(transparent)]
     ParseFloatError(#[from] std::num::ParseFloatError),
+    #[cfg(not(feature = "time-instead-of-chrono"))]
     #[error(transparent)]
     ParseDatetimeError(#[from] chrono::format::ParseError),
+    #[cfg(feature = "time-instead-of-chrono")]
+    #[error(transparent)]
+    ParseDatetimeError(#[from] time::Error),
     #[error("Converting from variant type {0:#X} is not implemented yet")]
     ConvertError(VARTYPE),
     #[error("{0}")]
