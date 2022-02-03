@@ -11,10 +11,8 @@ use chrono::prelude::*;
 
 #[cfg(feature = "time-instead-of-chrono")]
 use time::{
-    format_description::{well_known::Rfc3339, FormatItem},
-    macros::format_description,
-    parsing::Parsed,
-    PrimitiveDateTime, UtcOffset,
+    format_description::FormatItem, macros::format_description, parsing::Parsed, PrimitiveDateTime,
+    UtcOffset,
 };
 
 /// A wrapper type around `chrono`'s `DateTime` (`time`'s `OffsetDateTime` if the
@@ -112,6 +110,11 @@ impl<'de> de::Deserialize<'de> for WMIDateTime {
     }
 }
 
+#[cfg(feature = "time-instead-of-chrono")]
+const RFC3339_WITH_6_DIGITS: &[FormatItem<'_>] =format_description!(
+    "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6][offset_hour sign:mandatory]:[offset_minute]"
+);
+
 impl ser::Serialize for WMIDateTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -121,7 +124,7 @@ impl ser::Serialize for WMIDateTime {
         let formatted = self.0.to_rfc3339();
         // Unwrap: we passed a well known format, if it fails something has gone very wrong
         #[cfg(feature = "time-instead-of-chrono")]
-        let formatted = self.0.format(&Rfc3339).unwrap();
+        let formatted = self.0.format(RFC3339_WITH_6_DIGITS).unwrap();
 
         serializer.serialize_str(&formatted)
     }
@@ -131,8 +134,6 @@ impl ser::Serialize for WMIDateTime {
 mod tests {
     use super::WMIDateTime;
     use serde_json;
-    #[cfg(feature = "time-instead-of-chrono")]
-    use time::format_description::well_known::Rfc3339;
 
     #[test]
     fn it_works_with_negative_offset() {
@@ -141,7 +142,7 @@ mod tests {
         #[cfg(not(feature = "time-instead-of-chrono"))]
         let formatted = dt.0.to_rfc3339();
         #[cfg(feature = "time-instead-of-chrono")]
-        let formatted = dt.0.format(&Rfc3339).unwrap();
+        let formatted = dt.0.format(super::RFC3339_WITH_6_DIGITS).unwrap();
 
         assert_eq!(formatted, "2019-01-13T20:05:17.000500-03:00");
     }
@@ -153,7 +154,7 @@ mod tests {
         #[cfg(not(feature = "time-instead-of-chrono"))]
         let formatted = dt.0.to_rfc3339();
         #[cfg(feature = "time-instead-of-chrono")]
-        let formatted = dt.0.format(&Rfc3339).unwrap();
+        let formatted = dt.0.format(super::RFC3339_WITH_6_DIGITS).unwrap();
 
         assert_eq!(formatted, "2019-01-13T20:05:17.000500+01:00");
     }

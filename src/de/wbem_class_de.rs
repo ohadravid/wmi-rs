@@ -268,8 +268,14 @@ mod tests {
             assert_eq!(w.Debug, false);
             assert_eq!(w.EncryptionLevel, 256);
             assert_eq!(w.ForegroundApplicationBoost, 2);
+            
+            #[cfg(not(feature = "time-instead-of-chrono"))]
+            let last_boot_up_time = w.LastBootUpTime.0.timezone().local_minus_utc() / 60;
+            #[cfg(feature = "time-instead-of-chrono")]
+            let last_boot_up_time = w.LastBootUpTime.0.offset().whole_seconds() / 60;
+
             assert_eq!(
-                w.LastBootUpTime.0.offset().whole_seconds() / 60,
+                last_boot_up_time,
                 w.CurrentTimeZone as i32
             );
         }
