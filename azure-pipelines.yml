@@ -29,11 +29,21 @@ steps:
     displayName: Install rust (windows)
     condition: eq( variables['Agent.OS'], 'Windows_NT' )
 
+  # Build time crate
   - script: cargo build --all-features
-    displayName: Cargo build
+    displayName: Cargo build - Use time
+  
+  # Build chrono
+  - script: cargo build --features=test,async-query
+    displayName: Cargo build - Use chrono
 
+  # Test time crate
   - script: cargo test --all-features
-    displayName: Cargo test
+    displayName: Cargo test - Use time
+
+  # Test chrono
+  - script: cargo test --features=test,async-query
+    displayName: Cargo test - Use chrono
 
   - script: |
       cargo publish
