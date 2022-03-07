@@ -54,6 +54,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>>  {
 }
 ```
 
+### `chrono` vs `time`
+
+If you prefer to use the `time` crate instead of the default `chorno`, include `wmi` as
+
+```toml
+[dependencies]
+wmi-rs = { version = "0.9", default-features = false, features = ["time"] }
+```
+
+and use the `WMIOffsetDateTime` wrapper instead of the the `WMIDateTime` wrapper.
+
 ## Async Queries
 
 WMI supports async queries, with methods like [ExecAsyncQuery](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execqueryasync).
