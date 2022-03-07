@@ -132,7 +132,9 @@ mod tests {
     fn it_works() {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
+            #[allow(dead_code)]
             Caption: String,
+            #[allow(dead_code)]
             Name: String,
         }
 
@@ -148,7 +150,9 @@ mod tests {
         #[serde(rename = "Win32_OperatingSystem")]
         #[serde(rename_all = "PascalCase")]
         struct Win32OperatingSystem {
+            #[allow(dead_code)]
             caption: String,
+            #[allow(dead_code)]
             name: String,
         }
 
@@ -167,6 +171,7 @@ mod tests {
         #[derive(Deserialize, Debug)]
         struct EvilFieldName {
             #[serde(rename = "Evil\"Field\"Name")]
+            #[allow(dead_code)]
             field: String,
         }
 

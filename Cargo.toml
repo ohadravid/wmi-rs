@@ -18,15 +18,24 @@ keywords = ["wmi", "com", "win32"]
 default-target = "x86_64-pc-windows-msvc"
 
 [features]
+default = ["chrono"]
+
 test = ["lazy_static", "async-std"]
 async-query = ["async-channel", "futures", "com"]
+# Make WMIDateTime use `time::OffsetDateTime` instead of `chrono::DateTime`
+# Note: this **replaces** the `chrono` dep with the `time`.
+# The default is using `chrono`.
+# It is a compile-time error to not have either the default or this feature active.
+time-instead-of-chrono = ["time"]
+
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3.9", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi", "wtypes", "wtypesbase"] }
 log = "0.4"
 widestring = "0.5"
 serde = { version = "1.0", features = ["derive"] }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"], optional = true }
+time = { version = "0.3", features = ["formatting", "parsing", "macros", "serde"], optional = true }
 lazy_static = { version = "1.4.0", optional = true }
 thiserror = "^1"
 async-channel = {version = "1.6", optional = true}
