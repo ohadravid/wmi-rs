@@ -55,7 +55,10 @@
 //! # use wmi::*;
 //! # let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
 //! use serde::Deserialize;
+//! # #[cfg(feature = "chrono")]
 //! use wmi::WMIDateTime;
+//! # #[cfg(all(feature = "time", not(feature = "chrono")))]
+//! # use wmi::WMIOffsetDateTime as WMIDateTime;
 //!
 //! #[derive(Deserialize, Debug)]
 //! #[serde(rename = "Win32_OperatingSystem")]
@@ -140,7 +143,6 @@
 //! struct OperatingSystem {
 //!     caption: String,
 //!     debug: bool,
-//!     last_boot_up_time: WMIDateTime,
 //! }
 //!
 //! let results: Vec<OperatingSystem> = wmi_con.async_query().await?;
@@ -161,7 +163,13 @@
 
 mod bstr;
 pub mod connection;
+
+#[cfg(feature = "chrono")]
 pub mod datetime;
+
+#[cfg(feature = "time")]
+mod datetime_time;
+
 pub mod de;
 pub mod duration;
 pub mod query;
@@ -181,15 +189,18 @@ pub mod tests;
 
 use bstr::BStr;
 pub use connection::{COMLibrary, WMIConnection};
+
+#[cfg(feature = "chrono")]
 pub use datetime::WMIDateTime;
+
+#[cfg(feature = "time")]
+pub use datetime_time::WMIOffsetDateTime;
+
 pub use duration::WMIDuration;
 pub use query::{build_query, FilterValue};
 pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 
-// Cannot use `cfg(test)` here since `rustdoc` won't look at it.
-#[cfg(debug_assertions)]
-mod test_readme {
-    #[doc = include_str!("../README.md")]
-    enum _DoctestReadme {}
-}
+#[doc = include_str!("../README.md")]
+#[cfg(all(doctest, feature = "async-query", feature = "chrono"))]
+pub struct ReadmeDoctests;

@@ -29,20 +29,24 @@ steps:
     displayName: Install rust (windows)
     condition: eq( variables['Agent.OS'], 'Windows_NT' )
 
-  # Build time crate
-  - script: cargo build --all-features
-    displayName: Cargo build - Use time
-  
-  # Build chrono
-  - script: cargo build --features=test,async-query
-    displayName: Cargo build - Use chrono
+  - script: cargo build
+    displayName: Cargo build - Only chrono (default features)
 
+  - script: cargo build --no-default-features --features=time
+    displayName: Cargo build - Only time
+  
+  - script: cargo build --no-default-features
+    displayName: Cargo build - No features
+  
+  - script: cargo build --all-features
+    displayName: Cargo build - All features
+    
   # Test time crate
-  - script: cargo test --all-features
+  - script: cargo test --no-default-features --features=time,async-query
     displayName: Cargo test - Use time
 
   # Test chrono
-  - script: cargo test --features=test,async-query
+  - script: cargo test --no-default-features --features=chrono,async-query
     displayName: Cargo test - Use chrono
 
   - script: |

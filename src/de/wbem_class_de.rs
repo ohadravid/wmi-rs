@@ -227,7 +227,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datetime::WMIDateTime;
+
     use crate::duration::WMIDuration;
     use crate::variant::Variant;
     use serde::Deserialize;
@@ -244,6 +244,7 @@ mod tests {
         struct Win32_OperatingSystem {
             Caption: String,
             Name: String,
+            
             CurrentTimeZone: i16,
             Debug: bool,
 
@@ -251,7 +252,11 @@ mod tests {
             EncryptionLevel: u32,
             ForegroundApplicationBoost: u8,
 
-            LastBootUpTime: WMIDateTime,
+            #[cfg(feature = "chrono")]
+            LastBootUpTime: crate::WMIDateTime,
+            
+            #[cfg(all(feature = "time", not(feature = "chrono")))]
+            LastBootUpTime: crate::WMIOffsetDateTime,
         }
 
         let enumerator = wmi_con
@@ -268,16 +273,10 @@ mod tests {
             assert_eq!(w.Debug, false);
             assert_eq!(w.EncryptionLevel, 256);
             assert_eq!(w.ForegroundApplicationBoost, 2);
+            assert_ne!(w.CurrentTimeZone, i16::max_value());
             
-            #[cfg(not(feature = "time-instead-of-chrono"))]
-            let last_boot_up_time = w.LastBootUpTime.0.timezone().local_minus_utc() / 60;
-            #[cfg(feature = "time-instead-of-chrono")]
-            let last_boot_up_time = w.LastBootUpTime.0.offset().whole_seconds() / 60;
-
-            assert_eq!(
-                last_boot_up_time,
-                w.CurrentTimeZone as i32
-            );
+            #[cfg(any(feature = "time", feature = "chrono"))]
+            assert!(w.LastBootUpTime.0.to_string().starts_with("20"));
         }
     }
 
