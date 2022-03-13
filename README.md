@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>  {
 
 ### `chrono` vs `time`
 
-If you prefer to use the `time` crate instead of the default `chorno`, include `wmi` as
+If you prefer to use the `time` crate instead of the default `chrono`, include `wmi` as
 
 ```toml
 [dependencies]
