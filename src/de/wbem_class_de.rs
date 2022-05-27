@@ -244,7 +244,7 @@ mod tests {
         struct Win32_OperatingSystem {
             Caption: String,
             Name: String,
-            
+
             CurrentTimeZone: i16,
             Debug: bool,
 
@@ -254,7 +254,7 @@ mod tests {
 
             #[cfg(feature = "chrono")]
             LastBootUpTime: crate::WMIDateTime,
-            
+
             #[cfg(all(feature = "time", not(feature = "chrono")))]
             LastBootUpTime: crate::WMIOffsetDateTime,
         }
@@ -274,7 +274,7 @@ mod tests {
             assert_eq!(w.EncryptionLevel, 256);
             assert_eq!(w.ForegroundApplicationBoost, 2);
             assert_ne!(w.CurrentTimeZone, i16::max_value());
-            
+
             #[cfg(any(feature = "time", feature = "chrono"))]
             assert!(w.LastBootUpTime.0.to_string().starts_with("20"));
         }

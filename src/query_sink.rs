@@ -1,15 +1,16 @@
-use crate::result_enumerator::IWbemClassWrapper;
 use crate::WMIError;
-use async_channel::Sender;
-use log::{trace, warn};
-use std::ptr::NonNull;
+use crate::{result_enumerator::IWbemClassWrapper, WMIResult};
+use futures::Stream;
+use log::trace;
+use std::collections::VecDeque;
+use std::task::{Poll, Waker};
+use std::{
+    ptr::NonNull,
+    sync::{Arc, Mutex},
+};
 use winapi::{
     ctypes::c_long,
-    shared::{
-        ntdef::HRESULT,
-        winerror::{E_FAIL, E_POINTER},
-        wtypes::BSTR,
-    },
+    shared::{ntdef::HRESULT, winerror::E_POINTER, wtypes::BSTR},
     um::wbemcli::{IWbemClassObject, WBEM_STATUS_COMPLETE, WBEM_S_NO_ERROR},
 };
 
@@ -32,10 +33,86 @@ com::interfaces! {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct AsyncQueryResultStreamImpl {
+    buf: VecDeque<WMIResult<IWbemClassWrapper>>,
+    is_done: bool,
+    waker: Option<Waker>,
+}
+
+impl AsyncQueryResultStreamImpl {
+    pub fn append(&mut self, items: &mut VecDeque<WMIResult<IWbemClassWrapper>>) {
+        self.buf.append(items);
+
+        if let Some(waker) = self.waker.as_ref() {
+            waker.wake_by_ref();
+        }
+    }
+
+    pub fn set_done(&mut self) {
+        self.is_done = true;
+
+        if let Some(waker) = self.waker.as_ref() {
+            waker.wake_by_ref();
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct AsyncQueryResultStream(Arc<Mutex<AsyncQueryResultStreamImpl>>);
+
+impl AsyncQueryResultStream {
+    pub fn new() -> Self {
+        Self(Arc::new(Mutex::new(AsyncQueryResultStreamImpl::default())))
+    }
+
+    fn append(&self, items: &mut VecDeque<WMIResult<IWbemClassWrapper>>) {
+        let mut lock = self.0.lock().unwrap();
+        lock.append(items);
+    }
+
+    fn set_done(&self) {
+        let mut lock = self.0.lock().unwrap();
+        lock.set_done();
+    }
+}
+
+impl Stream for AsyncQueryResultStream {
+    type Item = WMIResult<IWbemClassWrapper>;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let waker = cx.waker().clone();
+        let mut inner = self.0.lock().unwrap();
+
+        inner.waker.replace(waker);
+
+        let next = inner.buf.pop_back();
+
+        match next {
+            Some(item) => {
+                trace!("poll_next: item found");
+                Poll::Ready(Some(item))
+            }
+            None => {
+                if inner.is_done {
+                    trace!("poll_next: done");
+                    Poll::Ready(None)
+                } else {
+                    trace!("poll_next: item not found");
+                    Poll::Pending
+                }
+            }
+        }
+    }
+}
+
 com::class! {
     // Option is required because `Default` is required by the `class!` macro.
     pub class QuerySink: IWbemObjectSink {
-        sender: Option<Sender<Result<IWbemClassWrapper, WMIError>>>,
+        stream: Option<AsyncQueryResultStream>,
     }
 
     /// Implementation for [IWbemObjectSink](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nn-wbemcli-iwbemobjectsink).
@@ -56,35 +133,33 @@ com::class! {
             }
 
             let lObjectCount = lObjectCount as usize;
-            let tx = self.sender.as_ref().unwrap().clone();
+            let mut buffer = VecDeque::new();
+            let mut res = WBEM_S_NO_ERROR as i32;
 
-            unsafe {
-                // The array memory of apObjArray is read-only
-                // and is owned by the caller of the Indicate method.
-                // IWbemClassWrapper::clone calls AddRef on each element
-                // of apObjArray to make sure that they are not released,
-                // according to COM rules.
-                // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
-                // For error codes, see https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
-                for i in 0..lObjectCount {
-                    if let Some(p_el) = NonNull::new(*apObjArray.offset(i as isize)) {
-                        let wbemClassObject = IWbemClassWrapper::clone(p_el);
+            // The array memory of apObjArray is read-only
+            // and is owned by the caller of the Indicate method.
+            // IWbemClassWrapper::clone calls AddRef on each element
+            // of apObjArray to make sure that they are not released,
+            // according to COM rules.
+            // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
+            // For error codes, see https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
+            for i in 0..lObjectCount {
+                if let Some(p_el) = NonNull::new(*apObjArray.offset(i as isize)) {
+                    let wbemClassObject = unsafe {
+                        IWbemClassWrapper::clone(p_el)
+                    };
 
-                        if let Err(e) = tx.try_send(Ok(wbemClassObject)) {
-                            warn!("Error while sending object through async_channel: {}", e);
-                            return E_FAIL;
-                        }
-                    } else {
-                        if let Err(e) = tx.try_send(Err(WMIError::NullPointerResult)) {
-                            warn!("Error while sending error code through async_channel: {}", e);
-                        }
-                        return E_POINTER;
-                    }
-
+                    buffer.push_front(Ok(wbemClassObject));
+                } else {
+                    buffer.push_front(Err(WMIError::NullPointerResult));
+                    res = E_POINTER;
                 }
             }
 
-            WBEM_S_NO_ERROR as i32
+            self.stream.as_ref().expect("QuerySink is always fully initialized")
+                .append(&mut buffer);
+
+            res
         }
 
         unsafe fn set_status(
@@ -101,7 +176,7 @@ com::class! {
 
             if lFlags == WBEM_STATUS_COMPLETE as i32 {
                 trace!("End of async result, closing transmitter");
-                self.sender.as_ref().unwrap().close();
+                self.stream.as_ref().expect("QuerySink is always fully initialized").set_done();
             }
             WBEM_S_NO_ERROR as i32
         }
@@ -114,13 +189,14 @@ com::class! {
 mod tests {
     use super::*;
     use crate::tests::fixtures::*;
+    use futures::StreamExt;
     use winapi::shared::ntdef::NULL;
 
     #[async_std::test]
-    async fn _async_it_should_use_async_channel_to_send_result() {
+    async fn async_it_should_use_async_channel_to_send_result() {
         let con = wmi_con();
-        let (tx, rx) = async_channel::unbounded();
-        let sink = QuerySink::allocate(Some(tx));
+        let mut stream = AsyncQueryResultStream::new();
+        let sink = QuerySink::allocate(Some(stream.clone()));
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
 
         let raw_os = con
@@ -133,8 +209,6 @@ mod tests {
         let ptr2: *mut IWbemClassObject = raw_os2.inner.as_ptr();
 
         let mut arr = vec![ptr, ptr2];
-
-        assert_eq!(rx.len(), 0);
 
         // tests on ref count before Indicate call
         unsafe {
@@ -157,35 +231,19 @@ mod tests {
             assert_eq!(refcount, 2);
         }
 
-        assert_eq!(rx.len(), 2);
+        let first = stream.next().await.unwrap().unwrap();
 
-        assert_eq!(rx.sender_count(), 1);
-        assert_eq!(rx.receiver_count(), 1);
+        assert_eq!(first.class().unwrap().as_str(), "Win32_OperatingSystem");
 
-        if let Ok(first) = rx.recv().await.unwrap() {
-            assert_eq!(first.class().unwrap().as_str(), "Win32_OperatingSystem");
-        } else {
-            assert!(false);
-        }
-
-        assert_eq!(rx.len(), 1);
-
-        if let Ok(second) = rx.recv().await.unwrap() {
-            assert_eq!(second.class().unwrap().as_str(), "Win32_OperatingSystem");
-        } else {
-            assert!(false);
-        }
-
-        assert_eq!(rx.len(), 0);
+        let second = stream.next().await.unwrap().unwrap();
+        assert_eq!(second.class().unwrap().as_str(), "Win32_OperatingSystem");
     }
 
-    #[test]
-    fn _async_it_should_close_async_channel_after_set_status_call() {
-        let (tx, rx) = async_channel::unbounded();
-        let sink = QuerySink::allocate(Some(tx));
+    #[async_std::test]
+    async fn async_it_should_complete_after_set_status_call() {
+        let stream = AsyncQueryResultStream::new();
+        let sink = QuerySink::allocate(Some(stream.clone()));
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
-
-        assert!(!rx.is_closed());
 
         unsafe {
             p_sink.set_status(
@@ -196,25 +254,28 @@ mod tests {
             );
         }
 
-        assert!(rx.is_closed());
+        let results: Vec<_> = stream.collect().await;
+
+        assert!(results.is_empty());
     }
 
     #[async_std::test]
-    async fn _async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
-        let (tx, rx) = async_channel::unbounded();
-        let sink = QuerySink::allocate(Some(tx));
+    async fn async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
+        let mut stream = AsyncQueryResultStream::new();
+        let sink = QuerySink::allocate(Some(stream.clone()));
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
 
         let mut arr = vec![NULL as *mut IWbemClassObject];
         let result;
 
         unsafe { result = p_sink.indicate(1, arr.as_mut_ptr()) }
+        assert_eq!(result, E_POINTER);
 
-        match rx.recv().await.unwrap() {
+        let item = stream.next().await.unwrap();
+
+        match item {
             Err(WMIError::NullPointerResult) => assert!(true),
             _ => assert!(false),
         }
-
-        assert_eq!(result, E_POINTER);
     }
 }

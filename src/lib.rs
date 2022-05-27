@@ -178,10 +178,8 @@ pub mod safearray;
 pub mod utils;
 pub mod variant;
 
-#[cfg(feature = "async-query")]
 pub mod async_query;
 // Keep QuerySink implementation private
-#[cfg(feature = "async-query")]
 pub(crate) mod query_sink;
 
 #[cfg(any(test, feature = "test"))]
@@ -202,5 +200,5 @@ pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 
 #[doc = include_str!("../README.md")]
-#[cfg(all(doctest, feature = "async-query", feature = "chrono"))]
+#[cfg(all(doctest, feature = "chrono"))]
 pub struct ReadmeDoctests;

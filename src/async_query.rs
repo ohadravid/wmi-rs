@@ -9,7 +9,7 @@
 //!
 //!
 
-use crate::query_sink::{IWbemObjectSink, QuerySink};
+use crate::query_sink::{AsyncQueryResultStream, IWbemObjectSink, QuerySink};
 use crate::result_enumerator::IWbemClassWrapper;
 use crate::{connection::WMIConnection, utils::check_hres, WMIResult};
 use crate::{
@@ -25,8 +25,6 @@ use winapi::um::wbemcli::WBEM_FLAG_BIDIRECTIONAL;
 
 ///
 /// ### Additional async methods
-/// **Following methods are implemented under the
-/// `async-query` feature flag.**
 ///
 impl WMIConnection {
     /// Wrapper for the [ExecQueryAsync](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execqueryasync)
@@ -40,9 +38,9 @@ impl WMIConnection {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
-        let (tx, rx) = async_channel::unbounded();
+        let stream = AsyncQueryResultStream::new();
         // The internal RefCount has initial value = 1.
-        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(Some(tx));
+        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(Some(stream.clone()));
         let p_sink_handel = IWbemObjectSink::from(&**p_sink);
 
         unsafe {
@@ -57,7 +55,7 @@ impl WMIConnection {
             ))?;
         }
 
-        Ok(rx)
+        Ok(stream)
     }
 
     /// Async version of [`raw_query`](WMIConnection#method.raw_query)
