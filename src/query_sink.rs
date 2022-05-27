@@ -40,9 +40,16 @@ pub struct AsyncQueryResultStreamImpl {
     waker: Option<Waker>,
 }
 
+/// We wrap the internal objects to ensure that the waker is correctly called when new data is available or when the query is done.
+///
+/// If the waker is still `None`, we know that `poll_next` has not been called yet.
+/// We can fill the buffer, and once `poll_next` is called, it'll return `Poll::Ready` and there's no need to wake the stream manually.
+///
+/// Once the internal buffer is fully consumed (or empty to begin with) and `poll_next` is called, it'll set the waker and return `Poll::Pending`.
+/// Because the waker is set, we can wake the stream.
 impl AsyncQueryResultStreamImpl {
-    pub fn append(&mut self, items: &mut VecDeque<WMIResult<IWbemClassWrapper>>) {
-        self.buf.append(items);
+    pub fn extend(&mut self, iter: impl IntoIterator<Item = WMIResult<IWbemClassWrapper>>) {
+        self.buf.extend(iter);
 
         if let Some(waker) = self.waker.as_ref() {
             waker.wake_by_ref();
@@ -66,9 +73,9 @@ impl AsyncQueryResultStream {
         Self(Arc::new(Mutex::new(AsyncQueryResultStreamImpl::default())))
     }
 
-    fn append(&self, items: &mut VecDeque<WMIResult<IWbemClassWrapper>>) {
+    fn extend(&self, iter: impl IntoIterator<Item = WMIResult<IWbemClassWrapper>>) {
         let mut lock = self.0.lock().unwrap();
-        lock.append(items);
+        lock.extend(iter);
     }
 
     fn set_done(&self) {
@@ -133,7 +140,6 @@ com::class! {
             }
 
             let lObjectCount = lObjectCount as usize;
-            let mut buffer = VecDeque::new();
             let mut res = WBEM_S_NO_ERROR as i32;
 
             // The array memory of apObjArray is read-only
@@ -143,21 +149,19 @@ com::class! {
             // according to COM rules.
             // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
             // For error codes, see https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
-            for i in 0..lObjectCount {
+            self.stream.as_ref().expect("QuerySink is always fully initialized")
+                .extend((0..lObjectCount).map(|i| {
                 if let Some(p_el) = NonNull::new(*apObjArray.offset(i as isize)) {
                     let wbemClassObject = unsafe {
                         IWbemClassWrapper::clone(p_el)
                     };
 
-                    buffer.push_front(Ok(wbemClassObject));
+                    Ok(wbemClassObject)
                 } else {
-                    buffer.push_front(Err(WMIError::NullPointerResult));
                     res = E_POINTER;
+                    Err(WMIError::NullPointerResult)
                 }
-            }
-
-            self.stream.as_ref().expect("QuerySink is always fully initialized")
-                .append(&mut buffer);
+            }));
 
             res
         }
