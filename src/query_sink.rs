@@ -91,10 +91,17 @@ impl Stream for AsyncQueryResultStream {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let waker = cx.waker().clone();
+        let waker = cx.waker();
         let mut inner = self.0.lock().unwrap();
 
-        inner.waker.replace(waker);
+        if !inner
+            .waker
+            .as_ref()
+            .map(|current_waker| waker.will_wake(&current_waker))
+            .unwrap_or(false)
+        {
+            inner.waker.replace(waker.clone());
+        }
 
         let next = inner.buf.pop_back();
 
