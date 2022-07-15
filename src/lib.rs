@@ -107,12 +107,7 @@
 //!
 //! # Async Query
 //!
-//! Async queries are available behind the feature flag `async-query`.
-//! In Cargo.toml:
-//! ```toml
-//! wmi = { version = "x.y.z",  features = ["async-query"] }
-//! ```
-//! You now have access to additional methods on [`WMIConnection`](WMIConnection#additional-async-methods).
+//! Async queries use WMI's native async support (but a runtime like `tokio`, `async-std` or `futures::executor::block_on` is still required).
 //!
 //! ```edition2018
 //! # use futures::executor::block_on;
@@ -178,10 +173,8 @@ pub mod safearray;
 pub mod utils;
 pub mod variant;
 
-#[cfg(feature = "async-query")]
 pub mod async_query;
 // Keep QuerySink implementation private
-#[cfg(feature = "async-query")]
 pub(crate) mod query_sink;
 
 #[cfg(any(test, feature = "test"))]
@@ -202,5 +195,5 @@ pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 
 #[doc = include_str!("../README.md")]
-#[cfg(all(doctest, feature = "async-query", feature = "chrono"))]
+#[cfg(all(doctest, feature = "chrono"))]
 pub struct ReadmeDoctests;

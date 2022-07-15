@@ -1,15 +1,4 @@
-//! # Async query support
-//! This module does not export anything, as it provides additional
-//! methods on [`WMIConnection`](WMIConnection)
-//!
-//! You only have to activate the `async-query` feature flag in Cargo.toml to use them.
-//! ```toml
-//! wmi = { version = "x.y.z",  features = ["async-query"] }
-//! ```
-//!
-//!
-
-use crate::query_sink::{IWbemObjectSink, QuerySink};
+use crate::query_sink::{AsyncQueryResultStream, IWbemObjectSink, QuerySink};
 use crate::result_enumerator::IWbemClassWrapper;
 use crate::{connection::WMIConnection, utils::check_hres, WMIResult};
 use crate::{
@@ -25,8 +14,6 @@ use winapi::um::wbemcli::WBEM_FLAG_BIDIRECTIONAL;
 
 ///
 /// ### Additional async methods
-/// **Following methods are implemented under the
-/// `async-query` feature flag.**
 ///
 impl WMIConnection {
     /// Wrapper for the [ExecQueryAsync](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execqueryasync)
@@ -40,10 +27,10 @@ impl WMIConnection {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
-        let (tx, rx) = async_channel::unbounded();
+        let stream = AsyncQueryResultStream::new();
         // The internal RefCount has initial value = 1.
-        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(Some(tx));
-        let p_sink_handel = IWbemObjectSink::from(&**p_sink);
+        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(stream.clone());
+        let p_sink_handle = IWbemObjectSink::from(&**p_sink);
 
         unsafe {
             // As p_sink's RefCount = 1 before this call,
@@ -53,11 +40,11 @@ impl WMIConnection {
                 query.as_bstr(),
                 WBEM_FLAG_BIDIRECTIONAL as i32,
                 ptr::null_mut(),
-                p_sink_handel.get_abi().as_ptr() as *mut _,
+                p_sink_handle.get_abi().as_ptr() as *mut _,
             ))?;
         }
 
-        Ok(rx)
+        Ok(stream)
     }
 
     /// Async version of [`raw_query`](WMIConnection#method.raw_query)
@@ -147,11 +134,25 @@ impl WMIConnection {
 mod tests {
     use crate::tests::fixtures::*;
     use crate::Variant;
-    use futures::stream::StreamExt;
+    use futures::stream::{self, StreamExt};
+    use serde::Deserialize;
     use std::collections::HashMap;
 
     #[async_std::test]
     async fn async_it_works_async() {
+        let wmi_con = wmi_con();
+
+        let result = wmi_con
+            .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+
+        assert_eq!(result.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn async_it_works_async_tokio() {
         let wmi_con = wmi_con();
 
         let result = wmi_con
@@ -196,5 +197,34 @@ mod tests {
                 _ => assert!(false),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn async_it_works_async_tokio_concurrent() {
+        let wmi_con = wmi_con();
+
+        // We want to actually consume a bunch of data from WMI.
+        #[allow(unused)]
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            Name: String,
+            SerialNumber: String,
+            OSArchitecture: String,
+            BootDevice: String,
+            MUILanguages: Vec<String>,
+        }
+
+        // Using buffer_unordered(1) will take 2 seconds instead of 0.2 seconds.
+        let results: Vec<Win32_OperatingSystem> = stream::iter(0..150)
+            .map(|_| async {
+                let result: Vec<Win32_OperatingSystem> = wmi_con.async_query().await.unwrap();
+
+                result.into_iter().next().unwrap()
+            })
+            .buffer_unordered(50)
+            .collect()
+            .await;
+
+        assert_eq!(results.len(), 150);
     }
 }

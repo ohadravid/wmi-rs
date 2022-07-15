@@ -42,11 +42,11 @@ steps:
     displayName: Cargo build - All features
     
   # Test time crate
-  - script: cargo test --no-default-features --features=time,async-query
+  - script: cargo test --no-default-features --features=time
     displayName: Cargo test - Use time
 
   # Test chrono
-  - script: cargo test --no-default-features --features=chrono,async-query
+  - script: cargo test --no-default-features --features=chrono
     displayName: Cargo test - Use chrono
 
   - script: |

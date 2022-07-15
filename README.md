@@ -8,7 +8,7 @@ WMI (Windows Management Instrumentation) crate for rust.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.9"
+wmi = "0.10"
 ```
 
 
@@ -60,7 +60,7 @@ If you prefer to use the `time` crate instead of the default `chrono`, include `
 
 ```toml
 [dependencies]
-wmi-rs = { version = "0.9", default-features = false, features = ["time"] }
+wmi-rs = { version = "0.10", default-features = false, features = ["time"] }
 ```
 
 and use the `WMIOffsetDateTime` wrapper instead of the the `WMIDateTime` wrapper.
@@ -69,15 +69,6 @@ and use the `WMIOffsetDateTime` wrapper instead of the the `WMIDateTime` wrapper
 
 WMI supports async queries, with methods like [ExecAsyncQuery](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execqueryasync).
 
-This crate provides async methods under the `async-query` flag:
-
-```toml
-# Cargo.toml
-[dependencies]
-wmi = { version = "0.9", features = ["async-query"] }
-```
-
-The methods become available on `WMIConnection`
 
 ```rust
 #![allow(non_camel_case_types)]
