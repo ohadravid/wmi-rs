@@ -134,7 +134,8 @@ impl WMIConnection {
 mod tests {
     use crate::tests::fixtures::*;
     use crate::Variant;
-    use futures::stream::StreamExt;
+    use futures::stream::{self, StreamExt};
+    use serde::Deserialize;
     use std::collections::HashMap;
 
     #[async_std::test]
@@ -196,5 +197,34 @@ mod tests {
                 _ => assert!(false),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn async_it_works_async_tokio_concurrent() {
+        let wmi_con = wmi_con();
+
+        // We want to actually consume a bunch of data from WMI.
+        #[allow(unused)]
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            Name: String,
+            SerialNumber: String,
+            OSArchitecture: String,
+            BootDevice: String,
+            MUILanguages: Vec<String>,
+        }
+
+        // Using buffer_unordered(1) will take 2 seconds instead of 0.2 seconds.
+        let results: Vec<Win32_OperatingSystem> = stream::iter(0..150)
+            .map(|_| async {
+                let result: Vec<Win32_OperatingSystem> = wmi_con.async_query().await.unwrap();
+
+                result.into_iter().next().unwrap()
+            })
+            .buffer_unordered(50)
+            .collect()
+            .await;
+
+        assert_eq!(results.len(), 150);
     }
 }
