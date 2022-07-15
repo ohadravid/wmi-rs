@@ -8,7 +8,7 @@ WMI (Windows Management Instrumentation) crate for rust.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.10"
+wmi = "0.11"
 ```
 
 
@@ -60,7 +60,7 @@ If you prefer to use the `time` crate instead of the default `chrono`, include `
 
 ```toml
 [dependencies]
-wmi-rs = { version = "0.10", default-features = false, features = ["time"] }
+wmi-rs = { version = "0.11", default-features = false, features = ["time"] }
 ```
 
 and use the `WMIOffsetDateTime` wrapper instead of the the `WMIDateTime` wrapper.
