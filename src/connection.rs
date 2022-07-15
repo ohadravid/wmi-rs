@@ -4,7 +4,6 @@ use log::debug;
 use std::marker::PhantomData;
 use std::ptr;
 use std::ptr::NonNull;
-use std::rc::Rc;
 use winapi::{
     shared::{
         ntdef::NULL,
@@ -22,7 +21,9 @@ use winapi::{
     },
 };
 
-/// A Marker trait to indicate that the current thread was `CoInitialize`d.
+/// A marker to indicate that the current thread was `CoInitialize`d.
+/// It can be freely copied within the same thread.
+#[derive(Clone, Copy)]
 pub struct COMLibrary {
     // Force the type to be `!Send`, as each thread must be initialized separately.
     _phantom: PhantomData<*mut ()>,
@@ -37,12 +38,7 @@ impl COMLibrary {
     /// `CoInitialize`s the COM library for use by the calling thread.
     ///
     pub fn new() -> Result<Self, WMIError> {
-        unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
-
-        let instance = Self {
-            _phantom: PhantomData,
-        };
-
+        let instance = Self::without_security()?;
         instance.init_security()?;
 
         Ok(instance)
@@ -58,6 +54,31 @@ impl COMLibrary {
         };
 
         Ok(instance)
+    }
+
+    /// Assumes that COM was already initialized for this thread.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe as it is the caller's responsibility to ensure that COM is initialized
+    /// and will not be uninitialized while any instance of object is in scope.
+    ///
+    /// ```edition2018
+    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # use wmi::*;
+    /// # use serde::Deserialize;
+    /// # let _actual_com = COMLibrary::new()?;
+    /// let initialized_com = unsafe { COMLibrary::assume_initialized() };
+    ///
+    /// // Later, in the same thread.
+    /// let wmi_con = WMIConnection::with_namespace_path("ROOT\\CIMV2", initialized_com)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub unsafe fn assume_initialized() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
     }
 
     fn init_security(&self) -> Result<(), WMIError> {
@@ -86,7 +107,7 @@ impl COMLibrary {
 fn _test_com_lib_not_send(_s: impl Send) {}
 
 pub struct WMIConnection {
-    _com_con: Option<Rc<COMLibrary>>,
+    _com_con: COMLibrary,
     p_loc: Option<NonNull<IWbemLocator>>,
     p_svc: Option<NonNull<IWbemServices>>,
 }
@@ -107,7 +128,7 @@ impl WMIConnection {
     }
 
     /// Creates a connection with a default `CIMV2` namespace path.
-    pub fn new(com_lib: Rc<COMLibrary>) -> Result<Self, WMIError> {
+    pub fn new(com_lib: COMLibrary) -> Result<Self, WMIError> {
         Self::with_namespace_path("ROOT\\CIMV2", com_lib)
     }
 
@@ -123,44 +144,15 @@ impl WMIConnection {
     /// ```
     pub fn with_namespace_path(
         namespace_path: &str,
-        com_lib: Rc<COMLibrary>,
+        com_lib: COMLibrary,
     ) -> Result<Self, WMIError> {
         let mut instance = Self {
-            _com_con: Some(com_lib),
+            _com_con: com_lib,
             p_loc: None,
             p_svc: None,
         };
 
         instance.create_and_set_proxy(Some(namespace_path))?;
-
-        Ok(instance)
-    }
-
-    /// Like `with_namespace_path`, but assumes that COM is managed externally.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe as it is the caller's responsibility to ensure that COM is initialized and will not be uninitialized before the connection object is dropped.
-    ///
-    /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
-    /// # use wmi::*;
-    /// # use serde::Deserialize;
-    /// let _initialized_com = COMLibrary::new()?;
-    ///
-    /// // Later, in the same thread.
-    /// let wmi_con = unsafe { WMIConnection::with_initialized_com(Some("ROOT\\CIMV2"))? };
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub unsafe fn with_initialized_com(namespace_path: Option<&str>) -> Result<Self, WMIError> {
-        let mut instance = Self {
-            _com_con: None,
-            p_loc: None,
-            p_svc: None,
-        };
-
-        instance.create_and_set_proxy(namespace_path)?;
 
         Ok(instance)
     }
