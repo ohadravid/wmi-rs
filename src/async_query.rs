@@ -29,7 +29,7 @@ impl WMIConnection {
 
         let stream = AsyncQueryResultStream::new();
         // The internal RefCount has initial value = 1.
-        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(Some(stream.clone()));
+        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(stream.clone());
         let p_sink_handle = IWbemObjectSink::from(&**p_sink);
 
         unsafe {

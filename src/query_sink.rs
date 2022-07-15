@@ -129,9 +129,8 @@ impl Stream for AsyncQueryResultStream {
 }
 
 com::class! {
-    // Option is required because `Default` is required by the `class!` macro.
     pub class QuerySink: IWbemObjectSink {
-        stream: Option<AsyncQueryResultStream>,
+        stream: AsyncQueryResultStream,
     }
 
     /// Implementation for [IWbemObjectSink](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nn-wbemcli-iwbemobjectsink).
@@ -161,7 +160,7 @@ com::class! {
             // according to COM rules.
             // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
             // For error codes, see https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
-            self.stream.as_ref().expect("QuerySink is always fully initialized")
+            self.stream
                 .extend((0..lObjectCount).map(|i| {
                 if let Some(p_el) = NonNull::new(*apObjArray.offset(i as isize)) {
                     let wbemClassObject = unsafe {
@@ -192,7 +191,7 @@ com::class! {
 
             if lFlags == WBEM_STATUS_COMPLETE as i32 {
                 trace!("End of async result, closing transmitter");
-                self.stream.as_ref().expect("QuerySink is always fully initialized").set_done();
+                self.stream.set_done();
             }
             WBEM_S_NO_ERROR as i32
         }
@@ -212,7 +211,7 @@ mod tests {
     async fn async_it_should_send_result() {
         let con = wmi_con();
         let mut stream = AsyncQueryResultStream::new();
-        let sink = QuerySink::allocate(Some(stream.clone()));
+        let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
 
         let raw_os = con
@@ -258,7 +257,7 @@ mod tests {
     #[async_std::test]
     async fn async_it_should_complete_after_set_status_call() {
         let stream = AsyncQueryResultStream::new();
-        let sink = QuerySink::allocate(Some(stream.clone()));
+        let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
 
         unsafe {
@@ -278,7 +277,7 @@ mod tests {
     #[async_std::test]
     async fn async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
         let mut stream = AsyncQueryResultStream::new();
-        let sink = QuerySink::allocate(Some(stream.clone()));
+        let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
 
         let mut arr = vec![NULL as *mut IWbemClassObject];
