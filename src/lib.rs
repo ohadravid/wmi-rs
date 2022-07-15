@@ -107,12 +107,7 @@
 //!
 //! # Async Query
 //!
-//! Async queries are available behind the feature flag `async-query`.
-//! In Cargo.toml:
-//! ```toml
-//! wmi = { version = "x.y.z",  features = ["async-query"] }
-//! ```
-//! You now have access to additional methods on [`WMIConnection`](WMIConnection#additional-async-methods).
+//! Async queries use WMI's native async support (but a runtime like `tokio`, `async-std` or `futures::executor::block_on` is still required).
 //!
 //! ```edition2018
 //! # use futures::executor::block_on;

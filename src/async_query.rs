@@ -1,14 +1,3 @@
-//! # Async query support
-//! This module does not export anything, as it provides additional
-//! methods on [`WMIConnection`](WMIConnection)
-//!
-//! You only have to activate the `async-query` feature flag in Cargo.toml to use them.
-//! ```toml
-//! wmi = { version = "x.y.z",  features = ["async-query"] }
-//! ```
-//!
-//!
-
 use crate::query_sink::{AsyncQueryResultStream, IWbemObjectSink, QuerySink};
 use crate::result_enumerator::IWbemClassWrapper;
 use crate::{connection::WMIConnection, utils::check_hres, WMIResult};
@@ -41,7 +30,7 @@ impl WMIConnection {
         let stream = AsyncQueryResultStream::new();
         // The internal RefCount has initial value = 1.
         let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(Some(stream.clone()));
-        let p_sink_handel = IWbemObjectSink::from(&**p_sink);
+        let p_sink_handle = IWbemObjectSink::from(&**p_sink);
 
         unsafe {
             // As p_sink's RefCount = 1 before this call,
@@ -51,7 +40,7 @@ impl WMIConnection {
                 query.as_bstr(),
                 WBEM_FLAG_BIDIRECTIONAL as i32,
                 ptr::null_mut(),
-                p_sink_handel.get_abi().as_ptr() as *mut _,
+                p_sink_handle.get_abi().as_ptr() as *mut _,
             ))?;
         }
 
@@ -150,6 +139,19 @@ mod tests {
 
     #[async_std::test]
     async fn async_it_works_async() {
+        let wmi_con = wmi_con();
+
+        let result = wmi_con
+            .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+
+        assert_eq!(result.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn async_it_works_async_tokio() {
         let wmi_con = wmi_con();
 
         let result = wmi_con

@@ -65,6 +65,11 @@ impl AsyncQueryResultStreamImpl {
     }
 }
 
+/// A stream of WMI query results.
+/// We use a mutex to synchronize the consumer and the calls from the WMI-managed thread.
+/// A blocking mutex is used because we want to be runtime agnostic
+/// and because according to [`tokio::sync::Mutex`](https://docs.rs/tokio/tokio/tokio/sync/struct.Mutex.html):
+/// > The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection. If the value behind the mutex is just data, it’s usually appropriate to use a blocking mutex
 #[derive(Debug, Default, Clone)]
 pub struct AsyncQueryResultStream(Arc<Mutex<AsyncQueryResultStreamImpl>>);
 
@@ -204,7 +209,7 @@ mod tests {
     use winapi::shared::ntdef::NULL;
 
     #[async_std::test]
-    async fn async_it_should_use_async_channel_to_send_result() {
+    async fn async_it_should_send_result() {
         let con = wmi_con();
         let mut stream = AsyncQueryResultStream::new();
         let sink = QuerySink::allocate(Some(stream.clone()));
