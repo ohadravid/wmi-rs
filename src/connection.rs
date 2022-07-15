@@ -1,6 +1,7 @@
 use crate::utils::{check_hres, WMIError};
 use crate::BStr;
 use log::debug;
+use std::marker::PhantomData;
 use std::ptr;
 use std::ptr::NonNull;
 use std::rc::Rc;
@@ -14,21 +15,23 @@ use winapi::{
         wtypesbase::CLSCTX_INPROC_SERVER,
     },
     um::{
-        combaseapi::{
-            CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket,
-            CoUninitialize,
-        },
+        combaseapi::{CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket},
         objbase::COINIT_MULTITHREADED,
         objidl::EOAC_NONE,
         wbemcli::{CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator, IWbemServices},
     },
 };
 
-pub struct COMLibrary {}
+/// A Marker trait to indicate that the current thread was `CoInitialize`d.
+pub struct COMLibrary {
+    // Force the type to be `!Send`, as each thread must be initialized separately.
+    _phantom: PhantomData<*mut ()>,
+}
 
 /// Initialize COM.
 ///
-/// COM will be `CoUninitialize`d after this object is dropped.
+/// `CoUninitialize` will NOT be called when dropped.
+/// See: https://github.com/microsoft/windows-rs/issues/1169#issuecomment-926877227
 ///
 impl COMLibrary {
     /// `CoInitialize`s the COM library for use by the calling thread.
@@ -36,7 +39,9 @@ impl COMLibrary {
     pub fn new() -> Result<Self, WMIError> {
         unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
 
-        let instance = Self {};
+        let instance = Self {
+            _phantom: PhantomData,
+        };
 
         instance.init_security()?;
 
@@ -48,7 +53,9 @@ impl COMLibrary {
     pub fn without_security() -> Result<Self, WMIError> {
         unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
 
-        let instance = Self {};
+        let instance = Self {
+            _phantom: PhantomData,
+        };
 
         Ok(instance)
     }
@@ -72,11 +79,11 @@ impl COMLibrary {
     }
 }
 
-impl Drop for COMLibrary {
-    fn drop(&mut self) {
-        unsafe { CoUninitialize() };
-    }
-}
+/// ```compile_fail
+/// let com = COMLibrary::new().unwrap();
+/// _test_com_lib_not_send(com);
+/// ```
+fn _test_com_lib_not_send(_s: impl Send) {}
 
 pub struct WMIConnection {
     _com_con: Option<Rc<COMLibrary>>,
