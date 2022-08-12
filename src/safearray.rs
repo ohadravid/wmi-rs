@@ -104,17 +104,38 @@ pub unsafe fn safe_array_to_vec(
     arr: *mut SAFEARRAY,
     item_type: u32,
 ) -> Result<Vec<Variant>, WMIError> {
-    let mut items = vec![];
+    fn copy_type_to_vec<T, F>(
+        arr: *mut SAFEARRAY,
+        variant_builder: F,
+    ) -> Result<Vec<Variant>, WMIError>
+    where
+        T: Copy,
+        F: Fn(T) -> Variant,
+    {
+        let mut items = vec![];
+
+        let accessor = unsafe { SafeArrayAccessor::<T>::new(arr)? };
+
+        for item in accessor.as_slice().iter() {
+            items.push(variant_builder(*item));
+        }
+
+        Ok(items)
+    }
 
     match item_type {
-        VT_I4 => {
-            let accessor = unsafe { SafeArrayAccessor::<i32>::new(arr)? };
-
-            for item in accessor.as_slice().iter() {
-                items.push(Variant::I4(*item))
-            }
-        }
+        VT_I1 => copy_type_to_vec(arr, Variant::I1),
+        VT_I2 => copy_type_to_vec(arr, Variant::I2),
+        VT_I4 => copy_type_to_vec(arr, Variant::I4),
+        VT_I8 => copy_type_to_vec(arr, Variant::I8),
+        VT_UI1 => copy_type_to_vec(arr, Variant::UI1),
+        VT_UI2 => copy_type_to_vec(arr, Variant::UI2),
+        VT_UI4 => copy_type_to_vec(arr, Variant::UI4),
+        VT_UI8 => copy_type_to_vec(arr, Variant::UI8),
+        VT_R4 => copy_type_to_vec(arr, Variant::R4),
+        VT_R8 => copy_type_to_vec(arr, Variant::R8),
         VT_BSTR => {
+            let mut items = vec![];
             let accessor = unsafe { SafeArrayAccessor::<BSTR>::new(arr)? };
 
             for item_bstr in accessor.as_slice().iter() {
@@ -122,10 +143,9 @@ pub unsafe fn safe_array_to_vec(
 
                 items.push(Variant::String(item.to_string()?));
             }
+            Ok(items)
         }
         // TODO: Add support for all other types of arrays.
-        _ => return Err(WMIError::UnimplementedArrayItem),
+        _ => Err(WMIError::UnimplementedArrayItem),
     }
-
-    Ok(items)
 }
