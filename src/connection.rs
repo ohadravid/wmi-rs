@@ -17,7 +17,10 @@ use winapi::{
         combaseapi::{CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket},
         objbase::COINIT_MULTITHREADED,
         objidl::EOAC_NONE,
-        wbemcli::{CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator, IWbemServices},
+        wbemcli::{
+            CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator, IWbemServices,
+            WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+        },
     },
 };
 
@@ -200,7 +203,7 @@ impl WMIConnection {
                 ptr::null_mut(),
                 ptr::null_mut(),
                 ptr::null_mut(),
-                0,
+                WBEM_FLAG_CONNECT_USE_MAX_WAIT as _,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 &mut p_svc,

@@ -1,8 +1,8 @@
 [package]
 name = "wmi"
-version = "0.11.1"
+version = "0.11.2"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 documentation = "https://docs.rs/crate/wmi"
