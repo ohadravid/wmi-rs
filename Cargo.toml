@@ -41,7 +41,7 @@ com = { version = "0.6", features = ["production"] }
 [dev-dependencies]
 lazy_static = "1.4.0"
 serde_json = { version = "1.0" }
-criterion = "0.3"
+criterion = "0.4"
 tempdir = "0.3"
 async-std = { version = "1.10",  features = ["attributes"] }
 tokio = { version = "1.20.0", features = ["rt", "macros"] }
