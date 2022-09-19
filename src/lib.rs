@@ -88,23 +88,23 @@
 //!
 //! # Subscribing to event notifications
 //!
-//! Using this crate you can subscribe to events notifications that are generated upon chnages in WMI data and services.
+//! Using this crate you can subscribe to events notifications generated upon changes in WMI data and services.
 //!
 //! When querying for events, it is important to remember there are two types of event notifications. \
-//! The first one are notifications about changes to the standard WMI data models. Thye are called **intrinsic events**. \
+//! The first one is notifications about changes to the standard WMI data models. They are called **intrinsic events**. \
 //! Events like [`__InstanceCreationEvent`] or [`__NamespaceDeletionEvent`] are examples of such events.
 //!
-//! The second type are notifications about chnages made by providers. Thye are called **extrinsic events**. \
+//! The second type is notifications about changes made by providers. They are called **extrinsic events**.  \
 //! Any WMI class deriving from the [`__ExtrinsicEvent`] class is an extrinsic event. \
 //! An example of such events are [`Win32_ProcessStartTrace`] and [`Win32_VolumeChangeEvent`] classes.
 //!
-//! For more informations about event queries, [see here](https://docs.microsoft.com/en-us/windows/win32/wmisdk/receiving-a-wmi-event#event-queries).\
+//! For more information about event queries, [see here](https://docs.microsoft.com/en-us/windows/win32/wmisdk/receiving-a-wmi-event#event-queries).\
 //! You can use [WMI Code Creator] to see available events and create queries for them.
 //!
-//! The [`notification`] method returns an interator that waits for any incoming events
+//! The [`notification`] method returns an iterator that waits for any incoming events
 //! resulting from the provided query. Loops reading from this iterator will not end until they are broken.
 //!
-//! An example of subscribing to an intrinsic event notification for every new [`Win32_Process`]:
+//! An example of subscribing to an intrinsic event notification for every new [`Win32_Process`]
 //! ```edition2018
 //! # fn main() -> wmi::WMIResult<()> {
 //! # use wmi::*;
