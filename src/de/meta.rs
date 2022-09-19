@@ -1,11 +1,10 @@
-use serde::de::{self, Deserialize, Deserializer, Visitor};
+use serde::de::{value::Error, self, Deserialize, Deserializer, Visitor};
 use serde::forward_to_deserialize_any;
 
 /// Return the fields of a struct.
 /// Taken directly from <https://github.com/serde-rs/serde/issues/1110>
 ///
-pub fn struct_name_and_fields<'de, T>(
-) -> Result<(&'static str, &'static [&'static str]), serde::de::value::Error>
+pub fn struct_name_and_fields<'de, T>() -> Result<(&'static str, &'static [&'static str]), Error>
 where
     T: Deserialize<'de>,
 {
@@ -15,7 +14,7 @@ where
     }
 
     impl<'de, 'a> Deserializer<'de> for StructNameAndFieldsDeserializer<'a> {
-        type Error = serde::de::value::Error;
+        type Error = Error;
 
         fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
         where
@@ -88,7 +87,7 @@ where
 /// > All following characters must be in set S2 where S2 = S1 union {U+0030...U+0039} \[This is alphabetic, underscore, plus Arabic numerals 0 through 9.\]<br>
 ///
 /// [DMTF-DSP0004]:     https://www.dmtf.org/sites/default/files/standards/documents/DSP0004V2.3_final.pdf
-fn validate_identifier<E: serde::de::Error>(s: &str) -> Result<&str, E> {
+fn validate_identifier<E: de::Error>(s: &str) -> Result<&str, E> {
     fn is_s1(ch: char) -> bool {
         match ch {
             '\u{005f}' => true,

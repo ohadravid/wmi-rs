@@ -1,15 +1,23 @@
-use crate::{safearray::safe_array_to_vec, WMIError};
-use serde::Serialize;
-use std::convert::TryFrom;
-use widestring::WideCStr;
+use crate::{
+    result_enumerator::IWbemClassWrapper,
+    utils::check_hres,
+    safearray::safe_array_to_vec,
+    WMIError,
+    WMIResult,
+};
 use winapi::{
-    shared::wtypes::*,
     um::{
+        wbemcli::{self, CIMTYPE_ENUMERATION, IID_IWbemClassObject},
         oaidl::SAFEARRAY,
         oaidl::VARIANT,
-        wbemcli::{self, CIMTYPE_ENUMERATION},
+        unknwnbase::IUnknown,
     },
+    ctypes::c_void,
+    shared::{wtypes::*, ntdef::NULL},
 };
+use std::{convert::TryFrom, ptr::NonNull};
+use widestring::WideCStr;
+use serde::Serialize;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
@@ -38,6 +46,10 @@ pub enum Variant {
     UI8(u64),
 
     Array(Vec<Variant>),
+
+    /// Temporary variant used internally
+    Unknown(IUnknownWrapper),
+    Object(IWbemClassWrapper),
 }
 
 // The `cast_num` macro is used to convert a numerical variable to a variant of the given CIMTYPE.
@@ -80,7 +92,7 @@ impl Variant {
     /// # Safety
     ///
     /// This function is unsafe as it is the caller's responsibility to ensure that the VARIANT is correctly initialized.
-    pub unsafe fn from_variant(vt: VARIANT) -> Result<Variant, WMIError> {
+    pub unsafe fn from_variant(vt: VARIANT) -> WMIResult<Variant> {
         let variant_type: VARTYPE = unsafe { vt.n1.n2().vt };
 
         // variant_type has two 'forms':
@@ -170,6 +182,11 @@ impl Variant {
             }
             VT_EMPTY => Variant::Empty,
             VT_NULL => Variant::Null,
+            VT_UNKNOWN => {
+                let unk: &*mut IUnknown = unsafe { vt.n1.n2().n3.punkVal() };
+                let ptr = NonNull::new(*unk).ok_or(WMIError::NullPointerResult)?;
+                Variant::Unknown(unsafe { IUnknownWrapper::new(ptr) })
+            },
             _ => return Err(WMIError::ConvertError(variant_type)),
         };
 
@@ -177,7 +194,7 @@ impl Variant {
     }
 
     /// Convert the variant it to a specific type.
-    pub fn convert_into_cim_type(self, cim_type: CIMTYPE_ENUMERATION) -> Result<Self, WMIError> {
+    pub fn convert_into_cim_type(self, cim_type: CIMTYPE_ENUMERATION) -> WMIResult<Self> {
         if cim_type == wbemcli::CIM_EMPTY {
             return Ok(Variant::Null);
         }
@@ -192,7 +209,7 @@ impl Variant {
             match self {
                 // If we got an array, we just need to convert it's elements.
                 Variant::Array(arr) => {
-                    return Ok(Variant::Array(arr).convert_into_cim_type(cim_type & 0xff)?)
+                    return Variant::Array(arr).convert_into_cim_type(cim_type & 0xff)
                 }
                 Variant::Empty | Variant::Null => {
                     return Ok(Variant::Array(vec![]));
@@ -244,10 +261,8 @@ impl Variant {
                     wbemcli::CIM_SINT16 => Variant::I2(s.parse()?),
                     wbemcli::CIM_UINT8 => Variant::UI1(s.parse()?),
                     wbemcli::CIM_SINT8 => Variant::I1(s.parse()?),
-                    wbemcli::CIM_DATETIME | wbemcli::CIM_REFERENCE | _ => {
-                        // Since Variant cannot natively represent a CIM_DATETIME or a CIM_REFERENCE, we keep it as a string.
-                        Variant::String(s)
-                    }
+                    // Since Variant cannot natively represent a CIM_DATETIME or a CIM_REFERENCE (or any other), we keep it as a string.
+                    _ => Variant::String(s),
                 }
             }
             Variant::Array(variants) => {
@@ -257,10 +272,59 @@ impl Variant {
                     .collect::<Result<Vec<_>, WMIError>>()?;
 
                 Variant::Array(converted_variants)
-            }
+            },
+            Variant::Unknown(u) => {
+                if cim_type == wbemcli::CIM_OBJECT {
+                    Variant::Object(u.to_wbem_class_obj()?)
+                } else {
+                    return Err(WMIError::ConvertVariantError(format!(
+                        "A unknown Variant cannot be turned into a CIMTYPE {}",
+                        &cim_type,
+                    )))
+                }
+            },
+            Variant::Object(o) => Variant::Object(o),
         };
 
         Ok(converted_variant)
+    }
+}
+
+/// A wrapper around the [`IUnknown`] interface. \
+/// Used to retrive [`IWbemClassObject`][winapi::um::wbemcli::IWbemClassObject]
+///
+#[derive(Debug, PartialEq, Eq)]
+pub struct IUnknownWrapper {
+    inner: NonNull<IUnknown>
+}
+
+impl IUnknownWrapper {
+    pub unsafe fn new(ptr: NonNull<IUnknown>) -> Self {
+        IUnknownWrapper { inner: ptr }
+    }
+
+    pub fn to_wbem_class_obj(&self) -> WMIResult<IWbemClassWrapper> {
+        unsafe {
+            let ptr = self.inner.as_ptr();
+            let mut obj_ptr = NULL as *mut c_void;
+
+            check_hres((*ptr).QueryInterface(
+                &IID_IWbemClassObject,
+                &mut obj_ptr,
+            ))?;
+
+            let obj = NonNull::new(obj_ptr as *mut _).ok_or(WMIError::NullPointerResult)?;
+            Ok(IWbemClassWrapper::new(obj))
+        }
+    }
+}
+
+impl Serialize for IUnknownWrapper {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        serializer.serialize_none()
     }
 }
 

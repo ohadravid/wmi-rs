@@ -1,14 +1,15 @@
-use crate::WMIError;
-use std::convert::TryFrom;
-use std::ops::Drop;
-use std::ptr::{null, NonNull};
+use crate::{WMIError, WMIResult};
+use std::{ptr::{NonNull, null}, convert::TryFrom, ops::Drop};
 use winapi::{
-    shared::ntdef::LPCWSTR, shared::wtypes::BSTR, shared::wtypesbase::OLECHAR, um::oleauto::*,
+    shared::ntdef::LPCWSTR,
+    shared::wtypes::BSTR,
+    shared::wtypesbase::OLECHAR,
+    um::oleauto::*,
 };
 
 /// A non-null [BSTR]
 ///
-/// [BSTR]:         https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr
+/// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr
 pub(crate) struct BStr(NonNull<OLECHAR>);
 
 impl Drop for BStr {
@@ -18,7 +19,7 @@ impl Drop for BStr {
 }
 
 impl BStr {
-    pub fn from_str(s: &str) -> Result<Self, WMIError> {
+    pub fn from_str(s: &str) -> WMIResult<Self> {
         let len = s.encode_utf16().count();
         let len32 = u32::try_from(len).map_err(|_| WMIError::ConvertLengthError(len as _))?;
 
