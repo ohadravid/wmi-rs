@@ -133,6 +133,7 @@
 //! filters.insert("TargetInstance".to_owned(), FilterValue::IsA("Win32_Process"));
 //!
 //! let iterator = wmi_con.filtered_notification::<NewProcessEvent>(&filters)?;
+//! # wmi::start_program();
 //!
 //! for result in iterator {
 //!     let process = result?.target_instance;
@@ -268,3 +269,25 @@ pub use variant::Variant;
 #[doc = include_str!("../README.md")]
 #[cfg(all(doctest, feature = "chrono"))]
 pub struct ReadmeDoctests;
+
+// Functions for doc tests. `#[cfg(doctest)]` does not work.
+#[doc(hidden)]
+pub fn start_program() {
+    std::process::Command::new("C:\\Windows\\System32\\cmd.exe")
+        .args(["timeout", "1"])
+        .spawn()
+        .expect("failed to run test program");
+}
+
+#[doc(hidden)]
+pub fn ignore_access_denied(result: WMIResult<()>) -> WMIResult<()> {
+    use winapi::{shared::ntdef::HRESULT, um::wbemcli::WBEM_E_ACCESS_DENIED};
+    if let Err(e) = result {
+        if let WMIError::HResultError { hres } = e {
+            if hres != WBEM_E_ACCESS_DENIED as HRESULT {
+                return Err(e);
+            }
+        }
+    }
+    Ok(())
+}

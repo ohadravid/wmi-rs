@@ -50,6 +50,9 @@ impl WMIConnection {
     ///
     /// ```edition2018
     /// # fn main() -> wmi::WMIResult<()> {
+    /// #   wmi::ignore_access_denied(run())
+    /// # }
+    /// # fn run() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # let con = WMIConnection::new(COMLibrary::new()?)?;
@@ -74,6 +77,9 @@ impl WMIConnection {
     ///
     /// ```edition2018
     /// # fn main() -> wmi::WMIResult<()> {
+    /// #   wmi::ignore_access_denied(run())
+    /// # }
+    /// # fn run() -> wmi::WMIResult<()> {
     /// use wmi::*;
     /// use serde::Deserialize;
     ///
@@ -175,8 +181,7 @@ impl WMIConnection {
     /// # use std::collections::HashMap;
     /// # use futures::{executor::block_on, StreamExt};
     /// # fn main() -> wmi::WMIResult<()> {
-    /// #   block_on(exec_async_query())?;
-    /// #   Ok(())
+    /// #   wmi::ignore_access_denied(block_on(exec_async_query()))
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
@@ -205,8 +210,7 @@ impl WMIConnection {
     /// # use std::collections::HashMap;
     /// # use futures::executor::block_on;
     /// # fn main() -> wmi::WMIResult<()> {
-    /// #   block_on(exec_async_query())?;
-    /// #   Ok(())
+    /// #   wmi::ignore_access_denied(block_on(exec_async_query()))
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
@@ -240,10 +244,14 @@ impl WMIConnection {
     ///
     /// ```edition2018
     /// # use wmi::*;
-    /// # use futures::executor::block_on;
+    /// # use futures::{future::FutureExt, select};
     /// # fn main() -> wmi::WMIResult<()> {
-    /// #   block_on(exec_async_query())?;
-    /// #   Ok(())
+    /// #   async_std::task::block_on(async {
+    /// #       select! { // End in 3 seconds or on event.
+    /// #           () = async_std::task::sleep(std::time::Duration::from_secs(3)).fuse() => Ok(()),
+    /// #           r = exec_async_query().fuse() => r
+    /// #       }
+    /// #   })
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
