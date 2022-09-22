@@ -17,12 +17,12 @@ use winapi::{
     },
 };
 use std::{
-    ptr::NonNull,
+    ptr::{self, NonNull},
     convert::TryInto,
+    cell::RefCell,
     mem,
-    ptr,
 };
-use serde::{de, Serialize};
+use serde::{ser::{SerializeStruct, Error}, de, Serialize};
 use log::trace;
 
 /// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
@@ -31,11 +31,12 @@ use log::trace;
 #[derive(Debug, PartialEq, Eq)]
 pub struct IWbemClassWrapper {
     pub inner: NonNull<IWbemClassObject>,
+    data: RefCell<Option<WbemClassSerializationData>>,
 }
 
 impl IWbemClassWrapper {
     pub unsafe fn new(ptr: NonNull<IWbemClassObject>) -> Self {
-        Self { inner: ptr }
+        Self { inner: ptr, data: RefCell::default(), }
     }
 
     /// Creates a copy of the pointer and calls
@@ -115,6 +116,15 @@ impl IWbemClassWrapper {
     {
         from_wbem_class_obj(self).map_err(WMIError::from)
     }
+
+    fn serialization_data(&self) -> WMIResult<&'static WbemClassSerializationData> {
+        if self.data.borrow().is_none() {
+            let name = self.class()?;
+            let props = self.list_properties()?;
+            *(self.data.borrow_mut()) = Some(WbemClassSerializationData { name, properties: props });
+        }
+        Ok(unsafe { Box::leak(Box::from_raw(self.data.borrow_mut().as_mut().unwrap() as *mut _)) })
+    }
 }
 
 impl Clone for IWbemClassWrapper {
@@ -132,21 +142,24 @@ impl Drop for IWbemClassWrapper {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct WbemClassSerializationData {
+    name: String,
+    properties: Vec<String>,
+}
+
 impl Serialize for IWbemClassWrapper {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer
     {
-        // use serde::ser::SerializeStruct;
-        // let name = self.class().unwrap();
-        // let properties = self.list_properties().unwrap();
-        // let mut s = serializer.serialize_struct(&name, properties.len())?;
-        // for property in properties.iter() {
-        //     let value = self.get_property(&property).unwrap();
-        //     s.serialize_field(property, &value)?;
-        // }
-        // s.end()
-        serializer.serialize_none() // TODO: Write?
+        let data = self.serialization_data().map_err(Error::custom)?;
+        let mut s = serializer.serialize_struct(&data.name, data.properties.len())?;
+        for property in data.properties.iter() {
+            let value = self.get_property(&property).unwrap();
+            s.serialize_field(property, &value)?;
+        }
+        s.end()
     }
 }
 
