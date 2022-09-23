@@ -541,7 +541,12 @@ mod tests {
 
             assert_eq!(props.len(), 64);
             assert_eq!(props[..2], ["BootDevice", "BuildNumber"]);
-            assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"])
+            assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"]);
+
+            let result = serde_json::to_string_pretty(&w);
+
+            assert!(result.is_ok());
+            assert!(result.unwrap().len() > 2)
         }
     }
 
