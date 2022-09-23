@@ -115,7 +115,7 @@ impl WMIConnection {
     ///
     /// ```edition2018
     /// # fn main() -> wmi::WMIResult<()> {
-    /// # use std::collections::HashMap;
+    /// # use std::{collections::HashMap, time::Duration};
     /// # use wmi::*;
     /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// use serde::Deserialize;
@@ -131,8 +131,8 @@ impl WMIConnection {
     ///
     /// let mut filters = HashMap::new();
     ///
-    /// filters.insert("".to_owned(), FilterValue::Within(1));
-    /// filters.insert("TargetInstance".to_owned(), FilterValue::IsA("Win32_Process"));
+    /// filters.insert("".to_owned(), FilterValue::Within(Duration::from_secs(1)));
+    /// filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Win32_Process>()?);
     ///
     /// let iterator = con.filtered_notification::<__InstanceCreationEvent>(&filters)?;
 
@@ -267,7 +267,7 @@ impl WMIConnection {
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
-    /// # use std::collections::HashMap;
+    /// # use std::{collections::HashMap, time::Duration};
     /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// use futures::StreamExt;
     /// use serde::Deserialize;
@@ -283,8 +283,8 @@ impl WMIConnection {
     ///
     /// let mut filters = HashMap::new();
     ///
-    /// filters.insert("".to_owned(), FilterValue::Within(1));
-    /// filters.insert("TargetInstance".to_owned(), FilterValue::IsA("Win32_Process"));
+    /// filters.insert("".to_owned(), FilterValue::Within(Duration::from_secs(1)));
+    /// filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Win32_Process>()?);
     ///
     /// let mut stream = con.async_filtered_notification::<__InstanceCreationEvent>(&filters)?;
     ///
@@ -316,7 +316,7 @@ fn fetch_everything(query: &mut String) {
 mod tests {
     use crate::{tests::fixtures::*, FilterValue, WMIError};
     use winapi::{shared::ntdef::HRESULT, um::wbemcli::WBEM_E_UNPARSABLE_QUERY};
-    use std::collections::HashMap;
+    use std::{collections::HashMap, time::Duration};
     use chrono::Datelike;
     use serde::Deserialize;
     use futures::StreamExt;
@@ -325,8 +325,8 @@ mod tests {
 
     pub fn notification_filters() -> HashMap<String, FilterValue> {
         let mut map = HashMap::<String, FilterValue>::new();
-        map.insert("".to_owned(), FilterValue::Within(1));
-        map.insert("TargetInstance".to_owned(), FilterValue::IsA("Win32_LocalTime"));
+        map.insert("".to_owned(), FilterValue::Within(Duration::from_secs_f32(0.1)));
+        map.insert("TargetInstance".to_owned(), FilterValue::IsA::<LocalTime>().unwrap());
         map
     }
 
@@ -348,20 +348,17 @@ mod tests {
     fn it_works() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con.notification_native_wrapper(TEST_QUERY).unwrap();
+        let mut enumerator = wmi_con.notification_native_wrapper(TEST_QUERY).unwrap();
 
-        for res in enumerator {
-            let w = res.unwrap();
-            let mut props = w.list_properties().unwrap();
+        let res = enumerator.next().unwrap();
+        let w = res.unwrap();
+        let mut props = w.list_properties().unwrap();
 
-            props.sort();
+        props.sort();
 
-            assert_eq!(props.len(), 4);
-            assert_eq!(props[..2], ["PreviousInstance", "SECURITY_DESCRIPTOR"]);
-            assert_eq!(props[props.len() - 2..], ["TIME_CREATED", "TargetInstance"]);
-
-            break; // Will wait forever otherwise
-        }
+        assert_eq!(props.len(), 4);
+        assert_eq!(props[..2], ["PreviousInstance", "SECURITY_DESCRIPTOR"]);
+        assert_eq!(props[props.len() - 2..], ["TIME_CREATED", "TargetInstance"]);
     }
 
     #[test]

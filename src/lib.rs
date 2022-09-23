@@ -112,7 +112,7 @@
 //! # #[cfg(feature = "test")]
 //! # fn main() -> WMIResult<()>{
 //! # use serde::Deserialize;
-//! # use std::collections::HashMap;
+//! # use std::{collections::HashMap, time::Duration};
 //! # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
 //! #[derive(Deserialize, Debug)]
 //! #[serde(rename = "__InstanceCreationEvent")]
@@ -132,8 +132,8 @@
 //!
 //! let mut filters = HashMap::<String, FilterValue>::new();
 //!
-//! filters.insert("".to_owned(), FilterValue::Within(1));
-//! filters.insert("TargetInstance".to_owned(), FilterValue::IsA("Win32_Process"));
+//! filters.insert("".to_owned(), FilterValue::Within(Duration::from_secs(1)));
+//! filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Process>()?);
 //!
 //! let iterator = wmi_con.filtered_notification::<NewProcessEvent>(&filters)?;
 //! # tests::start_test_program();

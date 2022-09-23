@@ -17,7 +17,7 @@ use winapi::{
     },
     shared::ntdef::NULL,
 };
-use std::{ptr::{self, NonNull}, collections::HashMap};
+use std::{ptr::{self, NonNull}, collections::HashMap, time::Duration};
 use log::trace;
 use serde::de;
 
@@ -26,8 +26,8 @@ pub enum FilterValue {
     Number(i64),
     Str(&'static str),
     String(String),
-    Within(i64),
-    IsA(&'static str),
+    Within(Duration),
+    Is_A(&'static str),
 }
 
 impl From<String> for FilterValue {
@@ -51,6 +51,16 @@ impl From<i64> for FilterValue {
 impl From<bool> for FilterValue {
     fn from(value: bool) -> Self {
         FilterValue::Bool(value)
+    }
+}
+
+impl FilterValue {
+    pub fn IsA<'de, T>() -> WMIResult<Self>
+    where
+        T: serde::Deserialize<'de>,
+    {
+        let (name, _) = struct_name_and_fields::<T>()?;
+        Ok(Self::Is_A(name))
     }
 }
 
@@ -92,7 +102,7 @@ where
             if filters.is_empty() {
                 String::new()
             } else {
-                let mut within: Option<i64> = None;
+                let mut within: Option<f64> = None;
                 let mut conditions = vec![];
 
                 for (field, filter) in filters {
@@ -109,10 +119,10 @@ where
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
                         FilterValue::String(s) => quote_and_escape_wql_str(&s),
                         FilterValue::Within(n) => {
-                            within = Some(*n);
+                            within = Some(n.as_secs_f64());
                             continue;
                         },
-                        FilterValue::IsA(s) => {
+                        FilterValue::Is_A(s) => {
                             conditions.push(format!("{} ISA {}", field, quote_and_escape_wql_str(s)));
                             continue;
                         },
@@ -650,18 +660,19 @@ mod tests {
 
         let mut filters = HashMap::new();
 
-        filters.insert("C1".to_string(), FilterValue::Str("a"));
-        filters.insert("C2".to_string(), FilterValue::String("b".to_string()));
-        filters.insert("C3".to_string(), FilterValue::Number(42));
-        filters.insert("C4".to_string(), FilterValue::Bool(false));
+        filters.insert("C1".to_owned(), FilterValue::Str("a"));
+        filters.insert("C2".to_owned(), FilterValue::String("b".to_owned()));
+        filters.insert("C3".to_owned(), FilterValue::Number(42));
+        filters.insert("C4".to_owned(), FilterValue::Bool(false));
         filters.insert(
-            "C5".to_string(),
-            FilterValue::String(r#"with " and \ chars"#.to_string()),
+            "C5".to_owned(),
+            FilterValue::String(r#"with " and \ chars"#.to_owned()),
         );
+        filters.insert("C6".to_owned(), FilterValue::Is_A("Class"));
 
         let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
-        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars""#;
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class""#;
 
         assert_eq!(query, select_part + where_part);
     }

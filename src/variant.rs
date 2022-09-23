@@ -299,32 +299,36 @@ pub struct IUnknownWrapper {
 }
 
 impl IUnknownWrapper {
+    /// Wrapps around a non-null pointer to IUnknown
+    ///
     pub unsafe fn new(ptr: NonNull<IUnknown>) -> Self {
         IUnknownWrapper { inner: ptr }
     }
 
     pub fn to_wbem_class_obj(&self) -> WMIResult<IWbemClassWrapper> {
-        unsafe {
-            let ptr = self.inner.as_ptr();
-            let mut obj_ptr = NULL as *mut c_void;
+        let ptr = self.inner.as_ptr();
+        let mut obj_ptr = NULL as *mut c_void;
 
+        unsafe {
             check_hres((*ptr).QueryInterface(
                 &IID_IWbemClassObject,
                 &mut obj_ptr,
             ))?;
-
-            let obj = NonNull::new(obj_ptr as *mut _).ok_or(WMIError::NullPointerResult)?;
-            Ok(IWbemClassWrapper::new(obj))
         }
+
+        let obj = NonNull::new(obj_ptr as *mut _).ok_or(WMIError::NullPointerResult)?;
+        Ok(unsafe { IWbemClassWrapper::new(obj) })
     }
 }
 
 impl Serialize for IUnknownWrapper {
+    /// IUnknownWrapper serializaes to `()`, since it should have been converted into Variant::Object
+    ///
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer
     {
-        serializer.serialize_none()
+        serializer.serialize_unit()
     }
 }
 
