@@ -49,11 +49,14 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
+    /// # use wmi::*;
+    /// # #[cfg(not(feature = "test"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "test")]
     /// # fn main() -> wmi::WMIResult<()> {
-    /// #   wmi::ignore_access_denied(run())
+    /// #   tests::ignore_access_denied(run())
     /// # }
     /// # fn run() -> wmi::WMIResult<()> {
-    /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// let iterator = con.raw_notification::<HashMap<String, Variant>>("SELECT ProcessID, ProcessName FROM Win32_ProcessStartTrace")?;
@@ -76,11 +79,14 @@ impl WMIConnection {
     /// Subscribe to the T event and return an iterator of WMIResult\<T\>.
     ///
     /// ```edition2018
+    /// use wmi::*;
+    /// # #[cfg(not(feature = "test"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "test")]
     /// # fn main() -> wmi::WMIResult<()> {
-    /// #   wmi::ignore_access_denied(run())
+    /// #   tests::ignore_access_denied(run())
     /// # }
     /// # fn run() -> wmi::WMIResult<()> {
-    /// use wmi::*;
     /// use serde::Deserialize;
     ///
     /// let con = WMIConnection::new(COMLibrary::new()?)?;
@@ -180,8 +186,11 @@ impl WMIConnection {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # use futures::{executor::block_on, StreamExt};
+    /// # #[cfg(not(feature = "test"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "test")]
     /// # fn main() -> wmi::WMIResult<()> {
-    /// #   wmi::ignore_access_denied(block_on(exec_async_query()))
+    /// #   tests::ignore_access_denied(block_on(exec_async_query()))
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
@@ -209,8 +218,11 @@ impl WMIConnection {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # use futures::executor::block_on;
+    /// # #[cfg(not(feature = "test"))]
+    /// # fn main() {}
+    /// # #[cfg(feature = "test")]
     /// # fn main() -> wmi::WMIResult<()> {
-    /// #   wmi::ignore_access_denied(block_on(exec_async_query()))
+    /// #   tests::ignore_access_denied(block_on(exec_async_query()))
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
