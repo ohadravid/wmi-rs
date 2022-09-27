@@ -122,7 +122,7 @@
 //! }
 //!
 //! #[derive(Deserialize, Debug)]
-//! #[serde(rename = "Win32_Process")] // Renaming this struct in unnecessary
+//! #[serde(rename = "Win32_Process")]
 //! #[serde(rename_all = "PascalCase")]
 //! struct Process {
 //!     process_id: u32,
@@ -132,10 +132,9 @@
 //!
 //! let mut filters = HashMap::<String, FilterValue>::new();
 //!
-//! filters.insert("".to_owned(), FilterValue::Within(Duration::from_secs(1)));
 //! filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Process>()?);
 //!
-//! let iterator = wmi_con.filtered_notification::<NewProcessEvent>(&filters)?;
+//! let iterator = wmi_con.filtered_notification::<NewProcessEvent>(&filters, Some(Duration::from_secs(1)))?;
 //! # tests::start_test_program();
 //!
 //! for result in iterator {
@@ -145,6 +144,42 @@
 //!     println!("Name:       {}", process.name);
 //!     println!("Executable: {:?}", process.executable_path);
 //! #     break;
+//! } // Loop will end only on error
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! An example of subscribing to an extrinsic event notification [`Win32_ProcessStartTrace`]
+//! ```edition2018
+//! # use wmi::*;
+//! # #[cfg(not(feature = "test"))]
+//! # fn main() {}
+//! # #[cfg(feature = "test")]
+//! # fn main() -> WMIResult<()> {
+//! # tests::ignore_access_denied(run())
+//! # }
+//! # #[cfg(feature = "test")]
+//! # fn run() -> WMIResult<()>{
+//! # use serde::Deserialize;
+//! # use std::{collections::HashMap, time::Duration};
+//! # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+//! #[derive(Deserialize, Debug)]
+//! #[serde(rename = "Win32_ProcessStartTrace")]
+//! #[serde(rename_all = "PascalCase")]
+//! struct ProcessStartTrace {
+//!     process_id: u32,
+//!     process_name: String,
+//! }
+//!
+//! let iterator = wmi_con.notification::<ProcessStartTrace>()?;
+//! # tests::start_test_program();
+//!
+//! for result in iterator {
+//!     let trace = result?;
+//!     println!("Process started!");
+//!     println!("PID:  {}", trace.process_id);
+//!     println!("Name: {}", trace.process_name);
+//! #    break;
 //! } // Loop will end only on error
 //! # Ok(())
 //! # }
@@ -265,7 +300,7 @@ pub use datetime::WMIDateTime;
 pub use datetime_time::WMIOffsetDateTime;
 
 pub use duration::WMIDuration;
-pub use query::{FilterValue, build_query};
+pub use query::{FilterValue, build_query, build_notification_query};
 pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 

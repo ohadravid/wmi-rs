@@ -322,7 +322,7 @@ impl IUnknownWrapper {
 }
 
 impl Serialize for IUnknownWrapper {
-    /// IUnknownWrapper serializaes to `()`, since it should have been converted into Variant::Object
+    /// IUnknownWrapper serializaes to `()`, since it should have been converted into [Variant::Object]
     ///
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

@@ -6,14 +6,14 @@ use crate::{
     WMIConnection,
     WMIResult,
     FilterValue,
-    build_query,
+    build_notification_query,
 };
 use winapi::{
     um::wbemcli::{IEnumWbemClassObject, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY},
     shared::ntdef::NULL,
 };
 use com::{production::ClassAllocation, AbiTransferable};
-use std::{collections::HashMap, ptr};
+use std::{collections::HashMap, ptr, time::Duration};
 use futures::{Stream, StreamExt};
 
 ///
@@ -105,8 +105,7 @@ impl WMIConnection {
     where
         T: serde::de::DeserializeOwned + 'a,
     {
-        let mut query_text = build_query::<T>(None)?;
-        fetch_everything(&mut query_text);
+        let query_text = build_notification_query::<T>(None, None)?;
         self.raw_notification(query_text)
     }
 
@@ -131,20 +130,18 @@ impl WMIConnection {
     ///
     /// let mut filters = HashMap::new();
     ///
-    /// filters.insert("".to_owned(), FilterValue::Within(Duration::from_secs(1)));
     /// filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Win32_Process>()?);
     ///
-    /// let iterator = con.filtered_notification::<__InstanceCreationEvent>(&filters)?;
+    /// let iterator = con.filtered_notification::<__InstanceCreationEvent>(&filters, Some(Duration::from_secs(1)))?;
 
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn filtered_notification<'a, T>(&'a self, filters: &HashMap<String, FilterValue>) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
+    pub fn filtered_notification<'a, T>(&'a self, filters: &HashMap<String, FilterValue>, within: Option<Duration>) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
     where
         T: serde::de::DeserializeOwned + 'a,
     {
-        let mut query_text = build_query::<T>(Some(filters))?;
-        fetch_everything(&mut query_text);
+        let query_text = build_notification_query::<T>(Some(filters), within)?;
         self.raw_notification(query_text)
     }
 
@@ -246,8 +243,7 @@ impl WMIConnection {
     where
         T: serde::de::DeserializeOwned,
     {
-        let mut query_text = build_query::<T>(None)?;
-        fetch_everything(&mut query_text);
+        let query_text = build_notification_query::<T>(None, None)?;
         self.async_raw_notification(query_text)
     }
 
@@ -283,32 +279,20 @@ impl WMIConnection {
     ///
     /// let mut filters = HashMap::new();
     ///
-    /// filters.insert("".to_owned(), FilterValue::Within(Duration::from_secs(1)));
     /// filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Win32_Process>()?);
     ///
-    /// let mut stream = con.async_filtered_notification::<__InstanceCreationEvent>(&filters)?;
+    /// let mut stream = con.async_filtered_notification::<__InstanceCreationEvent>(&filters, Some(Duration::from_secs(1)))?;
     ///
     /// let event = stream.next().await.unwrap()?;
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn async_filtered_notification<T>(&self, filters: &HashMap<String, FilterValue>) -> WMIResult<impl Stream<Item = WMIResult<T>>>
+    pub fn async_filtered_notification<T>(&self, filters: &HashMap<String, FilterValue>, within: Option<Duration>) -> WMIResult<impl Stream<Item = WMIResult<T>>>
     where
         T: serde::de::DeserializeOwned,
     {
-        let mut query_text = build_query::<T>(Some(filters))?;
-        fetch_everything(&mut query_text);
+        let query_text = build_notification_query::<T>(Some(filters), within)?;
         self.async_raw_notification(query_text)
-    }
-}
-
-// This is a workaround to the following issue.
-// When querying for notifications, often times a query will contain object properties.
-// Since `wmi::de::meta:struct_name_and_fields` isn't able to get fields names from that inner object
-// we need to select the entire object in order to properly deserialize it.
-fn fetch_everything(query: &mut String) {
-    if let Some(index) = query.find(" FROM ") {
-        *query = format!("SELECT *{}", &query[index..]);
     }
 }
 
@@ -325,7 +309,6 @@ mod tests {
 
     pub fn notification_filters() -> HashMap<String, FilterValue> {
         let mut map = HashMap::<String, FilterValue>::new();
-        map.insert("".to_owned(), FilterValue::Within(Duration::from_secs_f32(0.1)));
         map.insert("TargetInstance".to_owned(), FilterValue::IsA::<LocalTime>().unwrap());
         map
     }
@@ -365,16 +348,13 @@ mod tests {
     fn it_fails_gracefully() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con.notification_native_wrapper("SELECT NoSuchField FROM __InstanceModificationEvent WHERE TargetInstance ISA 'Win32_LocalTime'").unwrap();
+        let mut enumerator = wmi_con.notification_native_wrapper("SELECT NoSuchField FROM __InstanceModificationEvent WHERE TargetInstance ISA 'Win32_LocalTime'").unwrap();
 
-        for res in enumerator {
-            assert!(res.is_ok());
-            let props = res.unwrap().list_properties().unwrap();
+        let res = enumerator.next().unwrap();
+        assert!(res.is_ok());
 
-            assert_eq!(props.len(), 0);
-
-            break; // Will wait forever otherwise
-        }
+        let props = res.unwrap().list_properties().unwrap();
+        assert_eq!(props.len(), 0);
     }
 
     #[test]
@@ -396,28 +376,26 @@ mod tests {
     fn it_can_run_raw_notification() {
         let wmi_con = wmi_con();
 
-        let iterator = wmi_con.raw_notification::<InstanceModification>(TEST_QUERY).unwrap();
+        let mut iterator = wmi_con.raw_notification::<InstanceModification>(TEST_QUERY).unwrap();
 
-        for local_time in iterator {
-            assert!(local_time.is_ok());
-            let local_time = local_time.unwrap().target_instance;
-            assert_eq!(local_time.year as i32, chrono::Local::now().year());
-            break; // Will wait forever otherwise
-        }
+        let local_time = iterator.next().unwrap();
+        assert!(local_time.is_ok());
+
+        let local_time = local_time.unwrap().target_instance;
+        assert_eq!(local_time.year as i32, chrono::Local::now().year());
     }
 
     #[test]
     fn it_can_run_filtered_notification() {
         let wmi_con = wmi_con();
 
-        let iterator = wmi_con.filtered_notification::<InstanceModification>(&notification_filters()).unwrap();
+        let mut iterator = wmi_con.filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1))).unwrap();
 
-        for local_time in iterator {
-            assert!(local_time.is_ok());
-            let local_time = local_time.unwrap().target_instance;
-            assert_eq!(local_time.year as i32, chrono::Local::now().year());
-            break; // Will wait forever otherwise
-        }
+        let local_time = iterator.next().unwrap();
+        assert!(local_time.is_ok());
+
+        let local_time = local_time.unwrap().target_instance;
+        assert_eq!(local_time.year as i32, chrono::Local::now().year());
     }
 
     #[async_std::test]
@@ -478,7 +456,7 @@ mod tests {
     async fn async_it_provides_filtered_notification_result() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.async_filtered_notification::<InstanceModification>(&notification_filters())
+        let result = wmi_con.async_filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1)))
             .unwrap()
             .next()
             .await

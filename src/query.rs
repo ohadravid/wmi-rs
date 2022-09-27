@@ -26,7 +26,6 @@ pub enum FilterValue {
     Number(i64),
     Str(&'static str),
     String(String),
-    Within(Duration),
     Is_A(&'static str),
 }
 
@@ -64,7 +63,7 @@ impl FilterValue {
     }
 }
 
-/// Build an SQL query for the given filters, over the given type (using it's name and fields).
+/// Build an SQL query for the given filters, over the given type (using its name and fields).
 /// For example, for:
 ///
 /// # Examples
@@ -88,9 +87,73 @@ impl FilterValue {
 /// "SELECT Caption, Debug FROM Win32_OperatingSystem";
 /// ```
 ///
-pub fn build_query<'de, T>(
-    filters: Option<&HashMap<String, FilterValue>>,
-) -> WMIResult<String>
+pub fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> WMIResult<String>
+where
+    T: de::Deserialize<'de>,
+{
+    let (name, fields, optional_where_clause) = get_query_segments::<T>(filters)?;
+
+    let query_text = format!(
+        "SELECT {} FROM {} {}",
+        fields.join(","),
+        name,
+        optional_where_clause
+    );
+
+    Ok(query_text)
+}
+
+/// Build an SQL query for an event notification subscription with the given filters and within polling time, over the given type (using its fields).
+/// For example, for:
+///
+/// # Examples
+///
+/// For a struct such as:
+///
+/// ```edition2018
+/// # use wmi::*;
+/// # use serde::Deserialize;
+/// #[derive(Deserialize, Debug)]
+/// #[serde(rename = "Win32_ProcessStartTrace")]
+/// #[serde(rename_all = "PascalCase")]
+/// struct ProcessStartTrace {
+///     process_id: u32,
+///     process_name: String,
+/// }
+/// ```
+///
+/// The resulting query with no filters and no within polling time will look like:
+/// ```
+/// "SELECT * FROM Win32_ProcessStartTrace";
+/// ```
+///
+/// Conversely, the resulting query with filters and with within polling time will look like:
+/// ```
+/// "SELECT * FROM Win32_ProcessStartTrace WITHIN 10 WHERE ProcessName = 'explorer.exe'";
+/// ```
+///
+pub fn build_notification_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>, within: Option<Duration>) -> WMIResult<String>
+where
+    T: de::Deserialize<'de>,
+{
+    let (name, _, optional_where_clause) = get_query_segments::<T>(filters)?;
+
+    let optional_within_caluse = match within {
+        Some(within) => format!("WITHIN {} ", within.as_secs_f64()),
+        None => String::new(),
+    };
+
+    let query_text = format!(
+        "SELECT * FROM {} {}{}",
+        name,
+        optional_within_caluse,
+        optional_where_clause
+    );
+
+    Ok(query_text)
+}
+
+fn get_query_segments<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> WMIResult<(&'static str, &'static [&'static str], String)>
 where
     T: de::Deserialize<'de>,
 {
@@ -102,11 +165,9 @@ where
             if filters.is_empty() {
                 String::new()
             } else {
-                let mut within: Option<f64> = None;
                 let mut conditions = vec![];
 
                 for (field, filter) in filters {
-
                     let value = match filter {
                         FilterValue::Bool(b) => {
                             if *b {
@@ -118,10 +179,6 @@ where
                         FilterValue::Number(n) => format!("{}", n),
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
                         FilterValue::String(s) => quote_and_escape_wql_str(&s),
-                        FilterValue::Within(n) => {
-                            within = Some(n.as_secs_f64());
-                            continue;
-                        },
                         FilterValue::Is_A(s) => {
                             conditions.push(format!("{} ISA {}", field, quote_and_escape_wql_str(s)));
                             continue;
@@ -134,23 +191,12 @@ where
                 // Just to make testing easier.
                 conditions.sort();
 
-                if let Some(win) = within {
-                    format!("WITHIN {} WHERE {}", win, conditions.join(" AND "))
-                } else {
-                    format!("WHERE {}", conditions.join(" AND "))
-                }
+                format!("WHERE {}", conditions.join(" AND "))
             }
         }
     };
 
-    let query_text = format!(
-        "SELECT {} FROM {} {}",
-        fields.join(","),
-        name,
-        optional_where_clause
-    );
-
-    Ok(query_text)
+    Ok((name, fields, optional_where_clause))
 }
 
 /// Quote/escape a string for WQL.
@@ -651,6 +697,20 @@ mod tests {
     }
 
     #[test]
+    fn it_builds_correct_notification_query_without_filters() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_ProcessStartTrace {
+            #[allow(dead_code)]
+            Caption: String,
+        }
+
+        let query = build_notification_query::<Win32_ProcessStartTrace>(None, None).unwrap();
+        let select_part = r#"SELECT * FROM Win32_ProcessStartTrace "#.to_owned();
+
+        assert_eq!(query, select_part);
+    }
+
+    #[test]
     fn it_builds_correct_query() {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
@@ -669,12 +729,42 @@ mod tests {
             FilterValue::String(r#"with " and \ chars"#.to_owned()),
         );
         filters.insert("C6".to_owned(), FilterValue::Is_A("Class"));
+        filters.insert("C7".to_owned(), FilterValue::IsA::<Win32_OperatingSystem>().unwrap());
 
         let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
-        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class""#;
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_OperatingSystem""#;
 
         assert_eq!(query, select_part + where_part);
+    }
+
+    #[test]
+    fn it_builds_correct_notification_query() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_ProcessStartTrace {
+            #[allow(dead_code)]
+            Caption: String,
+        }
+
+        let mut filters = HashMap::new();
+
+        filters.insert("C1".to_owned(), FilterValue::Str("a"));
+        filters.insert("C2".to_owned(), FilterValue::String("b".to_owned()));
+        filters.insert("C3".to_owned(), FilterValue::Number(42));
+        filters.insert("C4".to_owned(), FilterValue::Bool(false));
+        filters.insert(
+            "C5".to_owned(),
+            FilterValue::String(r#"with " and \ chars"#.to_owned()),
+        );
+        filters.insert("C6".to_owned(), FilterValue::Is_A("Class"));
+        filters.insert("C7".to_owned(), FilterValue::IsA::<Win32_ProcessStartTrace>().unwrap());
+
+        let query = build_notification_query::<Win32_ProcessStartTrace>(Some(&filters), Some(Duration::from_secs_f64(10.5))).unwrap();
+        let select_part = r#"SELECT * FROM Win32_ProcessStartTrace "#.to_owned();
+        let within_part = r#"WITHIN 10.5 "#;
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_ProcessStartTrace""#;
+
+        assert_eq!(query, select_part + within_part + where_part);
     }
 
     #[test]
