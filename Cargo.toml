@@ -45,6 +45,7 @@ criterion = "0.4"
 tempdir = "0.3"
 async-std = { version = "1.10",  features = ["attributes"] }
 tokio = { version = "1.20.0", features = ["rt", "macros"] }
+sys-locale = "0.2.1"
 
 [[bin]]
 name = "wmiq"

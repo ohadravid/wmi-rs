@@ -1,18 +1,16 @@
-use crate::utils::{check_hres, WMIError};
-use crate::Variant;
-use std::iter::Iterator;
-use std::slice;
-use widestring::WideCStr;
+use crate::{utils::{check_hres, WMIError, WMIResult}, Variant};
 use winapi::{
-    shared::wtypes::*,
-    shared::{ntdef::NULL, wtypes::BSTR},
     um::{
         oaidl::SAFEARRAY,
         oleauto::{
             SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayUnaccessData,
         },
     },
+    shared::{ntdef::NULL, wtypes::BSTR},
+    shared::wtypes::*,
 };
+use std::{iter::Iterator, slice};
+use widestring::WideCStr;
 
 #[derive(Debug)]
 pub struct SafeArrayAccessor<T> {
@@ -42,7 +40,7 @@ impl<T> SafeArrayAccessor<T> {
     ///
     /// This function is unsafe as it is the caller's responsibility to verify that the array is
     /// of items of type T.
-    pub unsafe fn new(arr: *mut SAFEARRAY) -> Result<Self, WMIError> {
+    pub unsafe fn new(arr: *mut SAFEARRAY) -> WMIResult<Self> {
         let mut p_data = NULL;
         let mut lower_bound: i32 = 0;
         let mut upper_bound: i32 = 0;
@@ -83,7 +81,7 @@ impl<T> Drop for SafeArrayAccessor<T> {
 /// # Safety
 ///
 /// The caller must ensure that the array is valid and contains only strings.
-pub unsafe fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<String>, WMIError> {
+pub unsafe fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> WMIResult<Vec<String>> {
     let items = safe_array_to_vec(arr, VT_BSTR)?;
 
     let string_items = items
@@ -103,11 +101,11 @@ pub unsafe fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> Result<Vec<St
 pub unsafe fn safe_array_to_vec(
     arr: *mut SAFEARRAY,
     item_type: u32,
-) -> Result<Vec<Variant>, WMIError> {
+) -> WMIResult<Vec<Variant>> {
     fn copy_type_to_vec<T, F>(
         arr: *mut SAFEARRAY,
         variant_builder: F,
-    ) -> Result<Vec<Variant>, WMIError>
+    ) -> WMIResult<Vec<Variant>>
     where
         T: Copy,
         F: Fn(T) -> Variant,

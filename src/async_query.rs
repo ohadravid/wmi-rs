@@ -1,16 +1,17 @@
-use crate::query_sink::{AsyncQueryResultStream, IWbemObjectSink, QuerySink};
-use crate::result_enumerator::IWbemClassWrapper;
-use crate::{connection::WMIConnection, utils::check_hres, WMIResult};
 use crate::{
-    query::{build_query, FilterValue},
+    query_sink::{AsyncQueryResultStream, IWbemObjectSink, QuerySink},
+    query::{FilterValue, build_query},
+    result_enumerator::IWbemClassWrapper,
+    connection::WMIConnection,
+    utils::check_hres,
+    WMIResult,
     BStr,
 };
-use com::production::ClassAllocation;
-use com::AbiTransferable;
+use com::{production::ClassAllocation, AbiTransferable};
 use futures::stream::{Stream, StreamExt, TryStreamExt};
-use serde::de;
 use std::{collections::HashMap, ptr};
 use winapi::um::wbemcli::WBEM_FLAG_BIDIRECTIONAL;
+use serde::de;
 
 ///
 /// ### Additional async methods
@@ -56,13 +57,13 @@ impl WMIConnection {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # use futures::executor::block_on;
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// #   block_on(exec_async_query())?;
     /// #   Ok(())
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// use futures::stream::TryStreamExt;
     /// let results: Vec<HashMap<String, Variant>> = con.async_raw_query("SELECT Name FROM Win32_OperatingSystem").await?;
     /// #   Ok(())
@@ -87,13 +88,13 @@ impl WMIConnection {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # use futures::executor::block_on;
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// #   block_on(exec_async_query())?;
     /// #   Ok(())
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// use serde::Deserialize;
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_Process {
@@ -122,7 +123,7 @@ impl WMIConnection {
     where
         T: de::DeserializeOwned,
     {
-        let query_text = build_query::<T>(Some(&filters))?;
+        let query_text = build_query::<T>(Some(filters))?;
 
         self.async_raw_query(&query_text).await
     }
@@ -132,11 +133,10 @@ impl WMIConnection {
 #[allow(non_camel_case_types)]
 #[cfg(test)]
 mod tests {
-    use crate::tests::fixtures::*;
-    use crate::Variant;
+    use crate::{tests::fixtures::*, Variant};
     use futures::stream::{self, StreamExt};
-    use serde::Deserialize;
     use std::collections::HashMap;
+    use serde::Deserialize;
 
     #[async_std::test]
     async fn async_it_works_async() {

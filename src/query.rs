@@ -1,30 +1,32 @@
-use crate::de::wbem_class_de::from_wbem_class_obj;
-use crate::result_enumerator::{IWbemClassWrapper, QueryResultEnumerator};
-use crate::BStr;
 use crate::{
-    connection::WMIConnection, de::meta::struct_name_and_fields, utils::check_hres, WMIError,
+    result_enumerator::{IWbemClassWrapper, QueryResultEnumerator},
+    de::wbem_class_de::from_wbem_class_obj,
+    de::meta::struct_name_and_fields,
+    utils::check_hres,
+    connection::WMIConnection,
+    BStr,
+    WMIError, WMIResult,
 };
+use winapi::{
+    um::wbemcli::{
+        IWbemClassObject,
+        IEnumWbemClassObject,
+        WBEM_FLAG_FORWARD_ONLY,
+        WBEM_FLAG_RETURN_IMMEDIATELY,
+        WBEM_FLAG_RETURN_WBEM_COMPLETE,
+    },
+    shared::ntdef::NULL,
+};
+use std::{ptr::{self, NonNull}, collections::HashMap, time::Duration};
 use log::trace;
 use serde::de;
-use std::collections::HashMap;
-use std::ptr;
-use std::ptr::NonNull;
-use winapi::um::wbemcli::IWbemClassObject;
-use winapi::{
-    shared::ntdef::NULL,
-    um::{
-        wbemcli::IEnumWbemClassObject,
-        wbemcli::{
-            WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE,
-        },
-    },
-};
 
 pub enum FilterValue {
     Bool(bool),
     Number(i64),
     Str(&'static str),
     String(String),
+    IsA(&'static str),
 }
 
 impl From<String> for FilterValue {
@@ -51,7 +53,33 @@ impl From<bool> for FilterValue {
     }
 }
 
-/// Build an SQL query for the given filters, over the given type (using it's name and fields).
+impl FilterValue {
+    /// Create a [FilterValue::IsA] varinat form a given type
+    ///
+    /// ```edition2018
+    /// # use std::collections::HashMap;
+    /// # use wmi::FilterValue;
+    /// # use serde::Deserialize;
+    /// # fn main() -> wmi::WMIResult<()> {
+    /// #[derive(Deserialize)]
+    /// struct Win32_OperatingSystem {}
+    ///
+    /// let mut filters = HashMap::<String, FilterValue>::new();
+    /// filters.insert("TargetInstance".to_owned(), FilterValue::is_a::<Win32_OperatingSystem>()?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    pub fn is_a<'de, T>() -> WMIResult<Self>
+    where
+        T: serde::Deserialize<'de>,
+    {
+        let (name, _) = struct_name_and_fields::<T>()?;
+        Ok(Self::IsA(name))
+    }
+}
+
+/// Build an SQL query for the given filters, over the given type (using its name and fields).
 /// For example, for:
 ///
 /// # Examples
@@ -75,9 +103,73 @@ impl From<bool> for FilterValue {
 /// "SELECT Caption, Debug FROM Win32_OperatingSystem";
 /// ```
 ///
-pub fn build_query<'de, T>(
-    filters: Option<&HashMap<String, FilterValue>>,
-) -> Result<String, WMIError>
+pub fn build_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> WMIResult<String>
+where
+    T: de::Deserialize<'de>,
+{
+    let (name, fields, optional_where_clause) = get_query_segments::<T>(filters)?;
+
+    let query_text = format!(
+        "SELECT {} FROM {} {}",
+        fields.join(","),
+        name,
+        optional_where_clause
+    );
+
+    Ok(query_text)
+}
+
+/// Build an SQL query for an event notification subscription with the given filters and within polling time, over the given type (using its fields).
+/// For example, for:
+///
+/// # Examples
+///
+/// For a struct such as:
+///
+/// ```edition2018
+/// # use wmi::*;
+/// # use serde::Deserialize;
+/// #[derive(Deserialize, Debug)]
+/// #[serde(rename = "Win32_ProcessStartTrace")]
+/// #[serde(rename_all = "PascalCase")]
+/// struct ProcessStartTrace {
+///     process_id: u32,
+///     process_name: String,
+/// }
+/// ```
+///
+/// The resulting query with no filters and no within polling time will look like:
+/// ```
+/// "SELECT * FROM Win32_ProcessStartTrace";
+/// ```
+///
+/// Conversely, the resulting query with filters and with within polling time will look like:
+/// ```
+/// "SELECT * FROM Win32_ProcessStartTrace WITHIN 10 WHERE ProcessName = 'explorer.exe'";
+/// ```
+///
+pub fn build_notification_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>, within: Option<Duration>) -> WMIResult<String>
+where
+    T: de::Deserialize<'de>,
+{
+    let (name, _, optional_where_clause) = get_query_segments::<T>(filters)?;
+
+    let optional_within_caluse = match within {
+        Some(within) => format!("WITHIN {} ", within.as_secs_f64()),
+        None => String::new(),
+    };
+
+    let query_text = format!(
+        "SELECT * FROM {} {}{}",
+        name,
+        optional_within_caluse,
+        optional_where_clause
+    );
+
+    Ok(query_text)
+}
+
+fn get_query_segments<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> WMIResult<(&'static str, &'static [&'static str], String)>
 where
     T: de::Deserialize<'de>,
 {
@@ -103,6 +195,10 @@ where
                         FilterValue::Number(n) => format!("{}", n),
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
                         FilterValue::String(s) => quote_and_escape_wql_str(&s),
+                        FilterValue::IsA(s) => {
+                            conditions.push(format!("{} ISA {}", field, quote_and_escape_wql_str(s)));
+                            continue;
+                        },
                     };
 
                     conditions.push(format!("{} = {}", field, value));
@@ -116,14 +212,7 @@ where
         }
     };
 
-    let query_text = format!(
-        "SELECT {} FROM {} {}",
-        fields.join(","),
-        name,
-        optional_where_clause
-    );
-
-    Ok(query_text)
+    Ok((name, fields, optional_where_clause))
 }
 
 /// Quote/escape a string for WQL.
@@ -141,7 +230,8 @@ where
 /// # use wmi::query::quote_and_escape_wql_str;
 /// assert_eq!(quote_and_escape_wql_str(r#"C:\Path\With"In Name"#), r#""C:\\Path\\With\"In Name""#);
 /// ```
-pub fn quote_and_escape_wql_str(s: &str) -> String {
+pub fn quote_and_escape_wql_str(s: impl AsRef<str>) -> String {
+    let s = s.as_ref();
     let mut o = String::with_capacity(s.as_bytes().len() + 2);
     o.push('"');
     for ch in s.chars() {
@@ -162,7 +252,7 @@ impl WMIConnection {
     pub fn exec_query_native_wrapper(
         &self,
         query: impl AsRef<str>,
-    ) -> Result<QueryResultEnumerator, WMIError> {
+    ) -> WMIResult<QueryResultEnumerator> {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
@@ -188,15 +278,15 @@ impl WMIConnection {
     /// but also with a generic map.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// # use std::collections::HashMap;
     /// # use wmi::*;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// let results: Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem")?;
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn raw_query<T>(&self, query: impl AsRef<str>) -> Result<Vec<T>, WMIError>
+    pub fn raw_query<T>(&self, query: impl AsRef<str>) -> WMIResult<Vec<T>>
     where
         T: de::DeserializeOwned,
     {
@@ -213,11 +303,11 @@ impl WMIConnection {
     /// Query all the objects of type T.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// use wmi::*;
     /// use serde::Deserialize;
     ///
-    /// let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// let con = WMIConnection::new(COMLibrary::new()?)?;
     ///
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_Process {
@@ -228,7 +318,7 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn query<T>(&self) -> Result<Vec<T>, WMIError>
+    pub fn query<T>(&self) -> WMIResult<Vec<T>>
     where
         T: de::DeserializeOwned,
     {
@@ -240,10 +330,10 @@ impl WMIConnection {
     /// Query all the objects of type T, while filtering according to `filters`.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// # use std::collections::HashMap;
     /// # use wmi::*;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// use serde::Deserialize;
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_Process {
@@ -263,11 +353,11 @@ impl WMIConnection {
     pub fn filtered_query<T>(
         &self,
         filters: &HashMap<String, FilterValue>,
-    ) -> Result<Vec<T>, WMIError>
+    ) -> WMIResult<Vec<T>>
     where
         T: de::DeserializeOwned,
     {
-        let query_text = build_query::<T>(Some(&filters))?;
+        let query_text = build_query::<T>(Some(filters))?;
 
         self.raw_query(&query_text)
     }
@@ -277,8 +367,8 @@ impl WMIConnection {
     /// If more than one object is found, all but the first are ignored.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # fn main() -> wmi::WMIResult<()> {
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// # use wmi::*;
     /// use serde::Deserialize;
     /// #[derive(Deserialize)]
@@ -290,7 +380,7 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn get<T>(&self) -> Result<T, WMIError>
+    pub fn get<T>(&self) -> WMIResult<T>
     where
         T: de::DeserializeOwned,
     {
@@ -299,17 +389,17 @@ impl WMIConnection {
         results
             .into_iter()
             .next()
-            .ok_or_else(|| WMIError::ResultEmpty)
+            .ok_or(WMIError::ResultEmpty)
     }
 
     /// Get a WMI object by path, and return a wrapper around a WMI pointer.
     /// It's better to use the `get_by_path` method, since this function is more low level.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// let raw_os = con.get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
     /// assert_eq!(raw_os.class()?, "Win32_OperatingSystem");
     ///
@@ -326,7 +416,7 @@ impl WMIConnection {
     pub fn get_raw_by_path(
         &self,
         object_path: impl AsRef<str>,
-    ) -> Result<IWbemClassWrapper, WMIError> {
+    ) -> WMIResult<IWbemClassWrapper> {
         let object_path = BStr::from_str(object_path.as_ref())?;
 
         let mut pcls_obj = NULL as *mut IWbemClassObject;
@@ -352,10 +442,10 @@ impl WMIConnection {
     /// This is useful when the type of the object at the path in known at compile time.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// #[derive(Deserialize)]
     /// struct Win32_OperatingSystem {
     ///     Name: String,
@@ -370,11 +460,11 @@ impl WMIConnection {
     /// or if the object is only of a few possible types, deserialize it to an enum:
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// # use std::collections::HashMap;
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     ///
     /// #[derive(Deserialize, Debug, PartialEq)]
     /// struct Win32_Group {
@@ -429,13 +519,13 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn get_by_path<T>(&self, object_path: &str) -> Result<T, WMIError>
+    pub fn get_by_path<T>(&self, object_path: &str) -> WMIResult<T>
     where
         T: de::DeserializeOwned,
     {
         let wbem_class_obj = self.get_raw_by_path(object_path)?;
 
-        from_wbem_class_obj(&wbem_class_obj)
+        from_wbem_class_obj(wbem_class_obj)
     }
 
     /// Query all the associators of type T of the given object.
@@ -444,10 +534,10 @@ impl WMIConnection {
     /// See <https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-diskdrivetodiskpartition> for example.
     ///
     /// ```edition2018
-    /// # fn main() -> Result<(), wmi::WMIError> {
+    /// # fn main() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?.into())?;
+    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     ///
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_DiskDrive {
@@ -473,7 +563,7 @@ impl WMIConnection {
     pub fn associators<ResultClass, AssocClass>(
         &self,
         object_path: &str,
-    ) -> Result<Vec<ResultClass>, WMIError>
+    ) -> WMIResult<Vec<ResultClass>>
     where
         ResultClass: de::DeserializeOwned,
         AssocClass: de::DeserializeOwned,
@@ -523,7 +613,12 @@ mod tests {
 
             assert_eq!(props.len(), 64);
             assert_eq!(props[..2], ["BootDevice", "BuildNumber"]);
-            assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"])
+            assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"]);
+
+            let result = serde_json::to_string_pretty(&w);
+
+            assert!(result.is_ok());
+            assert!(result.unwrap().len() > 2)
         }
     }
 
@@ -618,6 +713,20 @@ mod tests {
     }
 
     #[test]
+    fn it_builds_correct_notification_query_without_filters() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_ProcessStartTrace {
+            #[allow(dead_code)]
+            Caption: String,
+        }
+
+        let query = build_notification_query::<Win32_ProcessStartTrace>(None, None).unwrap();
+        let select_part = r#"SELECT * FROM Win32_ProcessStartTrace "#.to_owned();
+
+        assert_eq!(query, select_part);
+    }
+
+    #[test]
     fn it_builds_correct_query() {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
@@ -627,20 +736,51 @@ mod tests {
 
         let mut filters = HashMap::new();
 
-        filters.insert("C1".to_string(), FilterValue::Str("a"));
-        filters.insert("C2".to_string(), FilterValue::String("b".to_string()));
-        filters.insert("C3".to_string(), FilterValue::Number(42));
-        filters.insert("C4".to_string(), FilterValue::Bool(false));
+        filters.insert("C1".to_owned(), FilterValue::Str("a"));
+        filters.insert("C2".to_owned(), FilterValue::String("b".to_owned()));
+        filters.insert("C3".to_owned(), FilterValue::Number(42));
+        filters.insert("C4".to_owned(), FilterValue::Bool(false));
         filters.insert(
-            "C5".to_string(),
-            FilterValue::String(r#"with " and \ chars"#.to_string()),
+            "C5".to_owned(),
+            FilterValue::String(r#"with " and \ chars"#.to_owned()),
         );
+        filters.insert("C6".to_owned(), FilterValue::IsA("Class"));
+        filters.insert("C7".to_owned(), FilterValue::is_a::<Win32_OperatingSystem>().unwrap());
 
         let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
-        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars""#;
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_OperatingSystem""#;
 
         assert_eq!(query, select_part + where_part);
+    }
+
+    #[test]
+    fn it_builds_correct_notification_query() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_ProcessStartTrace {
+            #[allow(dead_code)]
+            Caption: String,
+        }
+
+        let mut filters = HashMap::new();
+
+        filters.insert("C1".to_owned(), FilterValue::Str("a"));
+        filters.insert("C2".to_owned(), FilterValue::String("b".to_owned()));
+        filters.insert("C3".to_owned(), FilterValue::Number(42));
+        filters.insert("C4".to_owned(), FilterValue::Bool(false));
+        filters.insert(
+            "C5".to_owned(),
+            FilterValue::String(r#"with " and \ chars"#.to_owned()),
+        );
+        filters.insert("C6".to_owned(), FilterValue::IsA("Class"));
+        filters.insert("C7".to_owned(), FilterValue::is_a::<Win32_ProcessStartTrace>().unwrap());
+
+        let query = build_notification_query::<Win32_ProcessStartTrace>(Some(&filters), Some(Duration::from_secs_f64(10.5))).unwrap();
+        let select_part = r#"SELECT * FROM Win32_ProcessStartTrace "#.to_owned();
+        let within_part = r#"WITHIN 10.5 "#;
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_ProcessStartTrace""#;
+
+        assert_eq!(query, select_part + within_part + where_part);
     }
 
     #[test]

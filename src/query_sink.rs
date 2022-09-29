@@ -1,18 +1,17 @@
-use crate::WMIError;
-use crate::{result_enumerator::IWbemClassWrapper, WMIResult};
-use futures::Stream;
-use log::trace;
-use std::collections::VecDeque;
-use std::task::{Poll, Waker};
+use crate::{result_enumerator::IWbemClassWrapper, WMIResult, WMIError};
 use std::{
-    ptr::NonNull,
+    task::{Poll, Waker},
     sync::{Arc, Mutex},
+    collections::VecDeque,
+    ptr::NonNull,
 };
 use winapi::{
     ctypes::c_long,
     shared::{ntdef::HRESULT, winerror::E_POINTER, wtypes::BSTR},
     um::wbemcli::{IWbemClassObject, WBEM_STATUS_COMPLETE, WBEM_S_NO_ERROR},
 };
+use futures::Stream;
+use log::trace;
 
 com::interfaces! {
     #[uuid("7C857801-7381-11CF-884D-00AA004B2E24")]
@@ -102,7 +101,7 @@ impl Stream for AsyncQueryResultStream {
         if !inner
             .waker
             .as_ref()
-            .map(|current_waker| waker.will_wake(&current_waker))
+            .map(|current_waker| waker.will_wake(current_waker))
             .unwrap_or(false)
         {
             inner.waker.replace(waker.clone());
@@ -162,7 +161,7 @@ com::class! {
             // For error codes, see https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
             self.stream
                 .extend((0..lObjectCount).map(|i| {
-                if let Some(p_el) = NonNull::new(*apObjArray.offset(i as isize)) {
+                if let Some(p_el) = NonNull::new(*apObjArray.add(i)) {
                     let wbemClassObject = unsafe {
                         IWbemClassWrapper::clone(p_el)
                     };

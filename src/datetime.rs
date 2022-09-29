@@ -1,8 +1,7 @@
-use super::WMIError;
+use crate::WMIError;
+use std::{str::FromStr, fmt};
 use chrono::prelude::*;
 use serde::{de, ser};
-use std::fmt;
-use std::str::FromStr;
 
 /// A wrapper type around `chrono`'s `DateTime` (if the `chrono` feature is active. ), which supports parsing from WMI-format strings.
 #[derive(Debug)]

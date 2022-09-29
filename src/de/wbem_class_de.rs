@@ -1,45 +1,39 @@
-use serde::de::{
-    self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, Unexpected,
-    VariantAccess, Visitor,
+use crate::{result_enumerator::IWbemClassWrapper, WMIError, WMIResult};
+use serde::{
+    de::{self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, Unexpected, VariantAccess, Visitor},
+    forward_to_deserialize_any,
 };
-use serde::forward_to_deserialize_any;
-
 use std::iter::Peekable;
 
-use crate::result_enumerator::IWbemClassWrapper;
-use crate::WMIError;
-
-pub struct Deserializer<'a> {
-    pub wbem_class_obj: &'a IWbemClassWrapper,
+pub struct Deserializer {
+    pub wbem_class_obj: IWbemClassWrapper,
 }
 
-impl<'a> Deserializer<'a> {
-    pub fn from_wbem_class_obj(wbem_class_obj: &'a IWbemClassWrapper) -> Self {
+impl Deserializer {
+    pub fn from_wbem_class_obj(wbem_class_obj: IWbemClassWrapper) -> Self {
         Deserializer { wbem_class_obj }
     }
 }
 
-pub fn from_wbem_class_obj<T>(wbem_class_obj: &IWbemClassWrapper) -> Result<T, WMIError>
+pub fn from_wbem_class_obj<T>(wbem_class_obj: IWbemClassWrapper) -> WMIResult<T>
 where
     T: DeserializeOwned,
 {
     let mut deserializer = Deserializer::from_wbem_class_obj(wbem_class_obj);
-    let t = T::deserialize(&mut deserializer)?;
-
-    Ok(t)
+    T::deserialize(&mut deserializer)
 }
 
-struct WMIEnum<'a, 'de: 'a> {
-    de: &'a mut Deserializer<'de>,
+struct WMIEnum<'a> {
+    de: &'a mut Deserializer,
 }
 
-impl<'a, 'de> WMIEnum<'a, 'de> {
-    pub fn new(de: &'a mut Deserializer<'de>) -> Self {
+impl<'a> WMIEnum<'a> {
+    pub fn new(de: &'a mut Deserializer) -> Self {
         Self { de }
     }
 }
 
-impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a, 'de> {
+impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a> {
     type Error = WMIError;
     type Variant = Self;
 
@@ -52,7 +46,7 @@ impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a, 'de> {
     }
 }
 
-impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
+impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a> {
     type Error = WMIError;
 
     // Newtype variants can be deserialized directly.
@@ -90,21 +84,21 @@ impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a, 'de> {
     }
 }
 
-struct WMIMapAccess<'a, 'de, S, I>
+struct WMIMapAccess<'a, S, I>
 where
     S: AsRef<str>,
     I: Iterator<Item = S>,
 {
     fields: Peekable<I>,
-    de: &'a Deserializer<'de>,
+    de: &'a Deserializer,
 }
 
-impl<'a, 'de, S, I> WMIMapAccess<'a, 'de, S, I>
+impl<'a, S, I> WMIMapAccess<'a, S, I>
 where
     S: AsRef<str>,
     I: Iterator<Item = S>,
 {
-    pub fn new(fields: I, de: &'a Deserializer<'de>) -> Self {
+    pub fn new(fields: I, de: &'a Deserializer) -> Self {
         Self {
             fields: fields.peekable(),
             de,
@@ -112,7 +106,7 @@ where
     }
 }
 
-impl<'de, 'a, S, I> MapAccess<'de> for WMIMapAccess<'a, 'de, S, I>
+impl<'de, 'a, S, I> MapAccess<'de> for WMIMapAccess<'a, S, I>
 where
     S: AsRef<str>,
     I: Iterator<Item = S>,
@@ -149,7 +143,7 @@ where
     }
 }
 
-impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
+impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer {
     type Error = WMIError;
 
     fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -162,7 +156,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     fn deserialize_enum<V>(
-        mut self,
+        self,
         _name: &'static str,
         _variants: &'static [&'static str],
         visitor: V,
@@ -170,7 +164,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_enum(WMIEnum::new(&mut self))
+        visitor.visit_enum(WMIEnum::new(self))
     }
 
     // When deserializing enums, return the object's class name as the expected enum variant.
@@ -200,7 +194,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     {
         let fields = self.wbem_class_obj.list_properties()?;
 
-        visitor.visit_map(WMIMapAccess::new(fields.iter(), &self))
+        visitor.visit_map(WMIMapAccess::new(fields.iter(), self))
     }
 
     fn deserialize_struct<V>(
@@ -212,7 +206,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_map(WMIMapAccess::new(fields.iter(), &self))
+        visitor.visit_map(WMIMapAccess::new(fields.iter(), self))
     }
 
     forward_to_deserialize_any! {
@@ -266,7 +260,7 @@ mod tests {
         for res in enumerator {
             let w = res.unwrap();
 
-            let w: Win32_OperatingSystem = from_wbem_class_obj(&w).unwrap();
+            let w: Win32_OperatingSystem = from_wbem_class_obj(w).unwrap();
 
             assert!(w.Caption.contains("Microsoft "));
             assert!(w.Name.contains("Microsoft ") && w.Name.contains("Partition"));
@@ -291,7 +285,7 @@ mod tests {
         for res in enumerator {
             let w = res.unwrap();
 
-            let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
+            let w: HashMap<String, Variant> = from_wbem_class_obj(w).unwrap();
 
             match w.get("Caption").unwrap() {
                 Variant::String(s) => assert!(s.starts_with("Microsoft Windows")),
@@ -300,12 +294,12 @@ mod tests {
 
             assert_eq!(*w.get("Debug").unwrap(), Variant::Bool(false));
 
+            let system_lang = sys_locale::get_locale().unwrap();
+
             let langs = w.get("MUILanguages").unwrap();
 
             match langs {
-                Variant::Array(langs) => {
-                    assert!(langs.contains(&Variant::String("en-US".into())));
-                }
+                Variant::Array(langs) => assert!(langs.contains(&Variant::String(system_lang))),
                 _ => assert!(false),
             }
         }
@@ -322,7 +316,7 @@ mod tests {
         for res in enumerator {
             let w = res.unwrap();
 
-            let w: HashMap<String, Variant> = from_wbem_class_obj(&w).unwrap();
+            let w: HashMap<String, Variant> = from_wbem_class_obj(w).unwrap();
 
             match w.get("Caption").unwrap() {
                 Variant::String(s) => assert!(s.starts_with("Microsoft Windows")),

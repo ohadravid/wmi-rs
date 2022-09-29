@@ -1,12 +1,13 @@
-use super::WMIError;
-use serde::{de, ser};
-use std::fmt;
-use std::str::FromStr;
-
+use crate::WMIError;
 use time::{
-    format_description::FormatItem, macros::format_description, parsing::Parsed, PrimitiveDateTime,
+    format_description::FormatItem,
+    parsing::Parsed,
+    macros::format_description,
+    PrimitiveDateTime,
     UtcOffset,
 };
+use std::{str::FromStr, fmt};
+use serde::{de, ser};
 
 /// A wrapper type around `time`'s `OffsetDateTime` (if the
 // `time` feature is active), which supports parsing from WMI-format strings.

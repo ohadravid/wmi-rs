@@ -1,43 +1,47 @@
-use crate::de::wbem_class_de::from_wbem_class_obj;
 use crate::{
-    connection::WMIConnection, safearray::safe_array_to_vec_of_strings, utils::check_hres, BStr,
-    Variant, WMIError,
+    connection::WMIConnection,
+    de::wbem_class_de::from_wbem_class_obj,
+    safearray::safe_array_to_vec_of_strings,
+    utils::check_hres,
+    WMIResult,
+    WMIError,
+    Variant,
+    BStr,
 };
-use log::trace;
-use serde::de;
-use std::convert::TryInto;
-use std::{mem, ptr, ptr::NonNull};
-use winapi::um::oaidl::VARIANT;
-use winapi::um::oleauto::VariantClear;
 use winapi::{
     shared::ntdef::NULL,
     um::{
-        oaidl::SAFEARRAY,
-        oleauto::SafeArrayDestroy,
-        wbemcli::{
-            IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY,
-            WBEM_INFINITE,
-        },
+        oaidl::{SAFEARRAY, VARIANT},
+        wbemcli::{IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE},
+        oleauto::{SafeArrayDestroy, VariantClear},
     },
 };
+use std::{
+    ptr::{self, NonNull},
+    convert::TryInto,
+    mem,
+};
+use serde::{ser::{Error, SerializeMap}, de, Serialize};
+use log::trace;
 
 /// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
 /// the object when dropped.
 ///
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct IWbemClassWrapper {
     pub inner: NonNull<IWbemClassObject>,
 }
 
 impl IWbemClassWrapper {
     pub unsafe fn new(ptr: NonNull<IWbemClassObject>) -> Self {
-        Self { inner: ptr }
+        Self { inner: ptr, }
     }
 
     /// Creates a copy of the pointer and calls
     /// [AddRef](https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref)
     /// to increment Reference Count.
     ///
+    /// # Safety
     /// See [Managing the lifetime of an object](https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object)
     /// and [Rules for managing Ref count](https://docs.microsoft.com/en-us/windows/win32/com/rules-for-managing-reference-counts)
     ///
@@ -49,7 +53,7 @@ impl IWbemClassWrapper {
 
     /// Return the names of all the properties of the given object.
     ///
-    pub fn list_properties(&self) -> Result<Vec<String>, WMIError> {
+    pub fn list_properties(&self) -> WMIResult<Vec<String>> {
         // This will store the properties names from the GetNames call.
         let mut p_names = NULL as *mut SAFEARRAY;
 
@@ -71,7 +75,7 @@ impl IWbemClassWrapper {
         }
     }
 
-    pub fn get_property(&self, property_name: &str) -> Result<Variant, WMIError> {
+    pub fn get_property(&self, property_name: &str) -> WMIResult<Variant> {
         let name_prop = BStr::from_str(property_name)?;
 
         let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
@@ -96,29 +100,49 @@ impl IWbemClassWrapper {
         }
     }
 
-    pub fn path(&self) -> Result<String, WMIError> {
+    pub fn path(&self) -> WMIResult<String> {
         self.get_property("__Path").and_then(Variant::try_into)
     }
 
-    pub fn class(&self) -> Result<String, WMIError> {
+    pub fn class(&self) -> WMIResult<String> {
         self.get_property("__Class").and_then(Variant::try_into)
     }
 
-    pub fn into_desr<T>(self) -> Result<T, WMIError>
+    pub fn into_desr<T>(self) -> WMIResult<T>
     where
         T: de::DeserializeOwned,
     {
-        from_wbem_class_obj(&self).map_err(WMIError::from)
+        from_wbem_class_obj(self).map_err(WMIError::from)
+    }
+}
+
+impl Clone for IWbemClassWrapper {
+    fn clone(&self) -> Self {
+        unsafe { Self::clone(self.inner) }
     }
 }
 
 impl Drop for IWbemClassWrapper {
     fn drop(&mut self) {
         let ptr = self.inner.as_ptr();
-
         unsafe {
             (*ptr).Release();
         }
+    }
+}
+
+impl Serialize for IWbemClassWrapper {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        let properties = self.list_properties().map_err(Error::custom)?;
+        let mut s = serializer.serialize_map(Some(properties.len()))?;
+        for property in properties.iter() {
+            let value = self.get_property(property).unwrap();
+            s.serialize_entry(property, &value)?;
+        }
+        s.end()
     }
 }
 
@@ -147,7 +171,7 @@ impl<'a> Drop for QueryResultEnumerator<'a> {
 }
 
 impl<'a> Iterator for QueryResultEnumerator<'a> {
-    type Item = Result<IWbemClassWrapper, WMIError>;
+    type Item = WMIResult<IWbemClassWrapper>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut pcls_obj = NULL as *mut IWbemClassObject;

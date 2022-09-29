@@ -1,8 +1,8 @@
-use crate::COMLibrary;
-use crate::WMIConnection;
+use crate::{COMLibrary, WMIConnection, WMIResult, WMIError};
 
 pub mod fixtures {
     use super::*;
+
     // This way we only setup COM security once per thread during tests.
     thread_local! {
         static COM_LIB: COMLibrary = COMLibrary::without_security().unwrap();
@@ -15,4 +15,23 @@ pub mod fixtures {
 
         wmi_con
     }
+}
+
+pub fn start_test_program() {
+    std::process::Command::new("C:\\Windows\\System32\\cmd.exe")
+        .args(["timeout", "1"])
+        .spawn()
+        .expect("failed to run test program");
+}
+
+pub fn ignore_access_denied(result: WMIResult<()>) -> WMIResult<()> {
+    use winapi::{shared::ntdef::HRESULT, um::wbemcli::WBEM_E_ACCESS_DENIED};
+    if let Err(e) = result {
+        if let WMIError::HResultError { hres } = e {
+            if hres != WBEM_E_ACCESS_DENIED as HRESULT {
+                return Err(e);
+            }
+        }
+    }
+    Ok(())
 }

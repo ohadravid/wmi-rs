@@ -12,10 +12,10 @@
 //! Before using WMI, a connection must be created.
 //!
 //! ```rust
-//! # fn main() -> Result<(), wmi::WMIError> {
+//! # fn main() -> wmi::WMIResult<()> {
 //! use wmi::{COMLibrary, WMIConnection};
 //! let com_con = COMLibrary::new()?;
-//! let wmi_con = WMIConnection::new(com_con.into())?;
+//! let wmi_con = WMIConnection::new(com_con)?;
 //! #   Ok(())
 //! # }
 //! ```
@@ -32,9 +32,9 @@
 //! Using this enum, we can execute a simple WMI query and inspect the results.
 //!
 //! ```edition2018
-//! # fn main() -> Result<(), wmi::WMIError> {
+//! # fn main() -> wmi::WMIResult<()> {
 //! use wmi::*;
-//! let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
+//! let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
 //! use std::collections::HashMap;
 //! use wmi::Variant;
 //! let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem").unwrap();
@@ -51,9 +51,9 @@
 //! Using `serde`, it is possible to return a struct representing the the data.
 //!
 //! ```edition2018
-//! # fn main() -> Result<(), wmi::WMIError> {
+//! # fn main() -> wmi::WMIResult<()> {
 //! # use wmi::*;
-//! # let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
+//! # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
 //! use serde::Deserialize;
 //! # #[cfg(feature = "chrono")]
 //! use wmi::WMIDateTime;
@@ -86,6 +86,114 @@
 //! [`VARIANT`]: https://docs.microsoft.com/en-us/windows/desktop/api/oaidl/ns-oaidl-tagvariant
 //! [WMI class]: https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-operatingsystem
 //!
+//! # Subscribing to event notifications
+//!
+//! Using this crate you can subscribe to events notifications generated upon changes in WMI data and services.
+//!
+//! When querying for events, it is important to remember there are two types of event notifications. \
+//! The first one is notifications about changes to the standard WMI data models. They are called **intrinsic events**. \
+//! Events like [`__InstanceCreationEvent`] or [`__NamespaceDeletionEvent`] are examples of such events.
+//!
+//! The second type is notifications about changes made by providers. They are called **extrinsic events**.  \
+//! Any WMI class deriving from the [`__ExtrinsicEvent`] class is an extrinsic event. \
+//! An example of such events are [`Win32_ProcessStartTrace`] and [`Win32_VolumeChangeEvent`] classes.
+//!
+//! For more information about event queries, [see here](https://docs.microsoft.com/en-us/windows/win32/wmisdk/receiving-a-wmi-event#event-queries).\
+//! You can use [WMI Code Creator] to see available events and create queries for them.
+//!
+//! The [`notification`] method returns an iterator that waits for any incoming events
+//! resulting from the provided query. Loops reading from this iterator will not end until they are broken.
+//!
+//! An example of subscribing to an intrinsic event notification for every new [`Win32_Process`]
+//! ```edition2018
+//! # use wmi::*;
+//! # #[cfg(not(feature = "test"))]
+//! # fn main() {}
+//! # #[cfg(feature = "test")]
+//! # fn main() -> WMIResult<()>{
+//! # use serde::Deserialize;
+//! # use std::{collections::HashMap, time::Duration};
+//! # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+//! #[derive(Deserialize, Debug)]
+//! #[serde(rename = "__InstanceCreationEvent")]
+//! #[serde(rename_all = "PascalCase")]
+//! struct NewProcessEvent {
+//!     target_instance: Process
+//! }
+//!
+//! #[derive(Deserialize, Debug)]
+//! #[serde(rename = "Win32_Process")]
+//! #[serde(rename_all = "PascalCase")]
+//! struct Process {
+//!     process_id: u32,
+//!     name: String,
+//!     executable_path: Option<String>,
+//! }
+//!
+//! let mut filters = HashMap::<String, FilterValue>::new();
+//!
+//! filters.insert("TargetInstance".to_owned(), FilterValue::is_a::<Process>()?);
+//!
+//! let iterator = wmi_con.filtered_notification::<NewProcessEvent>(&filters, Some(Duration::from_secs(1)))?;
+//! # tests::start_test_program();
+//!
+//! for result in iterator {
+//!     let process = result?.target_instance;
+//!     println!("New process!");
+//!     println!("PID:        {}", process.process_id);
+//!     println!("Name:       {}", process.name);
+//!     println!("Executable: {:?}", process.executable_path);
+//! #     break;
+//! } // Loop will end only on error
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! An example of subscribing to an extrinsic event notification [`Win32_ProcessStartTrace`]
+//! ```edition2018
+//! # use wmi::*;
+//! # #[cfg(not(feature = "test"))]
+//! # fn main() {}
+//! # #[cfg(feature = "test")]
+//! # fn main() -> WMIResult<()> {
+//! # tests::ignore_access_denied(run())
+//! # }
+//! # #[cfg(feature = "test")]
+//! # fn run() -> WMIResult<()>{
+//! # use serde::Deserialize;
+//! # use std::{collections::HashMap, time::Duration};
+//! # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+//! #[derive(Deserialize, Debug)]
+//! #[serde(rename = "Win32_ProcessStartTrace")]
+//! #[serde(rename_all = "PascalCase")]
+//! struct ProcessStartTrace {
+//!     process_id: u32,
+//!     process_name: String,
+//! }
+//!
+//! let iterator = wmi_con.notification::<ProcessStartTrace>()?;
+//! # tests::start_test_program();
+//!
+//! for result in iterator {
+//!     let trace = result?;
+//!     println!("Process started!");
+//!     println!("PID:  {}", trace.process_id);
+//!     println!("Name: {}", trace.process_name);
+//! #    break;
+//! } // Loop will end only on error
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! [`Win32_Process`]: https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-process
+//! [`__InstanceCreationEvent`]: https://docs.microsoft.com/en-us/windows/win32/wmisdk/--instancecreationevent
+//! [`__NamespaceDeletionEvent`]: https://docs.microsoft.com/en-us/windows/win32/wmisdk/--namespacedeletionevent
+//! [`__ExtrinsicEvent`]: https://docs.microsoft.com/en-us/windows/win32/wmisdk/--extrinsicevent
+//! [`Win32_ProcessStartTrace`]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/krnlprov/win32-processstarttrace
+//! [`Win32_VolumeChangeEvent`]: https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-volumechangeevent
+//! [WMI Code Creator]: https://www.microsoft.com/en-us/download/details.aspx?id=8572
+//! [`notification`]: connection/struct.WMIConnection.html#method.notification
+//!
 //! # Internals
 //!
 //! [`WMIConnection`](WMIConnection) is used to create and execute a WMI query, returning
@@ -112,10 +220,10 @@
 //! ```edition2018
 //! # use futures::executor::block_on;
 //! # block_on(exec_async_query()).unwrap();
-//! # async fn exec_async_query() -> Result<(), wmi::WMIError> {
+//! # async fn exec_async_query() -> wmi::WMIResult<()> {
 //! use wmi::*;
 //! use futures::StreamExt;
-//! let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
+//! let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
 //! let results = wmi_con
 //!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")?
 //!     .collect::<Vec<_>>().await;
@@ -127,9 +235,9 @@
 //! ```edition2018
 //! # use futures::executor::block_on;
 //! # block_on(exec_async_query()).unwrap();
-//! # async fn exec_async_query() -> Result<(), wmi::WMIError> {
+//! # async fn exec_async_query() -> wmi::WMIResult<()> {
 //! use wmi::*;
-//! let wmi_con = WMIConnection::new(COMLibrary::new()?.into())?;
+//! let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
 //! use serde::Deserialize;
 //!
 //! #[derive(Deserialize, Debug)]
@@ -177,6 +285,8 @@ pub mod async_query;
 // Keep QuerySink implementation private
 pub(crate) mod query_sink;
 
+pub mod notification;
+
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
 
@@ -190,7 +300,7 @@ pub use datetime::WMIDateTime;
 pub use datetime_time::WMIOffsetDateTime;
 
 pub use duration::WMIDuration;
-pub use query::{build_query, FilterValue};
+pub use query::{FilterValue, build_query, build_notification_query};
 pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 

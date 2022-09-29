@@ -1,11 +1,13 @@
-use serde::{de, ser};
-use std::fmt::{Debug, Display};
-use thiserror::Error;
 use winapi::shared::{ntdef::HRESULT, wtypes::VARTYPE};
+use std::fmt::{Debug, Display};
+use serde::{de, ser};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum WMIError {
+    /// You can find a useful resource for decoding error codes [here](https://docs.microsoft.com/en-us/windows/win32/wmisdk/wmi-error-constants)
+    /// (or a github version [here](https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/WmiSdk/wmi-error-constants.md))
     #[error("HRESULT Call failed with: {hres:#X}")]
     HResultError { hres: HRESULT },
     #[error(transparent)]
@@ -48,6 +50,8 @@ pub enum WMIError {
     NullPointerResult,
     #[error("Unimplemeted array item in query")]
     UnimplementedArrayItem,
+    #[error("Invalid variant {0} during deserialization")]
+    InvalidDeserializationVariantError(String),
 }
 
 impl de::Error for WMIError {
@@ -64,11 +68,10 @@ impl ser::Error for WMIError {
     }
 }
 
-pub fn check_hres(hres: HRESULT) -> Result<(), WMIError> {
+pub fn check_hres(hres: HRESULT) -> WMIResult<()> {
     if hres < 0 {
         return Err(WMIError::HResultError { hres });
     }
-
     Ok(())
 }
 
