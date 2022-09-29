@@ -130,7 +130,7 @@ impl WMIConnection {
     ///
     /// let mut filters = HashMap::new();
     ///
-    /// filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Win32_Process>()?);
+    /// filters.insert("TargetInstance".to_owned(), FilterValue::is_a::<Win32_Process>()?);
     ///
     /// let iterator = con.filtered_notification::<__InstanceCreationEvent>(&filters, Some(Duration::from_secs(1)))?;
 
@@ -279,7 +279,7 @@ impl WMIConnection {
     ///
     /// let mut filters = HashMap::new();
     ///
-    /// filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Win32_Process>()?);
+    /// filters.insert("TargetInstance".to_owned(), FilterValue::is_a::<Win32_Process>()?);
     ///
     /// let mut stream = con.async_filtered_notification::<__InstanceCreationEvent>(&filters, Some(Duration::from_secs(1)))?;
     ///
@@ -309,7 +309,7 @@ mod tests {
 
     pub fn notification_filters() -> HashMap<String, FilterValue> {
         let mut map = HashMap::<String, FilterValue>::new();
-        map.insert("TargetInstance".to_owned(), FilterValue::IsA::<LocalTime>().unwrap());
+        map.insert("TargetInstance".to_owned(), FilterValue::is_a::<LocalTime>().unwrap());
         map
     }
 

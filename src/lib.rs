@@ -132,7 +132,7 @@
 //!
 //! let mut filters = HashMap::<String, FilterValue>::new();
 //!
-//! filters.insert("TargetInstance".to_owned(), FilterValue::IsA::<Process>()?);
+//! filters.insert("TargetInstance".to_owned(), FilterValue::is_a::<Process>()?);
 //!
 //! let iterator = wmi_con.filtered_notification::<NewProcessEvent>(&filters, Some(Duration::from_secs(1)))?;
 //! # tests::start_test_program();

@@ -26,7 +26,7 @@ pub enum FilterValue {
     Number(i64),
     Str(&'static str),
     String(String),
-    Is_A(&'static str),
+    IsA(&'static str),
 }
 
 impl From<String> for FilterValue {
@@ -54,12 +54,28 @@ impl From<bool> for FilterValue {
 }
 
 impl FilterValue {
-    pub fn IsA<'de, T>() -> WMIResult<Self>
+    /// Create a [FilterValue::IsA] varinat form a given type
+    ///
+    /// ```edition2018
+    /// # use std::collections::HashMap;
+    /// # use wmi::FilterValue;
+    /// # use serde::Deserialize;
+    /// # fn main() -> wmi::WMIResult<()> {
+    /// #[derive(Deserialize)]
+    /// struct Win32_OperatingSystem {}
+    ///
+    /// let mut filters = HashMap::<String, FilterValue>::new();
+    /// filters.insert("TargetInstance".to_owned(), FilterValue::is_a::<Win32_OperatingSystem>()?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    pub fn is_a<'de, T>() -> WMIResult<Self>
     where
         T: serde::Deserialize<'de>,
     {
         let (name, _) = struct_name_and_fields::<T>()?;
-        Ok(Self::Is_A(name))
+        Ok(Self::IsA(name))
     }
 }
 
@@ -179,7 +195,7 @@ where
                         FilterValue::Number(n) => format!("{}", n),
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
                         FilterValue::String(s) => quote_and_escape_wql_str(&s),
-                        FilterValue::Is_A(s) => {
+                        FilterValue::IsA(s) => {
                             conditions.push(format!("{} ISA {}", field, quote_and_escape_wql_str(s)));
                             continue;
                         },
@@ -728,8 +744,8 @@ mod tests {
             "C5".to_owned(),
             FilterValue::String(r#"with " and \ chars"#.to_owned()),
         );
-        filters.insert("C6".to_owned(), FilterValue::Is_A("Class"));
-        filters.insert("C7".to_owned(), FilterValue::IsA::<Win32_OperatingSystem>().unwrap());
+        filters.insert("C6".to_owned(), FilterValue::IsA("Class"));
+        filters.insert("C7".to_owned(), FilterValue::is_a::<Win32_OperatingSystem>().unwrap());
 
         let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
@@ -756,8 +772,8 @@ mod tests {
             "C5".to_owned(),
             FilterValue::String(r#"with " and \ chars"#.to_owned()),
         );
-        filters.insert("C6".to_owned(), FilterValue::Is_A("Class"));
-        filters.insert("C7".to_owned(), FilterValue::IsA::<Win32_ProcessStartTrace>().unwrap());
+        filters.insert("C6".to_owned(), FilterValue::IsA("Class"));
+        filters.insert("C7".to_owned(), FilterValue::is_a::<Win32_ProcessStartTrace>().unwrap());
 
         let query = build_notification_query::<Win32_ProcessStartTrace>(Some(&filters), Some(Duration::from_secs_f64(10.5))).unwrap();
         let select_part = r#"SELECT * FROM Win32_ProcessStartTrace "#.to_owned();
