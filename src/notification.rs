@@ -301,9 +301,11 @@ mod tests {
     use crate::{tests::fixtures::*, FilterValue, WMIError};
     use winapi::{shared::ntdef::HRESULT, um::wbemcli::WBEM_E_UNPARSABLE_QUERY};
     use std::{collections::HashMap, time::Duration};
-    use chrono::Datelike;
     use serde::Deserialize;
     use futures::StreamExt;
+
+    #[cfg(feature = "chrono")]
+    use chrono::Datelike;
 
     const TEST_QUERY: &str = "SELECT * FROM __InstanceModificationEvent WHERE TargetInstance ISA 'Win32_LocalTime'";
 
