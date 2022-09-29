@@ -373,6 +373,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "chrono")]
     fn it_can_run_raw_notification() {
         let wmi_con = wmi_con();
 
@@ -386,6 +387,21 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "time")]
+    fn it_can_run_raw_notification() {
+        let wmi_con = wmi_con();
+
+        let mut iterator = wmi_con.raw_notification::<InstanceModification>(TEST_QUERY).unwrap();
+
+        let local_time = iterator.next().unwrap();
+        assert!(local_time.is_ok());
+
+        let local_time = local_time.unwrap().target_instance;
+        assert_eq!(local_time.year as i32, time::OffsetDateTime::now_utc().year());
+    }
+
+    #[test]
+    #[cfg(feature = "chrono")]
     fn it_can_run_filtered_notification() {
         let wmi_con = wmi_con();
 
@@ -396,6 +412,20 @@ mod tests {
 
         let local_time = local_time.unwrap().target_instance;
         assert_eq!(local_time.year as i32, chrono::Local::now().year());
+    }
+
+    #[test]
+    #[cfg(feature = "time")]
+    fn it_can_run_filtered_notification() {
+        let wmi_con = wmi_con();
+
+        let mut iterator = wmi_con.filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1))).unwrap();
+
+        let local_time = iterator.next().unwrap();
+        assert!(local_time.is_ok());
+
+        let local_time = local_time.unwrap().target_instance;
+        assert_eq!(local_time.year as i32, time::OffsetDateTime::now_utc().year());
     }
 
     #[async_std::test]
@@ -439,6 +469,7 @@ mod tests {
     }
 
     #[async_std::test]
+    #[cfg(feature = "chrono")]
     async fn async_it_provides_raw_notification_result() {
         let wmi_con = wmi_con();
 
@@ -453,6 +484,22 @@ mod tests {
     }
 
     #[async_std::test]
+    #[cfg(feature = "time")]
+    async fn async_it_provides_raw_notification_result() {
+        let wmi_con = wmi_con();
+
+        let result = wmi_con.async_raw_notification::<InstanceModification>(TEST_QUERY)
+            .unwrap()
+            .next()
+            .await
+            .unwrap();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().target_instance.year as i32, time::OffsetDateTime::now_utc().year())
+    }
+
+    #[async_std::test]
+    #[cfg(feature = "chrono")]
     async fn async_it_provides_filtered_notification_result() {
         let wmi_con = wmi_con();
 
@@ -464,5 +511,20 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap().target_instance.year as i32, chrono::Local::now().year())
+    }
+
+    #[async_std::test]
+    #[cfg(feature = "time")]
+    async fn async_it_provides_filtered_notification_result() {
+        let wmi_con = wmi_con();
+
+        let result = wmi_con.async_filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1)))
+            .unwrap()
+            .next()
+            .await
+            .unwrap();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().target_instance.year as i32, time::OffsetDateTime::now_utc().year())
     }
 }
