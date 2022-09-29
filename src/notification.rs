@@ -388,7 +388,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "time")]
-    fn it_can_run_raw_notification() {
+    fn it_can_run_raw_notification_on_time_crate() {
         let wmi_con = wmi_con();
 
         let mut iterator = wmi_con.raw_notification::<InstanceModification>(TEST_QUERY).unwrap();
@@ -416,7 +416,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "time")]
-    fn it_can_run_filtered_notification() {
+    fn it_can_run_filtered_notification_on_time_crate() {
         let wmi_con = wmi_con();
 
         let mut iterator = wmi_con.filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1))).unwrap();
@@ -485,7 +485,7 @@ mod tests {
 
     #[async_std::test]
     #[cfg(feature = "time")]
-    async fn async_it_provides_raw_notification_result() {
+    async fn async_it_provides_raw_notification_result_on_time_crate() {
         let wmi_con = wmi_con();
 
         let result = wmi_con.async_raw_notification::<InstanceModification>(TEST_QUERY)
@@ -515,7 +515,7 @@ mod tests {
 
     #[async_std::test]
     #[cfg(feature = "time")]
-    async fn async_it_provides_filtered_notification_result() {
+    async fn async_it_provides_filtered_notification_result_on_time_crate() {
         let wmi_con = wmi_con();
 
         let result = wmi_con.async_filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1)))
