@@ -4,48 +4,62 @@ on: [push, pull_request]
 
 jobs:
   test:
-    name: test
+    name: Run tests
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
-      - uses: actions-rs/toolchain@v1
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
 
       # Cargo build - Only chrono (default features)
-      - uses: actions-rs/cargo@v1
+      - name: Build - Default
+        uses: actions-rs/cargo@v1
         with:
           command: build
-
-      # Cargo build - Only time
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --no-default-features --features=time
 
       # Cargo build - No features
-      - uses: actions-rs/cargo@v1
+      - name: Build - No features
+        uses: actions-rs/cargo@v1
         with:
           command: build
           args: --no-default-features
 
+      # Cargo build - Only time
+      - name: Build - Only time feature
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --no-default-features --features=time
+
       # Cargo build - All features
-      - uses: actions-rs/cargo@v1
+      - name: Build - All features
+        uses: actions-rs/cargo@v1
         with:
           command: build
           args: --all-features
 
-      # Test time crate
-      - uses: actions-rs/cargo@v1
+      # Test on default features
+      - name: Test - All targets
+        uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-default-features --features=time
+          args: --all-targets
 
-      # Test chrono
-      - uses: actions-rs/cargo@v1
+      # Test time crate
+      - name: Test - Only tests with the Time crate
+        uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-default-features --features=chrono
+          args: --tests --no-default-features --features=time
+
+      # Test documentation with the 'test' feature
+      - name: Test - Only Documentation
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --doc --features=test

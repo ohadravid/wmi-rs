@@ -1,13 +1,13 @@
-use wmi::{COMLibrary, Variant, WMIConnection};
+use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
 use std::{collections::HashMap, env::args};
 
-fn main() {
-    let wmi_con = WMIConnection::new(COMLibrary::new().unwrap()).unwrap();
+fn main() -> WMIResult<()> {
+    let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
     let args: Vec<String> = args().collect();
     let query = match args.get(1) {
         None => {
             println!("Expected an argument with a WMI query");
-            return;
+            return Ok(());
         }
         Some(query) => query,
     };
@@ -15,7 +15,7 @@ fn main() {
     let results: Vec<HashMap<String, Variant>> = match wmi_con.raw_query(&query) {
         Err(e) => {
             println!("Couldn't run query {} because of {:?}", query, e);
-            return;
+            return Ok(());
         }
         Ok(results) => results,
     };
@@ -24,4 +24,6 @@ fn main() {
         println!("Result {}", i);
         println!("{:#?}", res);
     }
+
+    Ok(())
 }

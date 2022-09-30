@@ -7,17 +7,20 @@ on:
 
 jobs:
   create-release:
-    name: create-release
+    name: Release crate
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
-      - uses: actions-rs/toolchain@v1
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions-rs/cargo@v1
+
+      - name: Publish crate
+        uses: actions-rs/cargo@v1
         with:
           command: publish
           args: --token ${{ secrets.CRATES_IO_TOKEN }}
