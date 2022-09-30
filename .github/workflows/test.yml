@@ -59,7 +59,7 @@ jobs:
 
       # Test documentation with the 'test' feature
       - name: Test - Only Documentation
-        uses: action-rs/cargo@v1
+        uses: actions-rs/cargo@v1
         with:
           command: test
           args: --doc --features=test
