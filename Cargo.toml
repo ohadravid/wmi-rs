@@ -22,30 +22,27 @@ default-target = "x86_64-pc-windows-msvc"
 default = ["chrono"]
 # Use { default-features = false, features = ["time"] } to use `time` instead of `chrono`.
 
-test = ["lazy_static"]
-# Deprecated. async support is always enabled.
-async-query = []
+# For use in documentation tests
+test = []
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3.9", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi", "wtypes", "wtypesbase"] }
-log = "0.4"
-widestring = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-chrono = { version = "0.4", features = ["serde"], optional = true }
 time = { version = "0.3", features = ["formatting", "parsing", "macros", "serde"], optional = true }
-lazy_static = { version = "1.4.0", optional = true }
-thiserror = "^1"
-futures = { version = "0.3" }
+chrono = { version = "0.4", features = ["serde"], optional = true }
+serde = { version = "1.0", features = ["derive"] }
 com = { version = "0.6", features = ["production"] }
+futures = { version = "0.3" }
+widestring = "1.0"
+thiserror = "^1"
+log = "0.4"
 
 [dev-dependencies]
-lazy_static = "1.4.0"
-serde_json = { version = "1.0" }
-criterion = "0.4"
-tempdir = "0.3"
 async-std = { version = "1.10",  features = ["attributes"] }
 tokio = { version = "1.20.0", features = ["rt", "macros"] }
+serde_json = { version = "1.0" }
 sys-locale = "0.2.1"
+criterion = "0.4"
+tempdir = "0.3"
 
 [[bin]]
 name = "wmiq"
