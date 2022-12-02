@@ -942,7 +942,7 @@ mod tests {
             // We want to check that the output is in the format "Disk #1, Partition #1".
             // However, it is localised so we simply check if there are two or more '#'.
             // This means there are at least two sublevels in the hierarchy being enumerated.
-            assert!(part.Caption.chars().filter(|x| x == '#').count() >= 2);
+            assert!(part.Caption.chars().filter(|x| *x == '#').count() >= 2);
         }
     }
 
