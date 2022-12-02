@@ -1,25 +1,25 @@
 use crate::{
-    result_enumerator::{IWbemClassWrapper, QueryResultEnumerator},
-    de::wbem_class_de::from_wbem_class_obj,
-    de::meta::struct_name_and_fields,
-    utils::check_hres,
     connection::WMIConnection,
-    BStr,
-    WMIError, WMIResult,
+    de::meta::struct_name_and_fields,
+    de::wbem_class_de::from_wbem_class_obj,
+    result_enumerator::{IWbemClassWrapper, QueryResultEnumerator},
+    utils::check_hres,
+    BStr, WMIError, WMIResult,
 };
-use winapi::{
-    um::wbemcli::{
-        IWbemClassObject,
-        IEnumWbemClassObject,
-        WBEM_FLAG_FORWARD_ONLY,
-        WBEM_FLAG_RETURN_IMMEDIATELY,
-        WBEM_FLAG_RETURN_WBEM_COMPLETE,
-    },
-    shared::ntdef::NULL,
-};
-use std::{ptr::{self, NonNull}, collections::HashMap, time::Duration};
 use log::trace;
 use serde::de;
+use std::{
+    collections::HashMap,
+    ptr::{self, NonNull},
+    time::Duration,
+};
+use winapi::{
+    shared::ntdef::NULL,
+    um::wbemcli::{
+        IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_FORWARD_ONLY,
+        WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE,
+    },
+};
 
 pub enum FilterValue {
     Bool(bool),
@@ -148,7 +148,10 @@ where
 /// "SELECT * FROM Win32_ProcessStartTrace WITHIN 10 WHERE ProcessName = 'explorer.exe'";
 /// ```
 ///
-pub fn build_notification_query<'de, T>(filters: Option<&HashMap<String, FilterValue>>, within: Option<Duration>) -> WMIResult<String>
+pub fn build_notification_query<'de, T>(
+    filters: Option<&HashMap<String, FilterValue>>,
+    within: Option<Duration>,
+) -> WMIResult<String>
 where
     T: de::Deserialize<'de>,
 {
@@ -161,15 +164,15 @@ where
 
     let query_text = format!(
         "SELECT * FROM {} {}{}",
-        name,
-        optional_within_caluse,
-        optional_where_clause
+        name, optional_within_caluse, optional_where_clause
     );
 
     Ok(query_text)
 }
 
-fn get_query_segments<'de, T>(filters: Option<&HashMap<String, FilterValue>>) -> WMIResult<(&'static str, &'static [&'static str], String)>
+fn get_query_segments<'de, T>(
+    filters: Option<&HashMap<String, FilterValue>>,
+) -> WMIResult<(&'static str, &'static [&'static str], String)>
 where
     T: de::Deserialize<'de>,
 {
@@ -196,9 +199,13 @@ where
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
                         FilterValue::String(s) => quote_and_escape_wql_str(&s),
                         FilterValue::IsA(s) => {
-                            conditions.push(format!("{} ISA {}", field, quote_and_escape_wql_str(s)));
+                            conditions.push(format!(
+                                "{} ISA {}",
+                                field,
+                                quote_and_escape_wql_str(s)
+                            ));
                             continue;
-                        },
+                        }
                     };
 
                     conditions.push(format!("{} = {}", field, value));
@@ -350,10 +357,7 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn filtered_query<T>(
-        &self,
-        filters: &HashMap<String, FilterValue>,
-    ) -> WMIResult<Vec<T>>
+    pub fn filtered_query<T>(&self, filters: &HashMap<String, FilterValue>) -> WMIResult<Vec<T>>
     where
         T: de::DeserializeOwned,
     {
@@ -386,10 +390,7 @@ impl WMIConnection {
     {
         let results = self.query()?;
 
-        results
-            .into_iter()
-            .next()
-            .ok_or(WMIError::ResultEmpty)
+        results.into_iter().next().ok_or(WMIError::ResultEmpty)
     }
 
     /// Get a WMI object by path, and return a wrapper around a WMI pointer.
@@ -413,10 +414,7 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn get_raw_by_path(
-        &self,
-        object_path: impl AsRef<str>,
-    ) -> WMIResult<IWbemClassWrapper> {
+    pub fn get_raw_by_path(&self, object_path: impl AsRef<str>) -> WMIResult<IWbemClassWrapper> {
         let object_path = BStr::from_str(object_path.as_ref())?;
 
         let mut pcls_obj = NULL as *mut IWbemClassObject;
@@ -745,7 +743,10 @@ mod tests {
             FilterValue::String(r#"with " and \ chars"#.to_owned()),
         );
         filters.insert("C6".to_owned(), FilterValue::IsA("Class"));
-        filters.insert("C7".to_owned(), FilterValue::is_a::<Win32_OperatingSystem>().unwrap());
+        filters.insert(
+            "C7".to_owned(),
+            FilterValue::is_a::<Win32_OperatingSystem>().unwrap(),
+        );
 
         let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
@@ -773,9 +774,16 @@ mod tests {
             FilterValue::String(r#"with " and \ chars"#.to_owned()),
         );
         filters.insert("C6".to_owned(), FilterValue::IsA("Class"));
-        filters.insert("C7".to_owned(), FilterValue::is_a::<Win32_ProcessStartTrace>().unwrap());
+        filters.insert(
+            "C7".to_owned(),
+            FilterValue::is_a::<Win32_ProcessStartTrace>().unwrap(),
+        );
 
-        let query = build_notification_query::<Win32_ProcessStartTrace>(Some(&filters), Some(Duration::from_secs_f64(10.5))).unwrap();
+        let query = build_notification_query::<Win32_ProcessStartTrace>(
+            Some(&filters),
+            Some(Duration::from_secs_f64(10.5)),
+        )
+        .unwrap();
         let select_part = r#"SELECT * FROM Win32_ProcessStartTrace "#.to_owned();
         let within_part = r#"WITHIN 10.5 "#;
         let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_ProcessStartTrace""#;
@@ -931,7 +939,10 @@ mod tests {
         assert!(results.len() >= 1);
 
         for part in results {
-            assert!(part.Caption.contains("Partition #"));
+            // We want to check that the output is in the format "Disk #1, Partition #1".
+            // However, it is localised so we simply check if there are two or more '#'.
+            // This means there are at least two sublevels in the hierarchy being enumerated.
+            assert!(part.Caption.chars().filter(|x| *x == '#').count() >= 2);
         }
     }
 
