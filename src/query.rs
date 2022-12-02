@@ -939,12 +939,10 @@ mod tests {
         assert!(results.len() >= 1);
 
         for part in results {
-            assert!(
-                part.Caption
-                    .chars()
-                    .fold(0, |acc, x| if x == '#' { acc + 1 } else { acc })
-                    >= 2
-            );
+            // We want to check that the output is in the format "Disk #1, Partition #1".
+            // However, it is localised so we simply check if there are two or more '#'.
+            // This means there are at least two sublevels in the hierarchy being enumerated.
+            assert!(part.Caption.chars().filter(|x| x == '#').count() >= 2);
         }
     }
 
