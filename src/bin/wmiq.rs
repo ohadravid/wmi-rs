@@ -1,5 +1,5 @@
-use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
 use std::{collections::HashMap, env::args};
+use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
 
 fn main() -> WMIResult<()> {
     let wmi_con = WMIConnection::new(COMLibrary::new()?)?;

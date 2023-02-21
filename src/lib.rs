@@ -300,7 +300,7 @@ pub use datetime::WMIDateTime;
 pub use datetime_time::WMIOffsetDateTime;
 
 pub use duration::WMIDuration;
-pub use query::{FilterValue, build_query, build_notification_query};
+pub use query::{build_notification_query, build_query, FilterValue};
 pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 

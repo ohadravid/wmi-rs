@@ -1,17 +1,17 @@
-use crate::{result_enumerator::IWbemClassWrapper, WMIResult, WMIError};
+use crate::{result_enumerator::IWbemClassWrapper, WMIError, WMIResult};
+use futures::Stream;
+use log::trace;
 use std::{
-    task::{Poll, Waker},
-    sync::{Arc, Mutex},
     collections::VecDeque,
     ptr::NonNull,
+    sync::{Arc, Mutex},
+    task::{Poll, Waker},
 };
 use winapi::{
     ctypes::c_long,
     shared::{ntdef::HRESULT, winerror::E_POINTER, wtypes::BSTR},
     um::wbemcli::{IWbemClassObject, WBEM_STATUS_COMPLETE, WBEM_S_NO_ERROR},
 };
-use futures::Stream;
-use log::trace;
 
 com::interfaces! {
     #[uuid("7C857801-7381-11CF-884D-00AA004B2E24")]

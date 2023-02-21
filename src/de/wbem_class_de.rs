@@ -1,6 +1,9 @@
 use crate::{result_enumerator::IWbemClassWrapper, WMIError, WMIResult};
 use serde::{
-    de::{self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, Unexpected, VariantAccess, Visitor},
+    de::{
+        self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess,
+        Unexpected, VariantAccess, Visitor,
+    },
     forward_to_deserialize_any,
 };
 use std::iter::Peekable;

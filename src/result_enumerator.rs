@@ -1,28 +1,29 @@
 use crate::{
-    connection::WMIConnection,
-    de::wbem_class_de::from_wbem_class_obj,
-    safearray::safe_array_to_vec_of_strings,
-    utils::check_hres,
-    WMIResult,
-    WMIError,
-    Variant,
-    BStr,
+    connection::WMIConnection, de::wbem_class_de::from_wbem_class_obj,
+    safearray::safe_array_to_vec_of_strings, utils::check_hres, BStr, Variant, WMIError, WMIResult,
+};
+use log::trace;
+use serde::{
+    de,
+    ser::{Error, SerializeMap},
+    Serialize,
+};
+use std::{
+    convert::TryInto,
+    mem,
+    ptr::{self, NonNull},
 };
 use winapi::{
     shared::ntdef::NULL,
     um::{
         oaidl::{SAFEARRAY, VARIANT},
-        wbemcli::{IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE},
         oleauto::{SafeArrayDestroy, VariantClear},
+        wbemcli::{
+            IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY,
+            WBEM_INFINITE,
+        },
     },
 };
-use std::{
-    ptr::{self, NonNull},
-    convert::TryInto,
-    mem,
-};
-use serde::{ser::{Error, SerializeMap}, de, Serialize};
-use log::trace;
 
 /// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
 /// the object when dropped.
@@ -34,7 +35,7 @@ pub struct IWbemClassWrapper {
 
 impl IWbemClassWrapper {
     pub unsafe fn new(ptr: NonNull<IWbemClassObject>) -> Self {
-        Self { inner: ptr, }
+        Self { inner: ptr }
     }
 
     /// Creates a copy of the pointer and calls
@@ -134,7 +135,7 @@ impl Drop for IWbemClassWrapper {
 impl Serialize for IWbemClassWrapper {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer
+        S: serde::Serializer,
     {
         let properties = self.list_properties().map_err(Error::custom)?;
         let mut s = serializer.serialize_map(Some(properties.len()))?;

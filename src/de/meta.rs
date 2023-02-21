@@ -1,4 +1,4 @@
-use serde::de::{value::Error, self, Deserialize, Deserializer, Visitor};
+use serde::de::{self, value::Error, Deserialize, Deserializer, Visitor};
 use serde::forward_to_deserialize_any;
 
 /// Return the fields of a struct.

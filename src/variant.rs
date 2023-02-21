@@ -1,23 +1,20 @@
 use crate::{
-    result_enumerator::IWbemClassWrapper,
-    utils::check_hres,
-    safearray::safe_array_to_vec,
-    WMIError,
-    WMIResult,
+    result_enumerator::IWbemClassWrapper, safearray::safe_array_to_vec, utils::check_hres,
+    WMIError, WMIResult,
 };
+use serde::Serialize;
+use std::{convert::TryFrom, ptr::NonNull};
+use widestring::WideCStr;
 use winapi::{
+    ctypes::c_void,
+    shared::{ntdef::NULL, wtypes::*},
     um::{
-        wbemcli::{self, CIMTYPE_ENUMERATION, IID_IWbemClassObject},
         oaidl::SAFEARRAY,
         oaidl::VARIANT,
         unknwnbase::IUnknown,
+        wbemcli::{self, IID_IWbemClassObject, CIMTYPE_ENUMERATION},
     },
-    ctypes::c_void,
-    shared::{wtypes::*, ntdef::NULL},
 };
-use std::{convert::TryFrom, ptr::NonNull};
-use widestring::WideCStr;
-use serde::Serialize;
 
 // See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
 const VARIANT_FALSE: i16 = 0x0000;
@@ -186,7 +183,7 @@ impl Variant {
                 let unk: &*mut IUnknown = unsafe { vt.n1.n2().n3.punkVal() };
                 let ptr = NonNull::new(*unk).ok_or(WMIError::NullPointerResult)?;
                 Variant::Unknown(unsafe { IUnknownWrapper::new(ptr) })
-            },
+            }
             _ => return Err(WMIError::ConvertError(variant_type)),
         };
 
@@ -272,7 +269,7 @@ impl Variant {
                     .collect::<Result<Vec<_>, WMIError>>()?;
 
                 Variant::Array(converted_variants)
-            },
+            }
             Variant::Unknown(u) => {
                 if cim_type == wbemcli::CIM_OBJECT {
                     Variant::Object(u.to_wbem_class_obj()?)
@@ -280,9 +277,9 @@ impl Variant {
                     return Err(WMIError::ConvertVariantError(format!(
                         "A unknown Variant cannot be turned into a CIMTYPE {}",
                         &cim_type,
-                    )))
+                    )));
                 }
-            },
+            }
             Variant::Object(o) => Variant::Object(o),
         };
 
@@ -295,7 +292,7 @@ impl Variant {
 ///
 #[derive(Debug, PartialEq, Eq)]
 pub struct IUnknownWrapper {
-    inner: NonNull<IUnknown>
+    inner: NonNull<IUnknown>,
 }
 
 impl IUnknownWrapper {
@@ -310,10 +307,7 @@ impl IUnknownWrapper {
         let mut obj_ptr = NULL as *mut c_void;
 
         unsafe {
-            check_hres((*ptr).QueryInterface(
-                &IID_IWbemClassObject,
-                &mut obj_ptr,
-            ))?;
+            check_hres((*ptr).QueryInterface(&IID_IWbemClassObject, &mut obj_ptr))?;
         }
 
         let obj = NonNull::new(obj_ptr as *mut _).ok_or(WMIError::NullPointerResult)?;
@@ -326,7 +320,7 @@ impl Serialize for IUnknownWrapper {
     ///
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer
+        S: serde::Serializer,
     {
         serializer.serialize_unit()
     }

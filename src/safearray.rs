@@ -1,16 +1,19 @@
-use crate::{utils::{check_hres, WMIError, WMIResult}, Variant};
+use crate::{
+    utils::{check_hres, WMIError, WMIResult},
+    Variant,
+};
+use std::{iter::Iterator, slice};
+use widestring::WideCStr;
 use winapi::{
+    shared::wtypes::*,
+    shared::{ntdef::NULL, wtypes::BSTR},
     um::{
         oaidl::SAFEARRAY,
         oleauto::{
             SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayUnaccessData,
         },
     },
-    shared::{ntdef::NULL, wtypes::BSTR},
-    shared::wtypes::*,
 };
-use std::{iter::Iterator, slice};
-use widestring::WideCStr;
 
 #[derive(Debug)]
 pub struct SafeArrayAccessor<T> {
@@ -98,14 +101,8 @@ pub unsafe fn safe_array_to_vec_of_strings(arr: *mut SAFEARRAY) -> WMIResult<Vec
 /// # Safety
 ///
 /// The caller must ensure that the array is valid.
-pub unsafe fn safe_array_to_vec(
-    arr: *mut SAFEARRAY,
-    item_type: u32,
-) -> WMIResult<Vec<Variant>> {
-    fn copy_type_to_vec<T, F>(
-        arr: *mut SAFEARRAY,
-        variant_builder: F,
-    ) -> WMIResult<Vec<Variant>>
+pub unsafe fn safe_array_to_vec(arr: *mut SAFEARRAY, item_type: u32) -> WMIResult<Vec<Variant>> {
+    fn copy_type_to_vec<T, F>(arr: *mut SAFEARRAY, variant_builder: F) -> WMIResult<Vec<Variant>>
     where
         T: Copy,
         F: Fn(T) -> Variant,

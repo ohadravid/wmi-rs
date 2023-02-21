@@ -1,6 +1,6 @@
-use crate::{variant::Variant, de::wbem_class_de::Deserializer, WMIError};
-use serde::{de, Deserialize, forward_to_deserialize_any};
-use std::{vec::IntoIter, fmt};
+use crate::{de::wbem_class_de::Deserializer, variant::Variant, WMIError};
+use serde::{de, forward_to_deserialize_any, Deserialize};
+use std::{fmt, vec::IntoIter};
 
 #[derive(Debug)]
 struct SeqAccess {
@@ -46,7 +46,10 @@ impl<'de> serde::Deserializer<'de> for Variant {
             Variant::Array(v) => visitor.visit_seq(SeqAccess {
                 data: v.into_iter(),
             }),
-            _ => Err(WMIError::InvalidDeserializationVariantError(format!("{:?}", self))),
+            _ => Err(WMIError::InvalidDeserializationVariantError(format!(
+                "{:?}",
+                self
+            ))),
         }
     }
 
@@ -61,12 +64,19 @@ impl<'de> serde::Deserializer<'de> for Variant {
         }
     }
 
-    fn deserialize_struct<V>(self, name: &'static str, fields: &'static [&'static str], visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_struct<V>(
+        self,
+        name: &'static str,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
         match self {
-            Variant::Object(o) => Deserializer::from_wbem_class_obj(o).deserialize_struct(name, fields, visitor),
+            Variant::Object(o) => {
+                Deserializer::from_wbem_class_obj(o).deserialize_struct(name, fields, visitor)
+            }
             _ => self.deserialize_any(visitor),
         }
     }

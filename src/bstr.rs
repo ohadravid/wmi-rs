@@ -1,10 +1,11 @@
 use crate::{WMIError, WMIResult};
-use std::{ptr::{NonNull, null}, convert::TryFrom, ops::Drop};
+use std::{
+    convert::TryFrom,
+    ops::Drop,
+    ptr::{null, NonNull},
+};
 use winapi::{
-    shared::ntdef::LPCWSTR,
-    shared::wtypes::BSTR,
-    shared::wtypesbase::OLECHAR,
-    um::oleauto::*,
+    shared::ntdef::LPCWSTR, shared::wtypes::BSTR, shared::wtypesbase::OLECHAR, um::oleauto::*,
 };
 
 /// A non-null [BSTR]

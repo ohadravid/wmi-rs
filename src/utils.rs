@@ -1,7 +1,7 @@
-use winapi::shared::{ntdef::HRESULT, wtypes::VARTYPE};
-use std::fmt::{Debug, Display};
 use serde::{de, ser};
+use std::fmt::{Debug, Display};
 use thiserror::Error;
+use winapi::shared::{ntdef::HRESULT, wtypes::VARTYPE};
 
 #[derive(Debug, Error)]
 #[non_exhaustive]

@@ -1,9 +1,9 @@
 #![allow(non_snake_case)]
 
-use wmi::{COMLibrary, Variant, WMIConnection};
-use criterion::{Criterion, criterion_group};
+use criterion::{criterion_group, Criterion};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use wmi::{COMLibrary, Variant, WMIConnection};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename = "Win32_Account")]

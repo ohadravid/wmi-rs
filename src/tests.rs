@@ -1,4 +1,4 @@
-use crate::{COMLibrary, WMIConnection, WMIResult, WMIError};
+use crate::{COMLibrary, WMIConnection, WMIError, WMIResult};
 
 pub mod fixtures {
     use super::*;

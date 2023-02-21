@@ -1,31 +1,31 @@
-use crate::{utils::{WMIResult, check_hres}, BStr};
+use crate::{
+    utils::{check_hres, WMIResult},
+    BStr,
+};
+use log::debug;
+use std::{
+    marker::PhantomData,
+    ptr::{self, NonNull},
+};
 use winapi::{
     shared::{
+        ntdef::NULL,
         rpcdce::{
-            RPC_C_AUTHN_LEVEL_CALL,
-            RPC_C_AUTHN_LEVEL_DEFAULT,
-            RPC_C_AUTHN_WINNT,
-            RPC_C_AUTHZ_NONE,
+            RPC_C_AUTHN_LEVEL_CALL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE,
             RPC_C_IMP_LEVEL_IMPERSONATE,
         },
-        ntdef::NULL,
         wtypesbase::CLSCTX_INPROC_SERVER,
     },
     um::{
-        wbemcli::{
-            IWbemLocator,
-            IWbemServices,
-            CLSID_WbemLocator,
-            IID_IWbemLocator,
-            WBEM_FLAG_CONNECT_USE_MAX_WAIT,
-        },
         combaseapi::{CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket},
         objbase::COINIT_MULTITHREADED,
         objidl::EOAC_NONE,
+        wbemcli::{
+            CLSID_WbemLocator, IID_IWbemLocator, IWbemLocator, IWbemServices,
+            WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+        },
     },
 };
-use std::{marker::PhantomData, ptr::{self, NonNull}};
-use log::debug;
 
 /// A marker to indicate that the current thread was `CoInitialize`d.
 /// It can be freely copied within the same thread.
@@ -148,10 +148,7 @@ impl WMIConnection {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn with_namespace_path(
-        namespace_path: &str,
-        com_lib: COMLibrary,
-    ) -> WMIResult<Self> {
+    pub fn with_namespace_path(namespace_path: &str, com_lib: COMLibrary) -> WMIResult<Self> {
         let mut instance = Self {
             _com_con: com_lib,
             p_loc: None,
