@@ -57,7 +57,7 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// #   tests::ignore_access_denied(run())
     /// # }
-    /// # fn run() -> wmi::WMIResult<()> {
+    /// # fn run() -> WMIResult<()> {
     /// # use std::collections::HashMap;
     /// # let con = WMIConnection::new(COMLibrary::new()?)?;
     /// let iterator = con.raw_notification::<HashMap<String, Variant>>("SELECT ProcessID, ProcessName FROM Win32_ProcessStartTrace")?;
@@ -89,7 +89,7 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// #   tests::ignore_access_denied(run())
     /// # }
-    /// # fn run() -> wmi::WMIResult<()> {
+    /// # fn run() -> WMIResult<()> {
     /// use serde::Deserialize;
     ///
     /// let con = WMIConnection::new(COMLibrary::new()?)?;
@@ -267,7 +267,7 @@ impl WMIConnection {
     /// ```edition2018
     /// # use wmi::*;
     /// # use futures::{future::FutureExt, select};
-    /// # fn main() -> wmi::WMIResult<()> {
+    /// # fn main() -> WMIResult<()> {
     /// #   async_std::task::block_on(async {
     /// #       select! { // End in 3 seconds or on event.
     /// #           () = async_std::task::sleep(std::time::Duration::from_secs(3)).fuse() => Ok(()),

@@ -101,7 +101,7 @@ impl Variant {
             let item_type = variant_type as u32 & VT_TYPEMASK;
 
             return Ok(Variant::Array(unsafe {
-                safe_array_to_vec(*array, item_type as u32)?
+                safe_array_to_vec(*array, item_type)?
             }));
         }
 
@@ -203,21 +203,15 @@ impl Variant {
             that results in the most significant octet containing 0x20
             and the lower octet containing the value of the CimBaseType."
             */
-            match self {
+            return match self {
                 // If we got an array, we just need to convert it's elements.
-                Variant::Array(arr) => {
-                    return Variant::Array(arr).convert_into_cim_type(cim_type & 0xff)
-                }
-                Variant::Empty | Variant::Null => {
-                    return Ok(Variant::Array(vec![]));
-                }
+                Variant::Array(arr) => Variant::Array(arr).convert_into_cim_type(cim_type & 0xff),
+                Variant::Empty | Variant::Null => Ok(Variant::Array(vec![])),
                 // If we didn't get an array, we need to convert the element, but also wrap it in an array.
-                not_array => {
-                    return Ok(Variant::Array(vec![
-                        not_array.convert_into_cim_type(cim_type & 0xff)?
-                    ]));
-                }
-            }
+                not_array => Ok(Variant::Array(vec![
+                    not_array.convert_into_cim_type(cim_type & 0xff)?
+                ])),
+            };
         }
 
         // The `convert_into_cim_type` function is used to convert a `Variant` into a CIM-type.

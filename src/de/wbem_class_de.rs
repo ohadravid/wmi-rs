@@ -52,18 +52,18 @@ impl<'de, 'a> EnumAccess<'de> for WMIEnum<'a> {
 impl<'de, 'a> VariantAccess<'de> for WMIEnum<'a> {
     type Error = WMIError;
 
+    // All other possible enum variants are not supported.
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        let unexp = Unexpected::UnitVariant;
+        Err(de::Error::invalid_type(unexp, &"newtype variant"))
+    }
+
     // Newtype variants can be deserialized directly.
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
     where
         T: DeserializeSeed<'de>,
     {
         seed.deserialize(self.de)
-    }
-
-    // All other possible enum variants are not supported.
-    fn unit_variant(self) -> Result<(), Self::Error> {
-        let unexp = Unexpected::UnitVariant;
-        Err(de::Error::invalid_type(unexp, &"newtype variant"))
     }
 
     fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>
@@ -158,27 +158,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer {
         ))
     }
 
-    fn deserialize_enum<V>(
-        self,
-        _name: &'static str,
-        _variants: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        visitor.visit_enum(WMIEnum::new(self))
-    }
-
-    // When deserializing enums, return the object's class name as the expected enum variant.
-    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        let class_name = self.wbem_class_obj.class()?;
-        visitor.visit_string(class_name)
-    }
-
     // Support for deserializing `Wrapper(Win32_OperatingSystem)`.
     fn deserialize_newtype_struct<V>(
         self,
@@ -210,6 +189,27 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer {
         V: Visitor<'de>,
     {
         visitor.visit_map(WMIMapAccess::new(fields.iter(), self))
+    }
+
+    fn deserialize_enum<V>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_enum(WMIEnum::new(self))
+    }
+
+    // When deserializing enums, return the object's class name as the expected enum variant.
+    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        let class_name = self.wbem_class_obj.class()?;
+        visitor.visit_string(class_name)
     }
 
     forward_to_deserialize_any! {

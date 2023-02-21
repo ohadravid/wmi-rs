@@ -11,9 +11,7 @@ pub mod fixtures {
     pub fn wmi_con() -> WMIConnection {
         let com_lib = COM_LIB.with(|com| *com);
 
-        let wmi_con = WMIConnection::new(com_lib).unwrap();
-
-        wmi_con
+        WMIConnection::new(com_lib).unwrap()
     }
 }
 

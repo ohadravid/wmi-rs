@@ -197,7 +197,7 @@ where
                         }
                         FilterValue::Number(n) => format!("{}", n),
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
-                        FilterValue::String(s) => quote_and_escape_wql_str(&s),
+                        FilterValue::String(s) => quote_and_escape_wql_str(s),
                         FilterValue::IsA(s) => {
                             conditions.push(format!(
                                 "{} ISA {}",
@@ -331,7 +331,7 @@ impl WMIConnection {
     {
         let query_text = build_query::<T>(None)?;
 
-        self.raw_query(&query_text)
+        self.raw_query(query_text)
     }
 
     /// Query all the objects of type T, while filtering according to `filters`.
@@ -363,7 +363,7 @@ impl WMIConnection {
     {
         let query_text = build_query::<T>(Some(filters))?;
 
-        self.raw_query(&query_text)
+        self.raw_query(query_text)
     }
 
     /// Get a single object of type T.
@@ -508,7 +508,7 @@ impl WMIConnection {
     ///     User(Win32_UserAccount),
     ///     #[serde(rename = "Win32_Group")]
     ///     Group(Win32_Group),
-    /// };
+    /// }
     ///
     /// for account in accounts_in_group {
     ///     let user: User = con.get_by_path(&account.__Path)?;
@@ -578,7 +578,7 @@ impl WMIConnection {
             class_name = class_name
         );
 
-        self.raw_query(&query)
+        self.raw_query(query)
     }
 }
 
@@ -806,7 +806,7 @@ mod tests {
 
         let results = wmi_con.filtered_query::<Win32_Process>(&filters).unwrap();
 
-        assert!(results.len() >= 1);
+        assert!(!results.is_empty());
 
         for proc in results {
             assert_eq!(proc.Name, "cargo.exe");
@@ -866,7 +866,7 @@ mod tests {
 
             for res in results {
                 match res.get("Antecedent") {
-                    Some(Variant::String(s)) => assert!(s != ""),
+                    Some(Variant::String(s)) => assert!(!s.is_empty()),
                     _ => assert!(false),
                 }
             }
@@ -877,12 +877,12 @@ mod tests {
 
         for res in results {
             match res.get("GroupComponent") {
-                Some(Variant::String(s)) => assert!(s != ""),
+                Some(Variant::String(s)) => assert!(!s.is_empty()),
                 _ => assert!(false),
             }
 
             match res.get("PartComponent") {
-                Some(Variant::String(s)) => assert!(s != ""),
+                Some(Variant::String(s)) => assert!(!s.is_empty()),
                 _ => assert!(false),
             }
         }
@@ -936,7 +936,7 @@ mod tests {
             .associators::<Win32_DiskPartition, Win32_DiskDriveToDiskPartition>(&disk.__Path)
             .unwrap();
 
-        assert!(results.len() >= 1);
+        assert!(!results.is_empty());
 
         for part in results {
             // We want to check that the output is in the format "Disk #1, Partition #1".

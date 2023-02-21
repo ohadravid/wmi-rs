@@ -8,7 +8,7 @@ struct SeqAccess {
 }
 
 impl<'de> de::SeqAccess<'de> for SeqAccess {
-    type Error = crate::WMIError;
+    type Error = WMIError;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
     where
@@ -22,7 +22,7 @@ impl<'de> de::SeqAccess<'de> for SeqAccess {
 }
 
 impl<'de> serde::Deserializer<'de> for Variant {
-    type Error = crate::WMIError;
+    type Error = WMIError;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
@@ -109,23 +109,8 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             #[inline]
-            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
-                Ok(Variant::I8(value))
-            }
-
-            #[inline]
-            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
-                Ok(Variant::UI8(value))
-            }
-
-            #[inline]
-            fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E> {
-                Ok(Variant::I4(value))
-            }
-
-            #[inline]
-            fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E> {
-                Ok(Variant::UI4(value))
+            fn visit_i8<E>(self, value: i8) -> Result<Self::Value, E> {
+                Ok(Variant::I1(value))
             }
 
             #[inline]
@@ -134,13 +119,13 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             #[inline]
-            fn visit_u16<E>(self, value: u16) -> Result<Self::Value, E> {
-                Ok(Variant::UI2(value))
+            fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E> {
+                Ok(Variant::I4(value))
             }
 
             #[inline]
-            fn visit_i8<E>(self, value: i8) -> Result<Self::Value, E> {
-                Ok(Variant::I1(value))
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+                Ok(Variant::I8(value))
             }
 
             #[inline]
@@ -149,8 +134,18 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             #[inline]
-            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
-                Ok(Variant::R8(value))
+            fn visit_u16<E>(self, value: u16) -> Result<Self::Value, E> {
+                Ok(Variant::UI2(value))
+            }
+
+            #[inline]
+            fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E> {
+                Ok(Variant::UI4(value))
+            }
+
+            #[inline]
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+                Ok(Variant::UI8(value))
             }
 
             #[inline]
@@ -159,9 +154,14 @@ impl<'de> Deserialize<'de> for Variant {
             }
 
             #[inline]
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+                Ok(Variant::R8(value))
+            }
+
+            #[inline]
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 self.visit_string(String::from(value))
             }

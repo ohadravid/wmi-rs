@@ -100,7 +100,6 @@ impl ser::Serialize for WMIOffsetDateTime {
 #[cfg(test)]
 mod tests {
     use super::WMIOffsetDateTime;
-    use serde_json;
 
     #[test]
     fn it_works_with_negative_offset() {
