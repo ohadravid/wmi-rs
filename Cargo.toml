@@ -26,7 +26,15 @@ default = ["chrono"]
 test = []
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3.9", features = ["objbase", "wbemcli", "objidlbase", "oaidl", "oleauto", "errhandlingapi", "wtypes", "wtypesbase"] }
+windows = { version = "0.44", features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+    "Win32_System_Rpc",
+    "Win32_System_Wmi",
+] }
 time = { version = "0.3", features = ["formatting", "parsing", "macros", "serde"], optional = true }
 chrono = { version = "0.4", features = ["clock", "std", "serde"], optional = true, default-features = false }
 serde = { version = "1.0", features = ["derive"] }

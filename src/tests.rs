@@ -25,10 +25,11 @@ pub fn start_test_program() {
 }
 
 pub fn ignore_access_denied(result: WMIResult<()>) -> WMIResult<()> {
-    use winapi::{shared::ntdef::HRESULT, um::wbemcli::WBEM_E_ACCESS_DENIED};
+    use windows::Win32::System::Wmi::WBEM_E_ACCESS_DENIED;
+
     if let Err(e) = result {
         if let WMIError::HResultError { hres } = e {
-            if hres != WBEM_E_ACCESS_DENIED as HRESULT {
+            if hres != WBEM_E_ACCESS_DENIED.0 {
                 return Err(e);
             }
         }
