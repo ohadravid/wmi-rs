@@ -190,7 +190,7 @@ where
                         }
                         FilterValue::Number(n) => format!("{}", n),
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
-                        FilterValue::String(s) => quote_and_escape_wql_str(&s),
+                        FilterValue::String(s) => quote_and_escape_wql_str(s),
                         FilterValue::IsA(s) => {
                             conditions.push(format!(
                                 "{} ISA {}",
@@ -321,7 +321,7 @@ impl WMIConnection {
     {
         let query_text = build_query::<T>(None)?;
 
-        self.raw_query(&query_text)
+        self.raw_query(query_text)
     }
 
     /// Query all the objects of type T, while filtering according to `filters`.
@@ -353,7 +353,7 @@ impl WMIConnection {
     {
         let query_text = build_query::<T>(Some(filters))?;
 
-        self.raw_query(&query_text)
+        self.raw_query(query_text)
     }
 
     /// Get a single object of type T.
@@ -568,7 +568,7 @@ impl WMIConnection {
             class_name = class_name
         );
 
-        self.raw_query(&query)
+        self.raw_query(query)
     }
 }
 
