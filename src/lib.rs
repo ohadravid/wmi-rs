@@ -264,7 +264,6 @@
 #![allow(unused_unsafe)]
 #![cfg(windows)]
 
-mod bstr;
 pub mod connection;
 
 #[cfg(feature = "chrono")]
