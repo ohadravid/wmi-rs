@@ -114,7 +114,6 @@ fn _test_com_lib_not_send(_s: impl Send) {}
 
 pub struct WMIConnection {
     _com_con: COMLibrary,
-    p_loc: NonNull<IWbemLocator>,
     p_svc: NonNull<IWbemServices>,
 }
 
@@ -143,17 +142,10 @@ impl WMIConnection {
         com_lib: COMLibrary,
     ) -> WMIResult<Self> {
         let p_loc = create_locator()?;
-        let p_svc = match create_services(p_loc.as_ptr(), namespace_path) {
-            Ok(v) => v,
-            Err(err) => {
-                unsafe { (*p_loc.as_ptr()).Release() };
-                return Err(err);
-            }
-        };
+        let p_svc = create_services(p_loc.0.as_ptr(), namespace_path)?;
 
         let this = Self {
             _com_con: com_lib,
-            p_loc,
             p_svc,
         };
 
@@ -185,7 +177,7 @@ impl WMIConnection {
     }
 }
 
-fn create_locator() -> WMIResult<NonNull<IWbemLocator>> {
+fn create_locator() -> WMIResult<WbemLocator> {
     debug!("Calling CoCreateInstance for CLSID_WbemLocator");
 
     let mut p_loc = NULL;
@@ -204,7 +196,7 @@ fn create_locator() -> WMIResult<NonNull<IWbemLocator>> {
 
     debug!("Got locator {:?}", p_loc);
 
-    Ok(p_loc)
+    Ok(WbemLocator(p_loc))
 }
 
 fn create_services(loc: *const IWbemLocator, path: &str) -> WMIResult<NonNull<IWbemServices>> {
@@ -239,9 +231,15 @@ impl Drop for WMIConnection {
         unsafe {
             (*self.p_svc.as_ptr()).Release();
         }
+    }
+}
 
+struct WbemLocator(NonNull<IWbemLocator>);
+
+impl Drop for WbemLocator {
+    fn drop(&mut self) {
         unsafe {
-            (*self.p_loc.as_ptr()).Release();
+            (*self.0.as_ptr()).Release();
         }
     }
 }
