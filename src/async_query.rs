@@ -45,7 +45,7 @@ impl WMIConnection {
             ))?;
         }
 
-        Ok(AsyncQueryResultStream::new(stream, p_sink))
+        Ok(AsyncQueryResultStream::new(stream, self.clone(), p_sink))
     }
 
     /// Async version of [`raw_query`](WMIConnection#method.raw_query)

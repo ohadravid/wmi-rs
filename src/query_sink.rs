@@ -1,11 +1,11 @@
-use crate::{result_enumerator::IWbemClassWrapper, WMIResult, WMIError};
+use crate::{result_enumerator::IWbemClassWrapper, WMIResult, WMIError, WMIConnection};
 use std::{
     task::{Poll, Waker},
     sync::{Arc, Mutex},
     collections::VecDeque,
     ptr::NonNull,
 };
-use com::production::ClassAllocation;
+use com::{production::ClassAllocation, AbiTransferable};
 use winapi::{
     ctypes::c_long,
     shared::{ntdef::HRESULT, winerror::E_POINTER, wtypes::BSTR},
@@ -66,24 +66,39 @@ impl AsyncQueryResultStreamImpl {
 }
 
 /// A stream of WMI query results.
-/// We use a mutex to synchronize the consumer and the calls from the WMI-managed thread.
-/// A blocking mutex is used because we want to be runtime agnostic
-/// and because according to [`tokio::sync::Mutex`](https://docs.rs/tokio/tokio/tokio/sync/struct.Mutex.html):
-/// > The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection. If the value behind the mutex is just data, it’s usually appropriate to use a blocking mutex
+///
+/// When dropped, the stream is properly cancelled and the resources freed.
 pub struct AsyncQueryResultStream {
     inner: AsyncQueryResultStreamInner,
+    connection: WMIConnection,
     sink: ClassAllocation<QuerySink>,
 }
 
 impl AsyncQueryResultStream {
-    pub fn new(inner: AsyncQueryResultStreamInner, sink: ClassAllocation<QuerySink>) -> Self {
+    pub fn new(
+        inner: AsyncQueryResultStreamInner,
+        connection: WMIConnection,
+        sink: ClassAllocation<QuerySink>
+    ) -> Self {
         Self {
             inner,
+            connection,
             sink,
         }
     }
 }
 
+impl Drop for AsyncQueryResultStream {
+    fn drop(&mut self) {
+        let sink = IWbemObjectSink::from(&**self.sink);
+        unsafe { (*self.connection.svc()).CancelAsyncCall(sink.get_abi().as_ptr() as *mut _) };
+    }
+}
+
+/// We use a mutex to synchronize the consumer and the calls from the WMI-managed thread.
+/// A blocking mutex is used because we want to be runtime agnostic
+/// and because according to [`tokio::sync::Mutex`](https://docs.rs/tokio/tokio/tokio/sync/struct.Mutex.html):
+/// > The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection. If the value behind the mutex is just data, it’s usually appropriate to use a blocking mutex
 #[derive(Default, Clone)]
 pub struct AsyncQueryResultStreamInner(Arc<Mutex<AsyncQueryResultStreamImpl>>);
 
@@ -227,7 +242,7 @@ mod tests {
         let stream = AsyncQueryResultStreamInner::new();
         let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
-        let mut stream = AsyncQueryResultStream::new(stream, sink);
+        let mut stream = AsyncQueryResultStream::new(stream, con.clone(), sink);
 
         let raw_os = con
             .get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)
@@ -271,10 +286,11 @@ mod tests {
 
     #[async_std::test]
     async fn async_it_should_complete_after_set_status_call() {
+        let con = wmi_con();
         let stream = AsyncQueryResultStreamInner::new();
         let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
-        let stream = AsyncQueryResultStream::new(stream, sink);
+        let stream = AsyncQueryResultStream::new(stream, con.clone(), sink);
 
         unsafe {
             p_sink.set_status(
@@ -292,10 +308,11 @@ mod tests {
 
     #[async_std::test]
     async fn async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
+        let con = wmi_con();
         let stream = AsyncQueryResultStreamInner::new();
         let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
-        let mut stream = AsyncQueryResultStream::new(stream, sink);
+        let mut stream = AsyncQueryResultStream::new(stream, con.clone(), sink);
 
         let mut arr = vec![NULL as *mut IWbemClassObject];
         let result;
