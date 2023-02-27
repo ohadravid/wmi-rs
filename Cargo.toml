@@ -38,7 +38,6 @@ windows = { version = "0.44", features = [
 time = { version = "0.3", features = ["formatting", "parsing", "macros", "serde"], optional = true }
 chrono = { version = "0.4", features = ["clock", "std", "serde"], optional = true, default-features = false }
 serde = { version = "1.0", features = ["derive"] }
-com = { version = "0.6", features = ["production"] }
 futures = { version = "0.3" }
 widestring = "1.0"
 thiserror = "^1"
