@@ -232,7 +232,7 @@ com::class! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::fixtures::*;
+    use crate::{tests::fixtures::*, bstr::BStr, utils::check_hres};
     use futures::StreamExt;
     use winapi::shared::ntdef::NULL;
 
@@ -326,5 +326,50 @@ mod tests {
             Err(WMIError::NullPointerResult) => assert!(true),
             _ => assert!(false),
         }
+    }
+
+    #[async_std::test]
+    async fn async_test_notification() {
+        let con = wmi_con();
+        let inner = AsyncQueryResultStreamInner::new();
+        let sink = QuerySink::allocate(inner.clone());
+        let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
+
+        // Exec a notification to setup the sink properly
+        let query_language = BStr::from_str("WQL").unwrap();
+        let query = BStr::from_str("SELECT * FROM __InstanceModificationEvent \
+             WHERE TargetInstance ISA 'Win32_LocalTime'".as_ref()).unwrap();
+
+        unsafe {
+            check_hres((*con.svc()).ExecNotificationQueryAsync(
+                query_language.as_bstr(),
+                query.as_bstr(),
+                0,
+                std::ptr::null_mut(),
+                p_sink.get_abi().as_ptr() as *mut _,
+            )).unwrap();
+        }
+
+        // lets cheat by keeping the inner stream locally, before dropping the stream object,
+        // which will cancel the notification
+        let mut stream = AsyncQueryResultStream::new(inner.clone(), con, sink);
+
+        let elem = stream.next().await;
+        assert!(elem.is_some());
+
+        assert_eq!(inner.0.lock().unwrap().is_done, false);
+        // end the stream by dropping it
+        drop(stream);
+
+        // Check the "is_done" flag has been set as the SetStatus member was called.
+        // This is not necessarily done on the same thread, wait a bit for the SetStatus function
+        // to be called.
+        for _ in 0..5 {
+            if inner.0.lock().unwrap().is_done {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        assert_eq!(inner.0.lock().unwrap().is_done, true);
     }
 }
