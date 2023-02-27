@@ -226,6 +226,24 @@ fn create_services(loc: *const IWbemLocator, path: &str) -> WMIResult<NonNull<IW
     Ok(p_svc)
 }
 
+impl Clone for WMIConnection {
+    fn clone(&self) -> Self {
+        // Creates a copy of the pointer and calls
+        // [AddRef](https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref)
+        // to increment Reference Count.
+        //
+        // # Safety
+        // See [Managing the lifetime of an object](https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object)
+        // and [Rules for managing Ref count](https://docs.microsoft.com/en-us/windows/win32/com/rules-for-managing-reference-counts)
+        unsafe { self.p_svc.as_ref().AddRef() };
+
+        Self {
+            _com_con: self._com_con,
+            p_svc: self.p_svc,
+        }
+    }
+}
+
 impl Drop for WMIConnection {
     fn drop(&mut self) {
         unsafe {
