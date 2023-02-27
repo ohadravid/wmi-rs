@@ -39,7 +39,6 @@ time = { version = "0.3", features = ["formatting", "parsing", "macros", "serde"
 chrono = { version = "0.4", features = ["clock", "std", "serde"], optional = true, default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 futures = { version = "0.3" }
-widestring = "1.0"
 thiserror = "^1"
 log = "0.4"
 

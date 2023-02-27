@@ -27,10 +27,6 @@ pub enum WMIError {
     ConvertBoolError(i16),
     #[error(transparent)]
     ConvertStringError(#[from] std::string::FromUtf16Error),
-    #[error(transparent)]
-    ConvertStringUtf16Error(#[from] widestring::error::Utf16Error),
-    #[error("Invalid nul value was found: {0:?}")]
-    ConvertStringNullError(#[from] widestring::error::NulError<u16>),
     #[error("Expected {0:?} to be at least 21 chars")]
     ConvertDatetimeError(String),
     #[error("Expected {0:?} to be at 25 chars")]
