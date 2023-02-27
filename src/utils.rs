@@ -33,8 +33,6 @@ pub enum WMIError {
     ConvertDurationError(String),
     #[error("Length {0} was too long to convert")]
     ConvertLengthError(u64),
-    #[error("Failed to allocate")]
-    ConvertAllocateError,
     #[error("{0}")]
     SerdeError(String),
     #[error(transparent)]
