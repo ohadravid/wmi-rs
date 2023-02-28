@@ -156,13 +156,16 @@ impl IWbemObjectSink_Impl for QuerySink {
         let lObjectCount = lObjectCount as usize;
         let mut res = Ok(());
 
-        // The array memory of apObjArray is read-only
-        // and is owned by the caller of the Indicate method.
-        // IWbemClassWrapper::clone calls AddRef on each element
-        // of apObjArray to make sure that they are not released,
-        // according to COM rules.
-        // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-indicate
-        // For error codes, see https://docs.microsoft.com/en-us/windows/win32/learnwin32/error-handling-in-com
+        // Safety:
+        //
+        // The safety points are mainly guaranteed by the contract of the Indicate API.
+        // `apObjArray` is an array pointer to `IWbemClassObject`, whose length is provided by
+        // lObjectCount. Hence:
+        // - `apObjArray` is is valid for lObjectCount * <ptr_size> reads. `IWbemClassObject` is
+        //   a wrapper on a NonNull pointer. The Option makes it nullable, but it uses the right
+        //   alignment and size.
+        // - `apObjArray` points to lObjectCount consecutive pointers.
+        // - the memory behind this pointer is not modified while the slice is alive
         let objs = unsafe {
             std::slice::from_raw_parts(
                 apObjArray,
