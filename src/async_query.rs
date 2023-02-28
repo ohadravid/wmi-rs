@@ -1,5 +1,5 @@
 use crate::{
-    query_sink::{AsyncQueryResultStream, IWbemObjectSink, QuerySink},
+    query_sink::{AsyncQueryResultStream, IWbemObjectSink, QuerySink, AsyncQueryResultStreamInner},
     query::{FilterValue, build_query},
     result_enumerator::IWbemClassWrapper,
     connection::WMIConnection,
@@ -28,7 +28,7 @@ impl WMIConnection {
         let query_language = BStr::from_str("WQL")?;
         let query = BStr::from_str(query.as_ref())?;
 
-        let stream = AsyncQueryResultStream::new();
+        let stream = AsyncQueryResultStreamInner::new();
         // The internal RefCount has initial value = 1.
         let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(stream.clone());
         let p_sink_handle = IWbemObjectSink::from(&**p_sink);
@@ -45,7 +45,7 @@ impl WMIConnection {
             ))?;
         }
 
-        Ok(stream)
+        Ok(AsyncQueryResultStream::new(stream, self.clone(), p_sink))
     }
 
     /// Async version of [`raw_query`](WMIConnection#method.raw_query)

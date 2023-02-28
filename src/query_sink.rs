@@ -1,10 +1,11 @@
-use crate::{result_enumerator::IWbemClassWrapper, WMIResult, WMIError};
+use crate::{result_enumerator::IWbemClassWrapper, WMIResult, WMIError, WMIConnection};
 use std::{
     task::{Poll, Waker},
     sync::{Arc, Mutex},
     collections::VecDeque,
     ptr::NonNull,
 };
+use com::{production::ClassAllocation, AbiTransferable};
 use winapi::{
     ctypes::c_long,
     shared::{ntdef::HRESULT, winerror::E_POINTER, wtypes::BSTR},
@@ -32,7 +33,7 @@ com::interfaces! {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct AsyncQueryResultStreamImpl {
     buf: VecDeque<WMIResult<IWbemClassWrapper>>,
     is_done: bool,
@@ -65,14 +66,43 @@ impl AsyncQueryResultStreamImpl {
 }
 
 /// A stream of WMI query results.
+///
+/// When dropped, the stream is properly cancelled and the resources freed.
+pub struct AsyncQueryResultStream {
+    inner: AsyncQueryResultStreamInner,
+    connection: WMIConnection,
+    sink: ClassAllocation<QuerySink>,
+}
+
+impl AsyncQueryResultStream {
+    pub fn new(
+        inner: AsyncQueryResultStreamInner,
+        connection: WMIConnection,
+        sink: ClassAllocation<QuerySink>
+    ) -> Self {
+        Self {
+            inner,
+            connection,
+            sink,
+        }
+    }
+}
+
+impl Drop for AsyncQueryResultStream {
+    fn drop(&mut self) {
+        let sink = IWbemObjectSink::from(&**self.sink);
+        unsafe { (*self.connection.svc()).CancelAsyncCall(sink.get_abi().as_ptr() as *mut _) };
+    }
+}
+
 /// We use a mutex to synchronize the consumer and the calls from the WMI-managed thread.
 /// A blocking mutex is used because we want to be runtime agnostic
 /// and because according to [`tokio::sync::Mutex`](https://docs.rs/tokio/tokio/tokio/sync/struct.Mutex.html):
 /// > The primary use case for the async mutex is to provide shared mutable access to IO resources such as a database connection. If the value behind the mutex is just data, it’s usually appropriate to use a blocking mutex
-#[derive(Debug, Default, Clone)]
-pub struct AsyncQueryResultStream(Arc<Mutex<AsyncQueryResultStreamImpl>>);
+#[derive(Default, Clone)]
+pub struct AsyncQueryResultStreamInner(Arc<Mutex<AsyncQueryResultStreamImpl>>);
 
-impl AsyncQueryResultStream {
+impl AsyncQueryResultStreamInner {
     pub fn new() -> Self {
         Self(Arc::new(Mutex::new(AsyncQueryResultStreamImpl::default())))
     }
@@ -96,7 +126,7 @@ impl Stream for AsyncQueryResultStream {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         let waker = cx.waker();
-        let mut inner = self.0.lock().unwrap();
+        let mut inner = self.inner.0.lock().unwrap();
 
         if !inner
             .waker
@@ -129,7 +159,7 @@ impl Stream for AsyncQueryResultStream {
 
 com::class! {
     pub class QuerySink: IWbemObjectSink {
-        stream: AsyncQueryResultStream,
+        stream: AsyncQueryResultStreamInner,
     }
 
     /// Implementation for [IWbemObjectSink](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nn-wbemcli-iwbemobjectsink).
@@ -202,16 +232,17 @@ com::class! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::fixtures::*;
+    use crate::{tests::fixtures::*, bstr::BStr, utils::check_hres};
     use futures::StreamExt;
     use winapi::shared::ntdef::NULL;
 
     #[async_std::test]
     async fn async_it_should_send_result() {
         let con = wmi_con();
-        let mut stream = AsyncQueryResultStream::new();
+        let stream = AsyncQueryResultStreamInner::new();
         let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
+        let mut stream = AsyncQueryResultStream::new(stream, con.clone(), sink);
 
         let raw_os = con
             .get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)
@@ -255,9 +286,11 @@ mod tests {
 
     #[async_std::test]
     async fn async_it_should_complete_after_set_status_call() {
-        let stream = AsyncQueryResultStream::new();
+        let con = wmi_con();
+        let stream = AsyncQueryResultStreamInner::new();
         let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
+        let stream = AsyncQueryResultStream::new(stream, con.clone(), sink);
 
         unsafe {
             p_sink.set_status(
@@ -275,9 +308,11 @@ mod tests {
 
     #[async_std::test]
     async fn async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
-        let mut stream = AsyncQueryResultStream::new();
+        let con = wmi_con();
+        let stream = AsyncQueryResultStreamInner::new();
         let sink = QuerySink::allocate(stream.clone());
         let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
+        let mut stream = AsyncQueryResultStream::new(stream, con.clone(), sink);
 
         let mut arr = vec![NULL as *mut IWbemClassObject];
         let result;
@@ -291,5 +326,50 @@ mod tests {
             Err(WMIError::NullPointerResult) => assert!(true),
             _ => assert!(false),
         }
+    }
+
+    #[async_std::test]
+    async fn async_test_notification() {
+        let con = wmi_con();
+        let inner = AsyncQueryResultStreamInner::new();
+        let sink = QuerySink::allocate(inner.clone());
+        let p_sink = sink.query_interface::<IWbemObjectSink>().unwrap();
+
+        // Exec a notification to setup the sink properly
+        let query_language = BStr::from_str("WQL").unwrap();
+        let query = BStr::from_str("SELECT * FROM __InstanceModificationEvent \
+             WHERE TargetInstance ISA 'Win32_LocalTime'".as_ref()).unwrap();
+
+        unsafe {
+            check_hres((*con.svc()).ExecNotificationQueryAsync(
+                query_language.as_bstr(),
+                query.as_bstr(),
+                0,
+                std::ptr::null_mut(),
+                p_sink.get_abi().as_ptr() as *mut _,
+            )).unwrap();
+        }
+
+        // lets cheat by keeping the inner stream locally, before dropping the stream object,
+        // which will cancel the notification
+        let mut stream = AsyncQueryResultStream::new(inner.clone(), con, sink);
+
+        let elem = stream.next().await;
+        assert!(elem.is_some());
+
+        assert_eq!(inner.0.lock().unwrap().is_done, false);
+        // end the stream by dropping it
+        drop(stream);
+
+        // Check the "is_done" flag has been set as the SetStatus member was called.
+        // This is not necessarily done on the same thread, wait a bit for the SetStatus function
+        // to be called.
+        for _ in 0..5 {
+            if inner.0.lock().unwrap().is_done {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        assert_eq!(inner.0.lock().unwrap().is_done, true);
     }
 }

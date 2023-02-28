@@ -114,8 +114,7 @@ fn _test_com_lib_not_send(_s: impl Send) {}
 
 pub struct WMIConnection {
     _com_con: COMLibrary,
-    p_loc: Option<NonNull<IWbemLocator>>,
-    p_svc: Option<NonNull<IWbemServices>>,
+    p_svc: NonNull<IWbemServices>,
 }
 
 /// A connection to the local WMI provider, which provides querying capabilities.
@@ -123,16 +122,6 @@ pub struct WMIConnection {
 /// Currently does not support remote providers (e.g connecting to other computers).
 ///
 impl WMIConnection {
-    fn create_and_set_proxy(&mut self, namespace_path: Option<&str>) -> WMIResult<()> {
-        self.create_locator()?;
-
-        self.create_services(namespace_path.unwrap_or("ROOT\\CIMV2"))?;
-
-        self.set_proxy()?;
-
-        Ok(())
-    }
-
     /// Creates a connection with a default `CIMV2` namespace path.
     pub fn new(com_lib: COMLibrary) -> WMIResult<Self> {
         Self::with_namespace_path("ROOT\\CIMV2", com_lib)
@@ -152,72 +141,20 @@ impl WMIConnection {
         namespace_path: &str,
         com_lib: COMLibrary,
     ) -> WMIResult<Self> {
-        let mut instance = Self {
+        let p_loc = create_locator()?;
+        let p_svc = create_services(p_loc.0.as_ptr(), namespace_path)?;
+
+        let this = Self {
             _com_con: com_lib,
-            p_loc: None,
-            p_svc: None,
+            p_svc,
         };
 
-        instance.create_and_set_proxy(Some(namespace_path))?;
-
-        Ok(instance)
+        this.set_proxy()?;
+        Ok(this)
     }
 
     pub fn svc(&self) -> *mut IWbemServices {
-        self.p_svc.unwrap().as_ptr()
-    }
-
-    fn loc(&self) -> *mut IWbemLocator {
-        self.p_loc.unwrap().as_ptr()
-    }
-
-    fn create_locator(&mut self) -> WMIResult<()> {
-        debug!("Calling CoCreateInstance for CLSID_WbemLocator");
-
-        let mut p_loc = NULL;
-
-        unsafe {
-            check_hres(CoCreateInstance(
-                &CLSID_WbemLocator,
-                ptr::null_mut(),
-                CLSCTX_INPROC_SERVER,
-                &IID_IWbemLocator,
-                &mut p_loc,
-            ))?;
-        }
-
-        self.p_loc = NonNull::new(p_loc as *mut IWbemLocator);
-
-        debug!("Got locator {:?}", self.p_loc);
-
-        Ok(())
-    }
-
-    fn create_services(&mut self, path: &str) -> WMIResult<()> {
-        debug!("Calling ConnectServer");
-
-        let mut p_svc = ptr::null_mut::<IWbemServices>();
-
-        let object_path_bstr = BStr::from_str(path)?;
-
-        unsafe {
-            check_hres((*self.loc()).ConnectServer(
-                object_path_bstr.as_bstr(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                WBEM_FLAG_CONNECT_USE_MAX_WAIT as _,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                &mut p_svc,
-            ))?;
-        }
-
-        self.p_svc = NonNull::new(p_svc as *mut IWbemServices);
-
-        debug!("Got service {:?}", self.p_svc);
-
-        Ok(())
+        self.p_svc.as_ptr()
     }
 
     fn set_proxy(&self) -> WMIResult<()> {
@@ -240,18 +177,87 @@ impl WMIConnection {
     }
 }
 
+fn create_locator() -> WMIResult<WbemLocator> {
+    debug!("Calling CoCreateInstance for CLSID_WbemLocator");
+
+    let mut p_loc = NULL;
+
+    unsafe {
+        check_hres(CoCreateInstance(
+            &CLSID_WbemLocator,
+            ptr::null_mut(),
+            CLSCTX_INPROC_SERVER,
+            &IID_IWbemLocator,
+            &mut p_loc,
+        ))?;
+    }
+
+    let p_loc = NonNull::new(p_loc as *mut IWbemLocator).unwrap();
+
+    debug!("Got locator {:?}", p_loc);
+
+    Ok(WbemLocator(p_loc))
+}
+
+fn create_services(loc: *const IWbemLocator, path: &str) -> WMIResult<NonNull<IWbemServices>> {
+    debug!("Calling ConnectServer");
+
+    let mut p_svc = ptr::null_mut::<IWbemServices>();
+
+    let object_path_bstr = BStr::from_str(path)?;
+
+    unsafe {
+        check_hres((*loc).ConnectServer(
+            object_path_bstr.as_bstr(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            WBEM_FLAG_CONNECT_USE_MAX_WAIT as _,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            &mut p_svc,
+        ))?;
+    }
+
+    let p_svc = NonNull::new(p_svc as *mut IWbemServices).unwrap();
+
+    debug!("Got service {:?}", p_svc);
+
+    Ok(p_svc)
+}
+
+impl Clone for WMIConnection {
+    fn clone(&self) -> Self {
+        // Creates a copy of the pointer and calls
+        // [AddRef](https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref)
+        // to increment Reference Count.
+        //
+        // # Safety
+        // See [Managing the lifetime of an object](https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object)
+        // and [Rules for managing Ref count](https://docs.microsoft.com/en-us/windows/win32/com/rules-for-managing-reference-counts)
+        unsafe { self.p_svc.as_ref().AddRef() };
+
+        Self {
+            _com_con: self._com_con,
+            p_svc: self.p_svc,
+        }
+    }
+}
+
 impl Drop for WMIConnection {
     fn drop(&mut self) {
-        if let Some(svc) = self.p_svc {
-            unsafe {
-                (*svc.as_ptr()).Release();
-            }
+        unsafe {
+            (*self.p_svc.as_ptr()).Release();
         }
+    }
+}
 
-        if let Some(loc) = self.p_loc {
-            unsafe {
-                (*loc.as_ptr()).Release();
-            }
+struct WbemLocator(NonNull<IWbemLocator>);
+
+impl Drop for WbemLocator {
+    fn drop(&mut self) {
+        unsafe {
+            (*self.0.as_ptr()).Release();
         }
     }
 }
