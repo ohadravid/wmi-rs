@@ -1,31 +1,14 @@
-use crate::{utils::{WMIResult, check_hres}, BStr};
-use winapi::{
-    shared::{
-        rpcdce::{
-            RPC_C_AUTHN_LEVEL_CALL,
-            RPC_C_AUTHN_LEVEL_DEFAULT,
-            RPC_C_AUTHN_WINNT,
-            RPC_C_AUTHZ_NONE,
-            RPC_C_IMP_LEVEL_IMPERSONATE,
-        },
-        ntdef::NULL,
-        wtypesbase::CLSCTX_INPROC_SERVER,
-    },
-    um::{
-        wbemcli::{
-            IWbemLocator,
-            IWbemServices,
-            CLSID_WbemLocator,
-            IID_IWbemLocator,
-            WBEM_FLAG_CONNECT_USE_MAX_WAIT,
-        },
-        combaseapi::{CoCreateInstance, CoInitializeEx, CoInitializeSecurity, CoSetProxyBlanket},
-        objbase::COINIT_MULTITHREADED,
-        objidl::EOAC_NONE,
-    },
-};
-use std::{marker::PhantomData, ptr::{self, NonNull}};
+use crate::utils::WMIResult;
+use std::marker::PhantomData;
 use log::debug;
+use windows::Win32::System::Wmi::{IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT, WbemLocator};
+use windows::Win32::System::Com::{CoSetProxyBlanket, CoCreateInstance, CLSCTX_INPROC_SERVER, RPC_C_AUTHN_LEVEL_CALL};
+use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
+use windows::Win32::System::Com::{
+    CoInitializeEx, COINIT_MULTITHREADED, CoInitializeSecurity, RPC_C_AUTHN_LEVEL_DEFAULT,
+    RPC_C_IMP_LEVEL_IMPERSONATE, EOAC_NONE
+};
+use windows::core::BSTR;
 
 /// A marker to indicate that the current thread was `CoInitialize`d.
 /// It can be freely copied within the same thread.
@@ -53,7 +36,7 @@ impl COMLibrary {
     /// `CoInitialize`s the COM library for use by the calling thread, but without setting the security context.
     ///
     pub fn without_security() -> WMIResult<Self> {
-        unsafe { check_hres(CoInitializeEx(ptr::null_mut(), COINIT_MULTITHREADED))? }
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED)? }
 
         let instance = Self {
             _phantom: PhantomData,
@@ -89,17 +72,17 @@ impl COMLibrary {
 
     fn init_security(&self) -> WMIResult<()> {
         unsafe {
-            check_hres(CoInitializeSecurity(
-                NULL,
+            CoInitializeSecurity(
+                    None,
                 -1, // let COM choose.
-                ptr::null_mut(),
-                NULL,
+                None,
+                None,
                 RPC_C_AUTHN_LEVEL_DEFAULT,
                 RPC_C_IMP_LEVEL_IMPERSONATE,
-                NULL,
+                None,
                 EOAC_NONE,
-                NULL,
-            ))?;
+                None,
+            )?;
         };
 
         Ok(())
@@ -112,9 +95,10 @@ impl COMLibrary {
 /// ```
 fn _test_com_lib_not_send(_s: impl Send) {}
 
+#[derive(Clone)]
 pub struct WMIConnection {
     _com_con: COMLibrary,
-    p_svc: NonNull<IWbemServices>,
+    pub svc: IWbemServices,
 }
 
 /// A connection to the local WMI provider, which provides querying capabilities.
@@ -141,123 +125,72 @@ impl WMIConnection {
         namespace_path: &str,
         com_lib: COMLibrary,
     ) -> WMIResult<Self> {
-        let p_loc = create_locator()?;
-        let p_svc = create_services(p_loc.0.as_ptr(), namespace_path)?;
+        let loc = create_locator()?;
+        let svc = create_services(&loc, namespace_path)?;
 
         let this = Self {
             _com_con: com_lib,
-            p_svc,
+            svc,
         };
 
         this.set_proxy()?;
         Ok(this)
     }
 
-    pub fn svc(&self) -> *mut IWbemServices {
-        self.p_svc.as_ptr()
-    }
-
     fn set_proxy(&self) -> WMIResult<()> {
         debug!("Calling CoSetProxyBlanket");
 
         unsafe {
-            check_hres(CoSetProxyBlanket(
-                self.svc() as _,             // Indicates the proxy to set
+            CoSetProxyBlanket(
+                &self.svc,
                 RPC_C_AUTHN_WINNT,           // RPC_C_AUTHN_xxx
                 RPC_C_AUTHZ_NONE,            // RPC_C_AUTHZ_xxx
-                ptr::null_mut(),             // Server principal name
+                None,
                 RPC_C_AUTHN_LEVEL_CALL,      // RPC_C_AUTHN_LEVEL_xxx
                 RPC_C_IMP_LEVEL_IMPERSONATE, // RPC_C_IMP_LEVEL_xxx
-                NULL,                        // client identity
+                None,                        // client identity
                 EOAC_NONE,                   // proxy capabilities
-            ))?;
+            )?;
         }
 
         Ok(())
     }
 }
 
-fn create_locator() -> WMIResult<WbemLocator> {
+fn create_locator() -> WMIResult<IWbemLocator> {
     debug!("Calling CoCreateInstance for CLSID_WbemLocator");
 
-    let mut p_loc = NULL;
-
-    unsafe {
-        check_hres(CoCreateInstance(
-            &CLSID_WbemLocator,
-            ptr::null_mut(),
+    let loc = unsafe {
+        CoCreateInstance(
+            &WbemLocator,
+            None,
             CLSCTX_INPROC_SERVER,
-            &IID_IWbemLocator,
-            &mut p_loc,
-        ))?;
-    }
+        )?
+    };
 
-    let p_loc = NonNull::new(p_loc as *mut IWbemLocator).unwrap();
+    debug!("Got locator {:?}", loc);
 
-    debug!("Got locator {:?}", p_loc);
-
-    Ok(WbemLocator(p_loc))
+    Ok(loc)
 }
 
-fn create_services(loc: *const IWbemLocator, path: &str) -> WMIResult<NonNull<IWbemServices>> {
+fn create_services(loc: &IWbemLocator, path: &str) -> WMIResult<IWbemServices> {
     debug!("Calling ConnectServer");
 
-    let mut p_svc = ptr::null_mut::<IWbemServices>();
+    let object_path_bstr = BSTR::from(path);
 
-    let object_path_bstr = BStr::from_str(path)?;
+    let svc = unsafe {
+        loc.ConnectServer(
+            &object_path_bstr,
+            &BSTR::new(),
+            &BSTR::new(),
+            &BSTR::new(),
+            WBEM_FLAG_CONNECT_USE_MAX_WAIT.0,
+            &BSTR::new(),
+            None,
+        )?
+    };
 
-    unsafe {
-        check_hres((*loc).ConnectServer(
-            object_path_bstr.as_bstr(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            WBEM_FLAG_CONNECT_USE_MAX_WAIT as _,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            &mut p_svc,
-        ))?;
-    }
+    debug!("Got service {:?}", svc);
 
-    let p_svc = NonNull::new(p_svc as *mut IWbemServices).unwrap();
-
-    debug!("Got service {:?}", p_svc);
-
-    Ok(p_svc)
-}
-
-impl Clone for WMIConnection {
-    fn clone(&self) -> Self {
-        // Creates a copy of the pointer and calls
-        // [AddRef](https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref)
-        // to increment Reference Count.
-        //
-        // # Safety
-        // See [Managing the lifetime of an object](https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object)
-        // and [Rules for managing Ref count](https://docs.microsoft.com/en-us/windows/win32/com/rules-for-managing-reference-counts)
-        unsafe { self.p_svc.as_ref().AddRef() };
-
-        Self {
-            _com_con: self._com_con,
-            p_svc: self.p_svc,
-        }
-    }
-}
-
-impl Drop for WMIConnection {
-    fn drop(&mut self) {
-        unsafe {
-            (*self.p_svc.as_ptr()).Release();
-        }
-    }
-}
-
-struct WbemLocator(NonNull<IWbemLocator>);
-
-impl Drop for WbemLocator {
-    fn drop(&mut self) {
-        unsafe {
-            (*self.0.as_ptr()).Release();
-        }
-    }
+    Ok(svc)
 }

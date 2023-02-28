@@ -1,16 +1,14 @@
 use crate::{
-    query_sink::{AsyncQueryResultStream, IWbemObjectSink, QuerySink, AsyncQueryResultStreamInner},
+    query_sink::{AsyncQueryResultStream, QuerySink, AsyncQueryResultStreamInner},
     query::{FilterValue, build_query},
     result_enumerator::IWbemClassWrapper,
     connection::WMIConnection,
-    utils::check_hres,
     WMIResult,
-    BStr,
 };
-use com::{production::ClassAllocation, AbiTransferable};
 use futures::stream::{Stream, StreamExt, TryStreamExt};
-use std::{collections::HashMap, ptr};
-use winapi::um::wbemcli::WBEM_FLAG_BIDIRECTIONAL;
+use windows::core::BSTR;
+use windows::Win32::System::Wmi::{WBEM_FLAG_BIDIRECTIONAL, IWbemObjectSink};
+use std::collections::HashMap;
 use serde::de;
 
 ///
@@ -25,27 +23,27 @@ impl WMIConnection {
         &self,
         query: impl AsRef<str>,
     ) -> WMIResult<impl Stream<Item = WMIResult<IWbemClassWrapper>>> {
-        let query_language = BStr::from_str("WQL")?;
-        let query = BStr::from_str(query.as_ref())?;
+        let query_language = BSTR::from("WQL");
+        let query = BSTR::from(query.as_ref());
 
         let stream = AsyncQueryResultStreamInner::new();
         // The internal RefCount has initial value = 1.
-        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(stream.clone());
-        let p_sink_handle = IWbemObjectSink::from(&**p_sink);
+        let p_sink = QuerySink { stream: stream.clone() };
+        let p_sink_handle: IWbemObjectSink = p_sink.into();
 
         unsafe {
             // As p_sink's RefCount = 1 before this call,
             // p_sink won't be dropped at the end of ExecQueryAsync
-            check_hres((*self.svc()).ExecQueryAsync(
-                query_language.as_bstr(),
-                query.as_bstr(),
-                WBEM_FLAG_BIDIRECTIONAL as i32,
-                ptr::null_mut(),
-                p_sink_handle.get_abi().as_ptr() as *mut _,
-            ))?;
+            self.svc.ExecQueryAsync(
+                &query_language,
+                &query,
+                WBEM_FLAG_BIDIRECTIONAL.0 as _,
+                None,
+                &p_sink_handle,
+            )?;
         }
 
-        Ok(AsyncQueryResultStream::new(stream, self.clone(), p_sink))
+        Ok(AsyncQueryResultStream::new(stream, self.clone(), p_sink_handle))
     }
 
     /// Async version of [`raw_query`](WMIConnection#method.raw_query)

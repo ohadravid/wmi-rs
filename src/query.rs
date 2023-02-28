@@ -3,22 +3,15 @@ use crate::{
     de::meta::struct_name_and_fields,
     de::wbem_class_de::from_wbem_class_obj,
     result_enumerator::{IWbemClassWrapper, QueryResultEnumerator},
-    utils::check_hres,
-    BStr, WMIError, WMIResult,
+    WMIError, WMIResult,
 };
 use log::trace;
 use serde::de;
+use windows::Win32::System::Wmi::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE};
+use windows::core::BSTR;
 use std::{
     collections::HashMap,
-    ptr::{self, NonNull},
     time::Duration,
-};
-use winapi::{
-    shared::ntdef::NULL,
-    um::wbemcli::{
-        IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_FORWARD_ONLY,
-        WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE,
-    },
 };
 
 pub enum FilterValue {
@@ -197,7 +190,7 @@ where
                         }
                         FilterValue::Number(n) => format!("{}", n),
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
-                        FilterValue::String(s) => quote_and_escape_wql_str(&s),
+                        FilterValue::String(s) => quote_and_escape_wql_str(s),
                         FilterValue::IsA(s) => {
                             conditions.push(format!(
                                 "{} ISA {}",
@@ -260,24 +253,21 @@ impl WMIConnection {
         &self,
         query: impl AsRef<str>,
     ) -> WMIResult<QueryResultEnumerator> {
-        let query_language = BStr::from_str("WQL")?;
-        let query = BStr::from_str(query.as_ref())?;
+        let query_language = BSTR::from("WQL");
+        let query = BSTR::from(query.as_ref());
 
-        let mut p_enumerator = NULL as *mut IEnumWbemClassObject;
+        let enumerator = unsafe {
+            self.svc.ExecQuery(
+                &query_language,
+                &query,
+                WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+                None,
+            )?
+        };
 
-        unsafe {
-            check_hres((*self.svc()).ExecQuery(
-                query_language.as_bstr(),
-                query.as_bstr(),
-                (WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY) as i32,
-                ptr::null_mut(),
-                &mut p_enumerator,
-            ))?;
-        }
+        trace!("Got enumerator {:?}", enumerator);
 
-        trace!("Got enumerator {:?}", p_enumerator);
-
-        Ok(unsafe { QueryResultEnumerator::new(self, p_enumerator) })
+        Ok(QueryResultEnumerator::new(self, enumerator))
     }
 
     /// Execute a free-text query and deserialize the results.
@@ -331,7 +321,7 @@ impl WMIConnection {
     {
         let query_text = build_query::<T>(None)?;
 
-        self.raw_query(&query_text)
+        self.raw_query(query_text)
     }
 
     /// Query all the objects of type T, while filtering according to `filters`.
@@ -363,7 +353,7 @@ impl WMIConnection {
     {
         let query_text = build_query::<T>(Some(filters))?;
 
-        self.raw_query(&query_text)
+        self.raw_query(query_text)
     }
 
     /// Get a single object of type T.
@@ -415,23 +405,23 @@ impl WMIConnection {
     /// # }
     /// ```
     pub fn get_raw_by_path(&self, object_path: impl AsRef<str>) -> WMIResult<IWbemClassWrapper> {
-        let object_path = BStr::from_str(object_path.as_ref())?;
+        let object_path = BSTR::from(object_path.as_ref());
 
-        let mut pcls_obj = NULL as *mut IWbemClassObject;
+        let mut pcls_obj = None;
 
         unsafe {
-            check_hres((*self.svc()).GetObject(
-                object_path.as_bstr(),
-                WBEM_FLAG_RETURN_WBEM_COMPLETE as i32,
-                ptr::null_mut(),
-                &mut pcls_obj,
-                ptr::null_mut(),
-            ))?;
+            self.svc.GetObject(
+                &object_path,
+                WBEM_FLAG_RETURN_WBEM_COMPLETE.0 as _,
+                None,
+                Some(&mut pcls_obj),
+                None
+            )?;
         }
 
-        let pcls_ptr = NonNull::new(pcls_obj).ok_or(WMIError::NullPointerResult)?;
+        let pcls_ptr = pcls_obj.ok_or(WMIError::NullPointerResult)?;
 
-        let pcls_wrapper = unsafe { IWbemClassWrapper::new(pcls_ptr) };
+        let pcls_wrapper = IWbemClassWrapper::new(pcls_ptr);
 
         Ok(pcls_wrapper)
     }
@@ -578,7 +568,7 @@ impl WMIConnection {
             class_name = class_name
         );
 
-        self.raw_query(&query)
+        self.raw_query(query)
     }
 }
 
@@ -588,12 +578,11 @@ impl WMIConnection {
 mod tests {
     use super::*;
     use serde::Deserialize;
+    use windows::Win32::System::Wmi::WBEM_E_INVALID_QUERY;
     use std::collections::HashMap;
 
     use crate::tests::fixtures::*;
     use crate::{Variant, WMIError};
-    use winapi::shared::ntdef::HRESULT;
-    use winapi::um::wbemcli::WBEM_E_INVALID_QUERY;
 
     #[test]
     fn it_works() {
@@ -645,7 +634,7 @@ mod tests {
                 Ok(_) => assert!(false),
                 Err(wmi_err) => match wmi_err {
                     WMIError::HResultError { hres } => {
-                        assert_eq!(hres, WBEM_E_INVALID_QUERY as HRESULT);
+                        assert_eq!(hres, WBEM_E_INVALID_QUERY.0);
                     }
                     _ => assert!(false),
                 },

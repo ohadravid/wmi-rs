@@ -1,19 +1,14 @@
 use crate::{
-    query_sink::{AsyncQueryResultStream, QuerySink, IWbemObjectSink, AsyncQueryResultStreamInner},
+    query_sink::{AsyncQueryResultStream, QuerySink, AsyncQueryResultStreamInner},
     result_enumerator::{QueryResultEnumerator, IWbemClassWrapper},
-    bstr::BStr,
-    utils::check_hres,
     WMIConnection,
     WMIResult,
     FilterValue,
     build_notification_query,
 };
-use winapi::{
-    um::wbemcli::{IEnumWbemClassObject, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY},
-    shared::ntdef::NULL,
-};
-use com::{production::ClassAllocation, AbiTransferable};
-use std::{collections::HashMap, ptr, time::Duration};
+use windows::Win32::System::Wmi::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, IWbemObjectSink};
+use windows::core::BSTR;
+use std::{collections::HashMap, time::Duration};
 use futures::{Stream, StreamExt};
 
 ///
@@ -24,23 +19,20 @@ impl WMIConnection {
     /// It's better to use the other query methods, since this is relatively low level.
     ///
     pub fn notification_native_wrapper(&self, query: impl AsRef<str>) -> WMIResult<QueryResultEnumerator> {
-        let query_language = BStr::from_str("WQL")?;
-        let query = BStr::from_str(query.as_ref())?;
+        let query_language = BSTR::from("WQL");
+        let query = BSTR::from(query.as_ref());
 
-        let mut p_enumerator = NULL as *mut IEnumWbemClassObject;
+        let enumerator = unsafe {
+            self.svc.ExecNotificationQuery(
+                &query_language,
+                &query,
+                (WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY).0 as _,
+                None,
+            )?
+        };
+        log::trace!("Got enumerator {:?}", enumerator);
 
-        unsafe {
-            check_hres((*self.svc()).ExecNotificationQuery(
-                query_language.as_bstr(),
-                query.as_bstr(),
-                (WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY) as i32,
-                ptr::null_mut(),
-                &mut p_enumerator,
-            ))?;
-        }
-        log::trace!("Got enumerator {:?}", p_enumerator);
-
-        Ok(unsafe { QueryResultEnumerator::new(self, p_enumerator) })
+        Ok(QueryResultEnumerator::new(self, enumerator))
     }
 
     /// Execute a free-text query and deserialize the incoming events.
@@ -150,27 +142,27 @@ impl WMIConnection {
     /// as a stream instead of the original Sink.
     ///
     pub fn async_notification_native_wrapper(&self, query: impl AsRef<str>) -> WMIResult<impl Stream<Item = WMIResult<IWbemClassWrapper>>> {
-        let query_language = BStr::from_str("WQL")?;
-        let query = BStr::from_str(query.as_ref())?;
+        let query_language = BSTR::from("WQL");
+        let query = BSTR::from(query.as_ref());
 
         let stream = AsyncQueryResultStreamInner::new();
         // The internal RefCount has initial value = 1.
-        let p_sink: ClassAllocation<QuerySink> = QuerySink::allocate(stream.clone());
-        let p_sink_handle = IWbemObjectSink::from(&**p_sink);
+        let p_sink = QuerySink { stream: stream.clone() };
+        let p_sink_handle: IWbemObjectSink = p_sink.into();
 
         unsafe {
             // As p_sink's RefCount = 1 before this call,
             // p_sink won't be dropped at the end of ExecNotificationQueryAsync
-            check_hres((*self.svc()).ExecNotificationQueryAsync(
-                query_language.as_bstr(),
-                query.as_bstr(),
+            self.svc.ExecNotificationQueryAsync(
+                &query_language,
+                &query,
                 0,
-                ptr::null_mut(),
-                p_sink_handle.get_abi().as_ptr() as *mut _,
-            ))?;
-        }
+                None,
+                &p_sink_handle,
+            )?
+        };
 
-        Ok(AsyncQueryResultStream::new(stream, self.clone(), p_sink))
+        Ok(AsyncQueryResultStream::new(stream, self.clone(), p_sink_handle))
     }
 
     /// Async version of [`raw_notification`](WMIConnection#method.raw_notification)
@@ -299,13 +291,13 @@ impl WMIConnection {
 #[cfg(test)]
 mod tests {
     use crate::{tests::fixtures::*, FilterValue, WMIError};
-    use winapi::{shared::ntdef::HRESULT, um::wbemcli::WBEM_E_UNPARSABLE_QUERY};
     use std::{collections::HashMap, time::Duration};
     use serde::Deserialize;
     use futures::StreamExt;
 
     #[cfg(feature = "chrono")]
     use chrono::Datelike;
+    use windows::Win32::System::Wmi::WBEM_E_UNPARSABLE_QUERY;
 
     const TEST_QUERY: &str = "SELECT * FROM __InstanceModificationEvent WHERE TargetInstance ISA 'Win32_LocalTime'";
 
@@ -368,7 +360,7 @@ mod tests {
         match result {
             Ok(_) => assert!(false),
             Err(wmi_err) => match wmi_err {
-                WMIError::HResultError { hres } => assert_eq!(hres, WBEM_E_UNPARSABLE_QUERY as HRESULT),
+                WMIError::HResultError { hres } => assert_eq!(hres, WBEM_E_UNPARSABLE_QUERY.0),
                 _ => assert!(false),
             },
         }
@@ -464,7 +456,7 @@ mod tests {
 
         assert!(result.is_err());
         if let WMIError::HResultError { hres } = result.err().unwrap() {
-            assert_eq!(hres, WBEM_E_UNPARSABLE_QUERY as HRESULT)
+            assert_eq!(hres, WBEM_E_UNPARSABLE_QUERY.0);
         } else {
             assert!(false, "Invalid WMIError type");
         }

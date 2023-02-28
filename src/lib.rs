@@ -264,7 +264,6 @@
 #![allow(unused_unsafe)]
 #![cfg(windows)]
 
-mod bstr;
 pub mod connection;
 
 #[cfg(feature = "chrono")]
@@ -290,7 +289,6 @@ pub mod notification;
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
 
-use bstr::BStr;
 pub use connection::{COMLibrary, WMIConnection};
 
 #[cfg(feature = "chrono")]

@@ -1,26 +1,15 @@
 use crate::{
     result_enumerator::IWbemClassWrapper,
-    utils::check_hres,
     safearray::safe_array_to_vec,
     WMIError,
     WMIResult,
 };
-use winapi::{
-    um::{
-        wbemcli::{self, CIMTYPE_ENUMERATION, IID_IWbemClassObject},
-        oaidl::SAFEARRAY,
-        oaidl::VARIANT,
-        unknwnbase::IUnknown,
-    },
-    ctypes::c_void,
-    shared::{wtypes::*, ntdef::NULL},
-};
-use std::{convert::TryFrom, ptr::NonNull};
-use widestring::WideCStr;
+use std::convert::TryFrom;
 use serde::Serialize;
-
-// See: https://msdn.microsoft.com/en-us/library/cc237864.aspx
-const VARIANT_FALSE: i16 = 0x0000;
+use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
+use windows::Win32::System::Wmi::{self, CIMTYPE_ENUMERATION, IWbemClassObject};
+use windows::Win32::System::Com::{self, VARIANT, VT_ARRAY, VT_TYPEMASK, VARENUM};
+use windows::core::{IUnknown, Interface, BSTR};
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -55,31 +44,31 @@ pub enum Variant {
 // The `cast_num` macro is used to convert a numerical variable to a variant of the given CIMTYPE.
 macro_rules! cast_num {
     ($var:ident, $cim_type: ident) => {
-        if $cim_type == wbemcli::CIM_UINT8 {
+        if $cim_type == Wmi::CIM_UINT8 {
             Ok(Variant::UI1($var as u8))
-        } else if $cim_type == wbemcli::CIM_UINT16 {
+        } else if $cim_type == Wmi::CIM_UINT16 {
             Ok(Variant::UI2($var as u16))
-        } else if $cim_type == wbemcli::CIM_UINT32 {
+        } else if $cim_type == Wmi::CIM_UINT32 {
             Ok(Variant::UI4($var as u32))
-        } else if $cim_type == wbemcli::CIM_UINT64 {
+        } else if $cim_type == Wmi::CIM_UINT64 {
             Ok(Variant::UI8($var as u64))
-        } else if $cim_type == wbemcli::CIM_SINT8 {
+        } else if $cim_type == Wmi::CIM_SINT8 {
             Ok(Variant::I1($var as i8))
-        } else if $cim_type == wbemcli::CIM_SINT16 {
+        } else if $cim_type == Wmi::CIM_SINT16 {
             Ok(Variant::I2($var as i16))
-        } else if $cim_type == wbemcli::CIM_SINT32 {
+        } else if $cim_type == Wmi::CIM_SINT32 {
             Ok(Variant::I4($var as i32))
-        } else if $cim_type == wbemcli::CIM_SINT64 {
+        } else if $cim_type == Wmi::CIM_SINT64 {
             Ok(Variant::I8($var as i64))
-        } else if $cim_type == wbemcli::CIM_REAL32 {
+        } else if $cim_type == Wmi::CIM_REAL32 {
             Ok(Variant::R4($var as f32))
-        } else if $cim_type == wbemcli::CIM_REAL64 {
+        } else if $cim_type == Wmi::CIM_REAL64 {
             Ok(Variant::R8($var as f64))
-        } else if $cim_type == wbemcli::CIM_CHAR16 {
+        } else if $cim_type == Wmi::CIM_CHAR16 {
             Ok(Variant::String(String::from_utf16(&[$var as u16])?))
         } else {
             Err(WMIError::ConvertVariantError(format!(
-                "Value {:?} cannot be turned into a CIMTYPE {}",
+                "Value {:?} cannot be turned into a CIMTYPE {:?}",
                 $var, $cim_type,
             )))
         }
@@ -92,102 +81,98 @@ impl Variant {
     /// # Safety
     ///
     /// This function is unsafe as it is the caller's responsibility to ensure that the VARIANT is correctly initialized.
-    pub unsafe fn from_variant(vt: VARIANT) -> WMIResult<Variant> {
-        let variant_type: VARTYPE = unsafe { vt.n1.n2().vt };
+    pub fn from_variant(vt: &VARIANT) -> WMIResult<Variant> {
+        let variant_type = unsafe { vt.Anonymous.Anonymous.vt };
 
         // variant_type has two 'forms':
         // 1. A simple type like `VT_BSTR` .
         // 2. An array of certain type like `VT_ARRAY | VT_BSTR`.
-        if variant_type as u32 & VT_ARRAY == VT_ARRAY {
-            let array: &*mut SAFEARRAY = unsafe { vt.n1.n2().n3.parray() };
+        if variant_type.0 & VT_ARRAY.0 == VT_ARRAY.0 {
+            let array = unsafe { vt.Anonymous.Anonymous.Anonymous.parray };
 
-            let item_type = variant_type as u32 & VT_TYPEMASK;
+            let item_type = VARENUM(variant_type.0 & VT_TYPEMASK.0);
 
             return Ok(Variant::Array(unsafe {
-                safe_array_to_vec(*array, item_type as u32)?
+                safe_array_to_vec(&*array, item_type)?
             }));
         }
 
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.
         // Rust can infer the return type of `vt.*Val()` calls,
         // but it's easier to read when the type is named explicitly.
-        let variant_value = match variant_type as u32 {
-            VT_BSTR => {
-                let bstr_ptr: &BSTR = unsafe { vt.n1.n2().n3.bstrVal() };
+        let variant_value = match variant_type {
+            Com::VT_BSTR => {
+                let bstr_ptr: &BSTR = unsafe { &vt.Anonymous.Anonymous.Anonymous.bstrVal };
 
-                let prop_val: &WideCStr = unsafe { WideCStr::from_ptr_str(*bstr_ptr) };
-
-                let property_value_as_string = prop_val.to_string()?;
-
-                Variant::String(property_value_as_string)
+                Variant::String(bstr_ptr.try_into()?)
             }
-            VT_I1 => {
-                let num: &i8 = unsafe { vt.n1.n2().n3.cVal() };
+            Com::VT_I1 => {
+                let num = unsafe { vt.Anonymous.Anonymous.Anonymous.cVal };
 
-                Variant::I1(*num)
+                Variant::I1(num.0 as _)
             }
-            VT_I2 => {
-                let num: &i16 = unsafe { vt.n1.n2().n3.iVal() };
+            Com::VT_I2 => {
+                let num: i16 = unsafe { vt.Anonymous.Anonymous.Anonymous.iVal };
 
-                Variant::I2(*num)
+                Variant::I2(num)
             }
-            VT_I4 => {
-                let num: &i32 = unsafe { vt.n1.n2().n3.lVal() };
+            Com::VT_I4 => {
+                let num: i32 = unsafe { vt.Anonymous.Anonymous.Anonymous.lVal };
 
-                Variant::I4(*num)
+                Variant::I4(num)
             }
-            VT_I8 => {
-                let num: &i64 = unsafe { vt.n1.n2().n3.llVal() };
+            Com::VT_I8 => {
+                let num: i64 = unsafe { vt.Anonymous.Anonymous.Anonymous.llVal };
 
-                Variant::I8(*num)
+                Variant::I8(num)
             }
-            VT_R4 => {
-                let num: &f32 = unsafe { vt.n1.n2().n3.fltVal() };
+            Com::VT_R4 => {
+                let num: f32 = unsafe { vt.Anonymous.Anonymous.Anonymous.fltVal };
 
-                Variant::R4(*num)
+                Variant::R4(num)
             }
-            VT_R8 => {
-                let num: &f64 = unsafe { vt.n1.n2().n3.dblVal() };
+            Com::VT_R8 => {
+                let num: f64 = unsafe { vt.Anonymous.Anonymous.Anonymous.dblVal };
 
-                Variant::R8(*num)
+                Variant::R8(num)
             }
-            VT_BOOL => {
-                let value: &i16 = unsafe { vt.n1.n2().n3.boolVal() };
+            Com::VT_BOOL => {
+                let value = unsafe { vt.Anonymous.Anonymous.Anonymous.boolVal };
 
-                match *value {
+                match value {
                     VARIANT_FALSE => Variant::Bool(false),
                     VARIANT_TRUE => Variant::Bool(true),
-                    _ => return Err(WMIError::ConvertBoolError(*value)),
+                    _ => return Err(WMIError::ConvertBoolError(value.0)),
                 }
             }
-            VT_UI1 => {
-                let num: &u8 = unsafe { vt.n1.n2().n3.bVal() };
+            Com::VT_UI1 => {
+                let num: u8 = unsafe { vt.Anonymous.Anonymous.Anonymous.bVal };
 
-                Variant::UI1(*num)
+                Variant::UI1(num)
             }
-            VT_UI2 => {
-                let num: &u16 = unsafe { vt.n1.n2().n3.uiVal() };
+            Com::VT_UI2 => {
+                let num: u16 = unsafe { vt.Anonymous.Anonymous.Anonymous.uiVal };
 
-                Variant::UI2(*num)
+                Variant::UI2(num)
             }
-            VT_UI4 => {
-                let num: &u32 = unsafe { vt.n1.n2().n3.ulVal() };
+            Com::VT_UI4 => {
+                let num: u32 = unsafe { vt.Anonymous.Anonymous.Anonymous.ulVal };
 
-                Variant::UI4(*num)
+                Variant::UI4(num)
             }
-            VT_UI8 => {
-                let num: &u64 = unsafe { vt.n1.n2().n3.ullVal() };
+            Com::VT_UI8 => {
+                let num: u64 = unsafe { vt.Anonymous.Anonymous.Anonymous.ullVal };
 
-                Variant::UI8(*num)
+                Variant::UI8(num)
             }
-            VT_EMPTY => Variant::Empty,
-            VT_NULL => Variant::Null,
-            VT_UNKNOWN => {
-                let unk: &*mut IUnknown = unsafe { vt.n1.n2().n3.punkVal() };
-                let ptr = NonNull::new(*unk).ok_or(WMIError::NullPointerResult)?;
-                Variant::Unknown(unsafe { IUnknownWrapper::new(ptr) })
+            Com::VT_EMPTY => Variant::Empty,
+            Com::VT_NULL => Variant::Null,
+            Com::VT_UNKNOWN => {
+                let unk = unsafe { &vt.Anonymous.Anonymous.Anonymous.punkVal };
+                let ptr = unk.as_ref().ok_or(WMIError::NullPointerResult)?;
+                Variant::Unknown(IUnknownWrapper::new(ptr.clone()))
             },
-            _ => return Err(WMIError::ConvertError(variant_type)),
+            _ => return Err(WMIError::ConvertError(variant_type.0)),
         };
 
         Ok(variant_value)
@@ -195,11 +180,11 @@ impl Variant {
 
     /// Convert the variant it to a specific type.
     pub fn convert_into_cim_type(self, cim_type: CIMTYPE_ENUMERATION) -> WMIResult<Self> {
-        if cim_type == wbemcli::CIM_EMPTY {
+        if cim_type == Wmi::CIM_EMPTY {
             return Ok(Variant::Null);
         }
 
-        if wbemcli::CIM_FLAG_ARRAY & cim_type != 0 {
+        if (Wmi::CIM_FLAG_ARRAY.0 & cim_type.0) != 0 {
             /*
             "If the type is actually an array type,
             the CimBaseType MUST be combined by using the bitwise OR operation with the CimArrayFlag value (0x2000)
@@ -209,7 +194,7 @@ impl Variant {
             match self {
                 // If we got an array, we just need to convert it's elements.
                 Variant::Array(arr) => {
-                    return Variant::Array(arr).convert_into_cim_type(cim_type & 0xff)
+                    return Variant::Array(arr).convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff))
                 }
                 Variant::Empty | Variant::Null => {
                     return Ok(Variant::Array(vec![]));
@@ -217,7 +202,7 @@ impl Variant {
                 // If we didn't get an array, we need to convert the element, but also wrap it in an array.
                 not_array => {
                     return Ok(Variant::Array(vec![
-                        not_array.convert_into_cim_type(cim_type & 0xff)?
+                        not_array.convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff))?
                     ]));
                 }
             }
@@ -239,28 +224,28 @@ impl Variant {
             Variant::UI4(n) => cast_num!(n, cim_type)?,
             Variant::UI8(n) => cast_num!(n, cim_type)?,
             Variant::Bool(b) => {
-                if cim_type == wbemcli::CIM_BOOLEAN {
+                if cim_type == Wmi::CIM_BOOLEAN {
                     Variant::Bool(b)
                 } else {
                     return Err(WMIError::ConvertVariantError(format!(
-                        "A boolean Variant cannot be turned into a CIMTYPE {}",
-                        &cim_type,
+                        "A boolean Variant cannot be turned into a CIMTYPE {:?}",
+                        cim_type,
                     )));
                 }
             }
             Variant::String(s) => {
                 match cim_type {
-                    wbemcli::CIM_STRING | wbemcli::CIM_CHAR16 => Variant::String(s),
-                    wbemcli::CIM_REAL64 => Variant::R8(s.parse()?),
-                    wbemcli::CIM_REAL32 => Variant::R4(s.parse()?),
-                    wbemcli::CIM_UINT64 => Variant::UI8(s.parse()?),
-                    wbemcli::CIM_SINT64 => Variant::I8(s.parse()?),
-                    wbemcli::CIM_UINT32 => Variant::UI4(s.parse()?),
-                    wbemcli::CIM_SINT32 => Variant::I4(s.parse()?),
-                    wbemcli::CIM_UINT16 => Variant::UI2(s.parse()?),
-                    wbemcli::CIM_SINT16 => Variant::I2(s.parse()?),
-                    wbemcli::CIM_UINT8 => Variant::UI1(s.parse()?),
-                    wbemcli::CIM_SINT8 => Variant::I1(s.parse()?),
+                    Wmi::CIM_STRING | Wmi::CIM_CHAR16 => Variant::String(s),
+                    Wmi::CIM_REAL64 => Variant::R8(s.parse()?),
+                    Wmi::CIM_REAL32 => Variant::R4(s.parse()?),
+                    Wmi::CIM_UINT64 => Variant::UI8(s.parse()?),
+                    Wmi::CIM_SINT64 => Variant::I8(s.parse()?),
+                    Wmi::CIM_UINT32 => Variant::UI4(s.parse()?),
+                    Wmi::CIM_SINT32 => Variant::I4(s.parse()?),
+                    Wmi::CIM_UINT16 => Variant::UI2(s.parse()?),
+                    Wmi::CIM_SINT16 => Variant::I2(s.parse()?),
+                    Wmi::CIM_UINT8 => Variant::UI1(s.parse()?),
+                    Wmi::CIM_SINT8 => Variant::I1(s.parse()?),
                     // Since Variant cannot natively represent a CIM_DATETIME or a CIM_REFERENCE (or any other), we keep it as a string.
                     _ => Variant::String(s),
                 }
@@ -274,12 +259,12 @@ impl Variant {
                 Variant::Array(converted_variants)
             },
             Variant::Unknown(u) => {
-                if cim_type == wbemcli::CIM_OBJECT {
+                if cim_type == Wmi::CIM_OBJECT {
                     Variant::Object(u.to_wbem_class_obj()?)
                 } else {
                     return Err(WMIError::ConvertVariantError(format!(
-                        "A unknown Variant cannot be turned into a CIMTYPE {}",
-                        &cim_type,
+                        "A unknown Variant cannot be turned into a CIMTYPE {:?}",
+                        cim_type,
                     )))
                 }
             },
@@ -291,33 +276,25 @@ impl Variant {
 }
 
 /// A wrapper around the [`IUnknown`] interface. \
-/// Used to retrive [`IWbemClassObject`][winapi::um::wbemcli::IWbemClassObject]
+/// Used to retrive [`IWbemClassObject`][winapi::um::Wmi::IWbemClassObject]
 ///
+#[repr(transparent)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct IUnknownWrapper {
-    inner: NonNull<IUnknown>
+    inner: IUnknown,
 }
 
 impl IUnknownWrapper {
     /// Wrapps around a non-null pointer to IUnknown
     ///
-    pub unsafe fn new(ptr: NonNull<IUnknown>) -> Self {
+    pub fn new(ptr: IUnknown) -> Self {
         IUnknownWrapper { inner: ptr }
     }
 
     pub fn to_wbem_class_obj(&self) -> WMIResult<IWbemClassWrapper> {
-        let ptr = self.inner.as_ptr();
-        let mut obj_ptr = NULL as *mut c_void;
-
-        unsafe {
-            check_hres((*ptr).QueryInterface(
-                &IID_IWbemClassObject,
-                &mut obj_ptr,
-            ))?;
-        }
-
-        let obj = NonNull::new(obj_ptr as *mut _).ok_or(WMIError::NullPointerResult)?;
-        Ok(unsafe { IWbemClassWrapper::new(obj) })
+        Ok(IWbemClassWrapper {
+            inner: self.inner.cast::<IWbemClassObject>()?,
+        })
     }
 }
 
@@ -370,7 +347,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_sint8() {
-        let cim_type = wbemcli::CIM_SINT8;
+        let cim_type = Wmi::CIM_SINT8;
         let variant = Variant::I1(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::I1(1));
@@ -382,7 +359,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_uint8() {
-        let cim_type = wbemcli::CIM_UINT8;
+        let cim_type = Wmi::CIM_UINT8;
         let variant = Variant::UI1(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::UI1(1));
@@ -394,7 +371,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_sint16() {
-        let cim_type = wbemcli::CIM_UINT16;
+        let cim_type = Wmi::CIM_UINT16;
         let variant = Variant::I2(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::UI2(1));
@@ -410,7 +387,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_uint32() {
-        let cim_type = wbemcli::CIM_UINT32;
+        let cim_type = Wmi::CIM_UINT32;
         let variant = Variant::I8(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::UI4(1));
@@ -422,7 +399,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_sint32() {
-        let cim_type = wbemcli::CIM_SINT32;
+        let cim_type = Wmi::CIM_SINT32;
         let variant = Variant::I8(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::I4(1));
@@ -438,7 +415,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_uint64() {
-        let cim_type = wbemcli::CIM_UINT64;
+        let cim_type = Wmi::CIM_UINT64;
         let variant = Variant::I8(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::UI8(1));
@@ -454,7 +431,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_sint64() {
-        let cim_type = wbemcli::CIM_SINT64;
+        let cim_type = Wmi::CIM_SINT64;
         let variant = Variant::I8(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::I8(1));
@@ -470,7 +447,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_real32() {
-        let cim_type = wbemcli::CIM_REAL32;
+        let cim_type = Wmi::CIM_REAL32;
         let variant = Variant::I8(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::R4(1.0));
@@ -490,7 +467,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_real64() {
-        let cim_type = wbemcli::CIM_REAL64;
+        let cim_type = Wmi::CIM_REAL64;
         let variant = Variant::I8(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::R8(1.0));
@@ -510,7 +487,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_char16() {
-        let cim_type = wbemcli::CIM_CHAR16;
+        let cim_type = Wmi::CIM_CHAR16;
         let variant = Variant::UI2(67);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::String("C".to_string()));
@@ -518,7 +495,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_datetime() {
-        let cim_type = wbemcli::CIM_DATETIME;
+        let cim_type = Wmi::CIM_DATETIME;
         let datetime = "19980401135809.000000+000";
         let variant = Variant::String(datetime.to_string());
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
@@ -527,7 +504,7 @@ mod tests {
 
     #[test]
     fn it_convert_into_cim_type_reference() {
-        let cim_type = wbemcli::CIM_REFERENCE;
+        let cim_type = Wmi::CIM_REFERENCE;
         let datetime =
             r#"\\\\PC\\root\\cimv2:Win32_DiskDrive.DeviceID=\"\\\\\\\\.\\\\PHYSICALDRIVE0\""#;
         let variant = Variant::String(datetime.to_string());
@@ -537,12 +514,12 @@ mod tests {
 
     #[test]
     fn it_convert_an_array_into_cim_type_array() {
-        let cim_type = wbemcli::CIM_UINT64 | wbemcli::CIM_FLAG_ARRAY;
+        let cim_type = CIMTYPE_ENUMERATION(Wmi::CIM_UINT64.0 | Wmi::CIM_FLAG_ARRAY.0);
         let variant = Variant::Array(vec![Variant::String("1".to_string())]);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::Array(vec![Variant::UI8(1)]));
 
-        let cim_type = wbemcli::CIM_UINT8 | wbemcli::CIM_FLAG_ARRAY;
+        let cim_type = CIMTYPE_ENUMERATION(Wmi::CIM_UINT8.0 | Wmi::CIM_FLAG_ARRAY.0);
         let variant = Variant::Array(vec![Variant::UI1(1)]);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::Array(vec![Variant::UI1(1)]));
@@ -550,12 +527,12 @@ mod tests {
 
     #[test]
     fn it_convert_a_single_value_into_cim_type_array() {
-        let cim_type = wbemcli::CIM_UINT64 | wbemcli::CIM_FLAG_ARRAY;
+        let cim_type = CIMTYPE_ENUMERATION(Wmi::CIM_UINT64.0 | Wmi::CIM_FLAG_ARRAY.0);
         let variant = Variant::String("1".to_string());
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::Array(vec![Variant::UI8(1)]));
 
-        let cim_type = wbemcli::CIM_UINT8 | wbemcli::CIM_FLAG_ARRAY;
+        let cim_type = CIMTYPE_ENUMERATION(Wmi::CIM_UINT8.0 | Wmi::CIM_FLAG_ARRAY.0);
         let variant = Variant::UI1(1);
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::Array(vec![Variant::UI1(1)]));
@@ -563,7 +540,7 @@ mod tests {
 
     #[test]
     fn it_convert_an_empty_into_cim_type_array() {
-        let cim_type = wbemcli::CIM_STRING | wbemcli::CIM_FLAG_ARRAY;
+        let cim_type = CIMTYPE_ENUMERATION(Wmi::CIM_STRING.0 | Wmi::CIM_FLAG_ARRAY.0);
         let variant = Variant::Null;
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::Array(vec![]));

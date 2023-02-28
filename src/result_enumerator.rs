@@ -2,99 +2,73 @@ use crate::{
     connection::WMIConnection,
     de::wbem_class_de::from_wbem_class_obj,
     safearray::safe_array_to_vec_of_strings,
-    utils::check_hres,
     WMIResult,
     WMIError,
     Variant,
-    BStr,
 };
-use winapi::{
-    shared::ntdef::NULL,
-    um::{
-        oaidl::{SAFEARRAY, VARIANT},
-        wbemcli::{IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE},
-        oleauto::{SafeArrayDestroy, VariantClear},
-    },
+use std::{ptr, convert::TryInto};
+use windows::Win32::System::Wmi::{
+    IWbemClassObject, WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY, IEnumWbemClassObject,
+    WBEM_INFINITE, CIMTYPE_ENUMERATION
 };
-use std::{
-    ptr::{self, NonNull},
-    convert::TryInto,
-    mem,
-};
+use windows::Win32::System::Ole::{SafeArrayDestroy, VariantClear};
+use windows::Win32::System::Com::VARIANT;
+use windows::core::HSTRING;
 use serde::{ser::{Error, SerializeMap}, de, Serialize};
 use log::trace;
 
 /// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
 /// the object when dropped.
 ///
-#[derive(Debug, PartialEq, Eq)]
+#[repr(transparent)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IWbemClassWrapper {
-    pub inner: NonNull<IWbemClassObject>,
+    pub inner: IWbemClassObject,
 }
 
 impl IWbemClassWrapper {
-    pub unsafe fn new(ptr: NonNull<IWbemClassObject>) -> Self {
-        Self { inner: ptr, }
-    }
-
-    /// Creates a copy of the pointer and calls
-    /// [AddRef](https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-addref)
-    /// to increment Reference Count.
-    ///
-    /// # Safety
-    /// See [Managing the lifetime of an object](https://docs.microsoft.com/en-us/windows/win32/learnwin32/managing-the-lifetime-of-an-object)
-    /// and [Rules for managing Ref count](https://docs.microsoft.com/en-us/windows/win32/com/rules-for-managing-reference-counts)
-    ///
-    pub unsafe fn clone(ptr: NonNull<IWbemClassObject>) -> Self {
-        let refcount = ptr.as_ref().AddRef();
-        trace!("Reference count: {}", refcount);
-        Self::new(ptr)
+    pub fn new(inner: IWbemClassObject) -> Self {
+        Self { inner }
     }
 
     /// Return the names of all the properties of the given object.
     ///
     pub fn list_properties(&self) -> WMIResult<Vec<String>> {
-        // This will store the properties names from the GetNames call.
-        let mut p_names = NULL as *mut SAFEARRAY;
-
-        let ptr = self.inner.as_ptr();
-
-        unsafe {
-            check_hres((*ptr).GetNames(
-                ptr::null(),
-                (WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY) as i32,
+        let p_names = unsafe {
+            self.inner.GetNames(
+                None,
+                WBEM_FLAG_ALWAYS.0 | WBEM_FLAG_NONSYSTEM_ONLY.0,
                 ptr::null_mut(),
-                &mut p_names,
-            ))?;
+            )
+        }?;
 
-            let res = safe_array_to_vec_of_strings(p_names);
+        let res = safe_array_to_vec_of_strings(unsafe { &*p_names });
 
-            check_hres(SafeArrayDestroy(p_names))?;
+        unsafe { SafeArrayDestroy(p_names) }?;
 
-            res
-        }
+        res
     }
 
     pub fn get_property(&self, property_name: &str) -> WMIResult<Variant> {
-        let name_prop = BStr::from_str(property_name)?;
+        let name_prop = HSTRING::from(property_name);
 
-        let mut vt_prop: VARIANT = unsafe { mem::zeroed() };
+        let mut vt_prop = VARIANT::default();
 
         let mut cim_type = 0;
 
         unsafe {
-            check_hres((*self.inner.as_ptr()).Get(
-                name_prop.as_lpcwstr(),
+            self.inner.Get(
+                &name_prop,
                 0,
                 &mut vt_prop,
                 &mut cim_type,
                 ptr::null_mut(),
-            ))?;
+            )?;
 
             let property_value =
-                Variant::from_variant(vt_prop)?.convert_into_cim_type(cim_type as _)?;
+                Variant::from_variant(&vt_prop)?.convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))?;
 
-            check_hres(VariantClear(&mut vt_prop))?;
+            VariantClear(&mut vt_prop)?;
 
             Ok(property_value)
         }
@@ -116,21 +90,6 @@ impl IWbemClassWrapper {
     }
 }
 
-impl Clone for IWbemClassWrapper {
-    fn clone(&self) -> Self {
-        unsafe { Self::clone(self.inner) }
-    }
-}
-
-impl Drop for IWbemClassWrapper {
-    fn drop(&mut self) {
-        let ptr = self.inner.as_ptr();
-        unsafe {
-            (*ptr).Release();
-        }
-    }
-}
-
 impl Serialize for IWbemClassWrapper {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -148,24 +107,14 @@ impl Serialize for IWbemClassWrapper {
 
 pub struct QueryResultEnumerator<'a> {
     _wmi_con: &'a WMIConnection,
-    p_enumerator: Option<NonNull<IEnumWbemClassObject>>,
+    p_enumerator: IEnumWbemClassObject,
 }
 
 impl<'a> QueryResultEnumerator<'a> {
-    pub unsafe fn new(wmi_con: &'a WMIConnection, p_enumerator: *mut IEnumWbemClassObject) -> Self {
+    pub fn new(wmi_con: &'a WMIConnection, p_enumerator: IEnumWbemClassObject) -> Self {
         Self {
             _wmi_con: wmi_con,
-            p_enumerator: NonNull::new(p_enumerator),
-        }
-    }
-}
-
-impl<'a> Drop for QueryResultEnumerator<'a> {
-    fn drop(&mut self) {
-        if let Some(p_enumerator) = self.p_enumerator {
-            unsafe {
-                (*p_enumerator.as_ptr()).Release();
-            }
+            p_enumerator,
         }
     }
 }
@@ -174,22 +123,19 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
     type Item = WMIResult<IWbemClassWrapper>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut pcls_obj = NULL as *mut IWbemClassObject;
+        let mut objs = [None; 1];
         let mut return_value = 0;
 
-        let raw_enumerator_prt = self.p_enumerator?.as_ptr();
-
         let res = unsafe {
-            check_hres((*raw_enumerator_prt).Next(
-                WBEM_INFINITE as i32,
-                1,
-                &mut pcls_obj,
+            self.p_enumerator.Next(
+                WBEM_INFINITE,
+                &mut objs,
                 &mut return_value,
-            ))
+            )
         };
 
-        if let Err(e) = res {
-            return Some(Err(e));
+        if let Err(e) = res.ok() {
+            return Some(Err(e.into()));
         }
 
         if return_value == 0 {
@@ -199,14 +145,15 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
         trace!(
             "Got enumerator {:?} and obj {:?}",
             self.p_enumerator,
-            pcls_obj
+            &objs[0]
         );
 
-        let pcls_ptr = NonNull::new(pcls_obj).ok_or(WMIError::NullPointerResult);
+        let mut objs = objs.into_iter();
+        let pcls_ptr = objs.next().unwrap().ok_or(WMIError::NullPointerResult);
 
         match pcls_ptr {
             Err(e) => Some(Err(e)),
-            Ok(pcls_ptr) => Some(Ok(unsafe { IWbemClassWrapper::new(pcls_ptr) })),
+            Ok(pcls_ptr) => Some(Ok(IWbemClassWrapper::new(pcls_ptr))),
         }
     }
 }
