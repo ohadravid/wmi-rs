@@ -13,7 +13,22 @@ use windows::Win32::System::Com::{
 use windows::core::BSTR;
 
 /// A marker to indicate that the current thread was `CoInitialize`d.
-/// It can be freely copied within the same thread.
+///
+/// # Note
+///
+/// `COMLibrary` should be treated as a singleton per thread:
+///
+/// ```edition2018
+/// # use wmi::*;
+/// thread_local! {
+///     static COM_LIB: COMLibrary = COMLibrary::new().unwrap();
+/// }
+///
+/// pub fn wmi_con() -> WMIConnection {
+///     let com_lib = COM_LIB.with(|com| *com);
+///     WMIConnection::new(com_lib).unwrap()
+/// }
+/// ```
 #[derive(Clone, Copy)]
 pub struct COMLibrary {
     // Force the type to be `!Send`, as each thread must be initialized separately.
