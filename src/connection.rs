@@ -1,6 +1,8 @@
 use crate::utils::WMIResult;
+use crate::WMIError;
 use std::marker::PhantomData;
 use log::debug;
+use windows::Win32::Foundation::RPC_E_TOO_LATE;
 use windows::Win32::System::Wmi::{IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT, WbemLocator};
 use windows::Win32::System::Com::{CoSetProxyBlanket, CoCreateInstance, CLSCTX_INPROC_SERVER, RPC_C_AUTHN_LEVEL_CALL};
 use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
@@ -28,7 +30,13 @@ impl COMLibrary {
     ///
     pub fn new() -> WMIResult<Self> {
         let instance = Self::without_security()?;
-        instance.init_security()?;
+
+        match instance.init_security() {
+            Ok(()) => {}
+            // Security was already initialized, this is fine
+            Err(WMIError::HResultError { hres }) if hres == RPC_E_TOO_LATE.0 => {}
+            Err(err) => return Err(err),
+        }
 
         Ok(instance)
     }
@@ -193,4 +201,23 @@ fn create_services(loc: &IWbemLocator, path: &str) -> WMIResult<IWbemServices> {
     debug!("Got service {:?}", svc);
 
     Ok(svc)
+}
+
+#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_can_create_multiple_connections() {
+        {
+            let com_lib = COMLibrary::new().unwrap();
+            let _ = WMIConnection::new(com_lib);
+        }
+        {
+            let com_lib = COMLibrary::new().unwrap();
+            let _ = WMIConnection::new(com_lib);
+        }
+    }
 }
