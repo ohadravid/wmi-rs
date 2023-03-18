@@ -1,5 +1,5 @@
 # wmi
-![test](https://github.com/ohadravid/wmi-rs/actions/workflows/test.yml/badge.svg)
+[![test](https://github.com/ohadravid/wmi-rs/actions/workflows/test.yml/badge.svg)](https://github.com/ohadravid/wmi-rs/actions/workflows/test.yml)
 [![crates.io](https://img.shields.io/crates/v/wmi.svg)](https://crates.io/crates/wmi)
 [![docs.rs](https://docs.rs/wmi/badge.svg)](https://docs.rs/crate/wmi)
 
@@ -60,7 +60,7 @@ If you prefer to use the `time` crate instead of the default `chrono`, include `
 
 ```toml
 [dependencies]
-wmi-rs = { version = "0.11", default-features = false, features = ["time"] }
+wmi-rs = { version = "*", default-features = false, features = ["time"] }
 ```
 
 and use the `WMIOffsetDateTime` wrapper instead of the the `WMIDateTime` wrapper.
