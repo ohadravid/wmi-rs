@@ -1,6 +1,6 @@
 use crate::WMIError;
-use std::{str::FromStr, time::Duration, fmt};
 use serde::{de, ser};
+use std::{fmt, str::FromStr, time::Duration};
 
 /// A wrapper type around Duration, which supports parsing from WMI-format strings.
 ///

@@ -1,21 +1,21 @@
 use crate::{
-    connection::WMIConnection,
-    de::wbem_class_de::from_wbem_class_obj,
-    safearray::safe_array_to_vec_of_strings,
-    WMIResult,
-    WMIError,
-    Variant,
+    connection::WMIConnection, de::wbem_class_de::from_wbem_class_obj,
+    safearray::safe_array_to_vec_of_strings, Variant, WMIError, WMIResult,
 };
-use std::{ptr, convert::TryInto};
-use windows::Win32::System::Wmi::{
-    IWbemClassObject, WBEM_FLAG_ALWAYS, WBEM_FLAG_NONSYSTEM_ONLY, IEnumWbemClassObject,
-    WBEM_INFINITE, CIMTYPE_ENUMERATION
-};
-use windows::Win32::System::Ole::{SafeArrayDestroy, VariantClear};
-use windows::Win32::System::Com::VARIANT;
-use windows::core::HSTRING;
-use serde::{ser::{Error, SerializeMap}, de, Serialize};
 use log::trace;
+use serde::{
+    de,
+    ser::{Error, SerializeMap},
+    Serialize,
+};
+use std::{convert::TryInto, ptr};
+use windows::core::HSTRING;
+use windows::Win32::System::Com::VARIANT;
+use windows::Win32::System::Ole::{SafeArrayDestroy, VariantClear};
+use windows::Win32::System::Wmi::{
+    IEnumWbemClassObject, IWbemClassObject, CIMTYPE_ENUMERATION, WBEM_FLAG_ALWAYS,
+    WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE,
+};
 
 /// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
 /// the object when dropped.
@@ -57,16 +57,11 @@ impl IWbemClassWrapper {
         let mut cim_type = 0;
 
         unsafe {
-            self.inner.Get(
-                &name_prop,
-                0,
-                &mut vt_prop,
-                &mut cim_type,
-                ptr::null_mut(),
-            )?;
+            self.inner
+                .Get(&name_prop, 0, &mut vt_prop, &mut cim_type, ptr::null_mut())?;
 
-            let property_value =
-                Variant::from_variant(&vt_prop)?.convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))?;
+            let property_value = Variant::from_variant(&vt_prop)?
+                .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))?;
 
             VariantClear(&mut vt_prop)?;
 
@@ -93,7 +88,7 @@ impl IWbemClassWrapper {
 impl Serialize for IWbemClassWrapper {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer
+        S: serde::Serializer,
     {
         let properties = self.list_properties().map_err(Error::custom)?;
         let mut s = serializer.serialize_map(Some(properties.len()))?;
@@ -127,11 +122,8 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
         let mut return_value = 0;
 
         let res = unsafe {
-            self.p_enumerator.Next(
-                WBEM_INFINITE,
-                &mut objs,
-                &mut return_value,
-            )
+            self.p_enumerator
+                .Next(WBEM_INFINITE, &mut objs, &mut return_value)
         };
 
         if let Err(e) = res.ok() {

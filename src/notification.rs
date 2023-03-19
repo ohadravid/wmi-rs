@@ -1,15 +1,15 @@
 use crate::{
-    query_sink::{AsyncQueryResultStream, QuerySink, AsyncQueryResultStreamInner},
-    result_enumerator::{QueryResultEnumerator, IWbemClassWrapper},
-    WMIConnection,
-    WMIResult,
-    FilterValue,
     build_notification_query,
+    query_sink::{AsyncQueryResultStream, AsyncQueryResultStreamInner, QuerySink},
+    result_enumerator::{IWbemClassWrapper, QueryResultEnumerator},
+    FilterValue, WMIConnection, WMIResult,
 };
-use windows::Win32::System::Wmi::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, IWbemObjectSink};
-use windows::core::BSTR;
-use std::{collections::HashMap, time::Duration};
 use futures::{Stream, StreamExt};
+use std::{collections::HashMap, time::Duration};
+use windows::core::BSTR;
+use windows::Win32::System::Wmi::{
+    IWbemObjectSink, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY,
+};
 
 ///
 /// ### Additional notification query methods
@@ -18,7 +18,10 @@ impl WMIConnection {
     /// Execute the given query to receive events and return an iterator of WMI pointers.
     /// It's better to use the other query methods, since this is relatively low level.
     ///
-    pub fn notification_native_wrapper(&self, query: impl AsRef<str>) -> WMIResult<QueryResultEnumerator> {
+    pub fn notification_native_wrapper(
+        &self,
+        query: impl AsRef<str>,
+    ) -> WMIResult<QueryResultEnumerator> {
         let query_language = BSTR::from("WQL");
         let query = BSTR::from(query.as_ref());
 
@@ -55,16 +58,18 @@ impl WMIConnection {
     /// #   Ok(()) // This query will fail when not run as admin
     /// # }
     /// ```
-    pub fn raw_notification<'a, T>(&'a self, query: impl AsRef<str>) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
+    pub fn raw_notification<'a, T>(
+        &'a self,
+        query: impl AsRef<str>,
+    ) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
     where
         T: serde::de::DeserializeOwned + 'a,
     {
         let enumerator = self.notification_native_wrapper(query)?;
-        let iter = enumerator
-            .map(|item| match item {
-                Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
-                Err(e) => Err(e),
-            });
+        let iter = enumerator.map(|item| match item {
+            Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
+            Err(e) => Err(e),
+        });
         Ok(iter)
     }
 
@@ -129,7 +134,11 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn filtered_notification<'a, T>(&'a self, filters: &HashMap<String, FilterValue>, within: Option<Duration>) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
+    pub fn filtered_notification<'a, T>(
+        &'a self,
+        filters: &HashMap<String, FilterValue>,
+        within: Option<Duration>,
+    ) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
     where
         T: serde::de::DeserializeOwned + 'a,
     {
@@ -141,28 +150,32 @@ impl WMIConnection {
     /// method. Provides safety checks, and returns results
     /// as a stream instead of the original Sink.
     ///
-    pub fn async_notification_native_wrapper(&self, query: impl AsRef<str>) -> WMIResult<impl Stream<Item = WMIResult<IWbemClassWrapper>>> {
+    pub fn async_notification_native_wrapper(
+        &self,
+        query: impl AsRef<str>,
+    ) -> WMIResult<impl Stream<Item = WMIResult<IWbemClassWrapper>>> {
         let query_language = BSTR::from("WQL");
         let query = BSTR::from(query.as_ref());
 
         let stream = AsyncQueryResultStreamInner::new();
         // The internal RefCount has initial value = 1.
-        let p_sink = QuerySink { stream: stream.clone() };
+        let p_sink = QuerySink {
+            stream: stream.clone(),
+        };
         let p_sink_handle: IWbemObjectSink = p_sink.into();
 
         unsafe {
             // As p_sink's RefCount = 1 before this call,
             // p_sink won't be dropped at the end of ExecNotificationQueryAsync
-            self.svc.ExecNotificationQueryAsync(
-                &query_language,
-                &query,
-                0,
-                None,
-                &p_sink_handle,
-            )?
+            self.svc
+                .ExecNotificationQueryAsync(&query_language, &query, 0, None, &p_sink_handle)?
         };
 
-        Ok(AsyncQueryResultStream::new(stream, self.clone(), p_sink_handle))
+        Ok(AsyncQueryResultStream::new(
+            stream,
+            self.clone(),
+            p_sink_handle,
+        ))
     }
 
     /// Async version of [`raw_notification`](WMIConnection#method.raw_notification)
@@ -189,11 +202,15 @@ impl WMIConnection {
     /// #   Ok(()) // This query will fail when not run as admin
     /// # }
     /// ```
-    pub fn async_raw_notification<T>(&self, query: impl AsRef<str>) -> WMIResult<impl Stream<Item = WMIResult<T>>>
+    pub fn async_raw_notification<T>(
+        &self,
+        query: impl AsRef<str>,
+    ) -> WMIResult<impl Stream<Item = WMIResult<T>>>
     where
         T: serde::de::DeserializeOwned,
     {
-        let stream = self.async_notification_native_wrapper(query)?
+        let stream = self
+            .async_notification_native_wrapper(query)?
             .map(|item| match item {
                 Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
                 Err(e) => Err(e),
@@ -279,7 +296,11 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn async_filtered_notification<T>(&self, filters: &HashMap<String, FilterValue>, within: Option<Duration>) -> WMIResult<impl Stream<Item = WMIResult<T>>>
+    pub fn async_filtered_notification<T>(
+        &self,
+        filters: &HashMap<String, FilterValue>,
+        within: Option<Duration>,
+    ) -> WMIResult<impl Stream<Item = WMIResult<T>>>
     where
         T: serde::de::DeserializeOwned,
     {
@@ -291,19 +312,23 @@ impl WMIConnection {
 #[cfg(test)]
 mod tests {
     use crate::{tests::fixtures::*, FilterValue, WMIError};
-    use std::{collections::HashMap, time::Duration};
-    use serde::Deserialize;
     use futures::StreamExt;
+    use serde::Deserialize;
+    use std::{collections::HashMap, time::Duration};
 
     #[cfg(feature = "chrono")]
     use chrono::Datelike;
     use windows::Win32::System::Wmi::WBEM_E_UNPARSABLE_QUERY;
 
-    const TEST_QUERY: &str = "SELECT * FROM __InstanceModificationEvent WHERE TargetInstance ISA 'Win32_LocalTime'";
+    const TEST_QUERY: &str =
+        "SELECT * FROM __InstanceModificationEvent WHERE TargetInstance ISA 'Win32_LocalTime'";
 
     pub fn notification_filters() -> HashMap<String, FilterValue> {
         let mut map = HashMap::<String, FilterValue>::new();
-        map.insert("TargetInstance".to_owned(), FilterValue::is_a::<LocalTime>().unwrap());
+        map.insert(
+            "TargetInstance".to_owned(),
+            FilterValue::is_a::<LocalTime>().unwrap(),
+        );
         map
     }
 
@@ -371,7 +396,9 @@ mod tests {
     fn it_can_run_raw_notification() {
         let wmi_con = wmi_con();
 
-        let mut iterator = wmi_con.raw_notification::<InstanceModification>(TEST_QUERY).unwrap();
+        let mut iterator = wmi_con
+            .raw_notification::<InstanceModification>(TEST_QUERY)
+            .unwrap();
 
         let local_time = iterator.next().unwrap();
         assert!(local_time.is_ok());
@@ -385,13 +412,18 @@ mod tests {
     fn it_can_run_raw_notification_on_time_crate() {
         let wmi_con = wmi_con();
 
-        let mut iterator = wmi_con.raw_notification::<InstanceModification>(TEST_QUERY).unwrap();
+        let mut iterator = wmi_con
+            .raw_notification::<InstanceModification>(TEST_QUERY)
+            .unwrap();
 
         let local_time = iterator.next().unwrap();
         assert!(local_time.is_ok());
 
         let local_time = local_time.unwrap().target_instance;
-        assert_eq!(local_time.year as i32, time::OffsetDateTime::now_utc().year());
+        assert_eq!(
+            local_time.year as i32,
+            time::OffsetDateTime::now_utc().year()
+        );
     }
 
     #[test]
@@ -399,7 +431,12 @@ mod tests {
     fn it_can_run_filtered_notification() {
         let wmi_con = wmi_con();
 
-        let mut iterator = wmi_con.filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1))).unwrap();
+        let mut iterator = wmi_con
+            .filtered_notification::<InstanceModification>(
+                &notification_filters(),
+                Some(Duration::from_secs_f32(0.1)),
+            )
+            .unwrap();
 
         let local_time = iterator.next().unwrap();
         assert!(local_time.is_ok());
@@ -413,20 +450,29 @@ mod tests {
     fn it_can_run_filtered_notification_on_time_crate() {
         let wmi_con = wmi_con();
 
-        let mut iterator = wmi_con.filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1))).unwrap();
+        let mut iterator = wmi_con
+            .filtered_notification::<InstanceModification>(
+                &notification_filters(),
+                Some(Duration::from_secs_f32(0.1)),
+            )
+            .unwrap();
 
         let local_time = iterator.next().unwrap();
         assert!(local_time.is_ok());
 
         let local_time = local_time.unwrap().target_instance;
-        assert_eq!(local_time.year as i32, time::OffsetDateTime::now_utc().year());
+        assert_eq!(
+            local_time.year as i32,
+            time::OffsetDateTime::now_utc().year()
+        );
     }
 
     #[async_std::test]
     async fn async_it_works_async_std() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.async_notification_native_wrapper(TEST_QUERY)
+        let result = wmi_con
+            .async_notification_native_wrapper(TEST_QUERY)
             .unwrap()
             .next()
             .await
@@ -439,7 +485,8 @@ mod tests {
     async fn async_it_works_async_tokio() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.async_notification_native_wrapper(TEST_QUERY)
+        let result = wmi_con
+            .async_notification_native_wrapper(TEST_QUERY)
             .unwrap()
             .next()
             .await
@@ -467,14 +514,18 @@ mod tests {
     async fn async_it_provides_raw_notification_result() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.async_raw_notification::<InstanceModification>(TEST_QUERY)
+        let result = wmi_con
+            .async_raw_notification::<InstanceModification>(TEST_QUERY)
             .unwrap()
             .next()
             .await
             .unwrap();
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().target_instance.year as i32, chrono::Local::now().year())
+        assert_eq!(
+            result.unwrap().target_instance.year as i32,
+            chrono::Local::now().year()
+        )
     }
 
     #[async_std::test]
@@ -482,14 +533,18 @@ mod tests {
     async fn async_it_provides_raw_notification_result_on_time_crate() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.async_raw_notification::<InstanceModification>(TEST_QUERY)
+        let result = wmi_con
+            .async_raw_notification::<InstanceModification>(TEST_QUERY)
             .unwrap()
             .next()
             .await
             .unwrap();
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().target_instance.year as i32, time::OffsetDateTime::now_utc().year())
+        assert_eq!(
+            result.unwrap().target_instance.year as i32,
+            time::OffsetDateTime::now_utc().year()
+        )
     }
 
     #[async_std::test]
@@ -497,14 +552,21 @@ mod tests {
     async fn async_it_provides_filtered_notification_result() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.async_filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1)))
+        let result = wmi_con
+            .async_filtered_notification::<InstanceModification>(
+                &notification_filters(),
+                Some(Duration::from_secs_f32(0.1)),
+            )
             .unwrap()
             .next()
             .await
             .unwrap();
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().target_instance.year as i32, chrono::Local::now().year())
+        assert_eq!(
+            result.unwrap().target_instance.year as i32,
+            chrono::Local::now().year()
+        )
     }
 
     #[async_std::test]
@@ -512,13 +574,20 @@ mod tests {
     async fn async_it_provides_filtered_notification_result_on_time_crate() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.async_filtered_notification::<InstanceModification>(&notification_filters(), Some(Duration::from_secs_f32(0.1)))
+        let result = wmi_con
+            .async_filtered_notification::<InstanceModification>(
+                &notification_filters(),
+                Some(Duration::from_secs_f32(0.1)),
+            )
             .unwrap()
             .next()
             .await
             .unwrap();
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().target_instance.year as i32, time::OffsetDateTime::now_utc().year())
+        assert_eq!(
+            result.unwrap().target_instance.year as i32,
+            time::OffsetDateTime::now_utc().year()
+        )
     }
 }
