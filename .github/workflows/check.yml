@@ -3,8 +3,8 @@ name: check
 on: [push, pull_request]
 
 jobs:
-  test:
-    name: Run tests
+  build:
+    name: Build
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v2
@@ -42,6 +42,19 @@ jobs:
         with:
           command: build
           args: --all-features
+
+  test:
+    name: Run tests
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
       # Test on default features
       - name: Test - All targets
