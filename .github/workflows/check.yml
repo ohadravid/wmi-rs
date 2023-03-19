@@ -90,3 +90,21 @@ jobs:
         with:
           command: fmt
           args: --check
+
+  clippy:
+    name: Clippy
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Run clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
