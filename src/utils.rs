@@ -1,5 +1,5 @@
-use std::fmt::{Debug, Display};
 use serde::{de, ser};
+use std::fmt::{Debug, Display};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -49,7 +49,9 @@ pub enum WMIError {
 
 impl From<windows::core::Error> for WMIError {
     fn from(value: windows::core::Error) -> Self {
-        Self::HResultError { hres: value.code().0 }
+        Self::HResultError {
+            hres: value.code().0,
+        }
     }
 }
 

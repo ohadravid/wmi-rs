@@ -1,8 +1,13 @@
-use crate::{utils::{WMIError, WMIResult}, Variant};
-use std::{iter::Iterator, slice, ptr::null_mut};
-use windows::Win32::System::Com::{self, SAFEARRAY, VT_BSTR, VARENUM};
-use windows::Win32::System::Ole::{SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayAccessData, SafeArrayUnaccessData};
+use crate::{
+    utils::{WMIError, WMIResult},
+    Variant,
+};
+use std::{iter::Iterator, ptr::null_mut, slice};
 use windows::core::BSTR;
+use windows::Win32::System::Com::{self, SAFEARRAY, VARENUM, VT_BSTR};
+use windows::Win32::System::Ole::{
+    SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayUnaccessData,
+};
 
 #[derive(Debug)]
 pub struct SafeArrayAccessor<'a, T> {
@@ -86,14 +91,8 @@ pub fn safe_array_to_vec_of_strings(arr: &SAFEARRAY) -> WMIResult<Vec<String>> {
 /// # Safety
 ///
 /// The caller must ensure that the array is valid.
-pub fn safe_array_to_vec(
-    arr: &SAFEARRAY,
-    item_type: VARENUM,
-) -> WMIResult<Vec<Variant>> {
-    fn copy_type_to_vec<T, F>(
-        arr: &SAFEARRAY,
-        variant_builder: F,
-    ) -> WMIResult<Vec<Variant>>
+pub fn safe_array_to_vec(arr: &SAFEARRAY, item_type: VARENUM) -> WMIResult<Vec<Variant>> {
+    fn copy_type_to_vec<T, F>(arr: &SAFEARRAY, variant_builder: F) -> WMIResult<Vec<Variant>>
     where
         T: Copy,
         F: Fn(T) -> Variant,

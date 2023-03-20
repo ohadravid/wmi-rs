@@ -1,7 +1,7 @@
 use crate::WMIError;
-use std::{str::FromStr, fmt};
 use chrono::prelude::*;
 use serde::{de, ser};
+use std::{fmt, str::FromStr};
 
 /// A wrapper type around `chrono`'s `DateTime` (if the `chrono` feature is active. ), which supports parsing from WMI-format strings.
 #[derive(Debug)]
@@ -17,7 +17,7 @@ impl FromStr for WMIDateTime {
 
         let (datetime_part, tz_part) = s.split_at(21);
         let tz_min: i32 = tz_part.parse()?;
-        let tz = FixedOffset::east(tz_min * 60);
+        let tz = FixedOffset::east_opt(tz_min * 60).unwrap();
         let dt = tz.datetime_from_str(datetime_part, "%Y%m%d%H%M%S.%f")?;
 
         Ok(Self(dt))

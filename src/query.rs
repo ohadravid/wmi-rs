@@ -7,11 +7,10 @@ use crate::{
 };
 use log::trace;
 use serde::de;
-use windows::Win32::System::Wmi::{WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE};
+use std::{collections::HashMap, time::Duration};
 use windows::core::BSTR;
-use std::{
-    collections::HashMap,
-    time::Duration,
+use windows::Win32::System::Wmi::{
+    WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE,
 };
 
 pub enum FilterValue {
@@ -415,7 +414,7 @@ impl WMIConnection {
                 WBEM_FLAG_RETURN_WBEM_COMPLETE.0 as _,
                 None,
                 Some(&mut pcls_obj),
-                None
+                None,
             )?;
         }
 
@@ -578,8 +577,8 @@ impl WMIConnection {
 mod tests {
     use super::*;
     use serde::Deserialize;
-    use windows::Win32::System::Wmi::WBEM_E_INVALID_QUERY;
     use std::collections::HashMap;
+    use windows::Win32::System::Wmi::WBEM_E_INVALID_QUERY;
 
     use crate::tests::fixtures::*;
     use crate::{Variant, WMIError};

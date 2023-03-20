@@ -1,15 +1,15 @@
 use crate::{
-    query_sink::{AsyncQueryResultStream, QuerySink, AsyncQueryResultStreamInner},
-    query::{FilterValue, build_query},
-    result_enumerator::IWbemClassWrapper,
     connection::WMIConnection,
+    query::{build_query, FilterValue},
+    query_sink::{AsyncQueryResultStream, AsyncQueryResultStreamInner, QuerySink},
+    result_enumerator::IWbemClassWrapper,
     WMIResult,
 };
 use futures::stream::{Stream, StreamExt, TryStreamExt};
-use windows::core::BSTR;
-use windows::Win32::System::Wmi::{WBEM_FLAG_BIDIRECTIONAL, IWbemObjectSink};
-use std::collections::HashMap;
 use serde::de;
+use std::collections::HashMap;
+use windows::core::BSTR;
+use windows::Win32::System::Wmi::{IWbemObjectSink, WBEM_FLAG_BIDIRECTIONAL};
 
 ///
 /// ### Additional async methods
@@ -28,7 +28,9 @@ impl WMIConnection {
 
         let stream = AsyncQueryResultStreamInner::new();
         // The internal RefCount has initial value = 1.
-        let p_sink = QuerySink { stream: stream.clone() };
+        let p_sink = QuerySink {
+            stream: stream.clone(),
+        };
         let p_sink_handle: IWbemObjectSink = p_sink.into();
 
         unsafe {
@@ -43,7 +45,11 @@ impl WMIConnection {
             )?;
         }
 
-        Ok(AsyncQueryResultStream::new(stream, self.clone(), p_sink_handle))
+        Ok(AsyncQueryResultStream::new(
+            stream,
+            self.clone(),
+            p_sink_handle,
+        ))
     }
 
     /// Async version of [`raw_query`](WMIConnection#method.raw_query)
@@ -133,8 +139,8 @@ impl WMIConnection {
 mod tests {
     use crate::{tests::fixtures::*, Variant};
     use futures::stream::{self, StreamExt};
-    use std::collections::HashMap;
     use serde::Deserialize;
+    use std::collections::HashMap;
 
     #[async_std::test]
     async fn async_it_works_async() {

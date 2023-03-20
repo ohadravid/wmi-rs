@@ -1,15 +1,12 @@
 use crate::{
-    result_enumerator::IWbemClassWrapper,
-    safearray::safe_array_to_vec,
-    WMIError,
-    WMIResult,
+    result_enumerator::IWbemClassWrapper, safearray::safe_array_to_vec, WMIError, WMIResult,
 };
-use std::convert::TryFrom;
 use serde::Serialize;
-use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
-use windows::Win32::System::Wmi::{self, CIMTYPE_ENUMERATION, IWbemClassObject};
-use windows::Win32::System::Com::{self, VARIANT, VT_ARRAY, VT_TYPEMASK, VARENUM};
+use std::convert::TryFrom;
 use windows::core::{IUnknown, Interface, BSTR};
+use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
+use windows::Win32::System::Com::{self, VARENUM, VARIANT, VT_ARRAY, VT_TYPEMASK};
+use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -171,7 +168,7 @@ impl Variant {
                 let unk = unsafe { &vt.Anonymous.Anonymous.Anonymous.punkVal };
                 let ptr = unk.as_ref().ok_or(WMIError::NullPointerResult)?;
                 Variant::Unknown(IUnknownWrapper::new(ptr.clone()))
-            },
+            }
             _ => return Err(WMIError::ConvertError(variant_type.0)),
         };
 
@@ -194,7 +191,8 @@ impl Variant {
             match self {
                 // If we got an array, we just need to convert it's elements.
                 Variant::Array(arr) => {
-                    return Variant::Array(arr).convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff))
+                    return Variant::Array(arr)
+                        .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff))
                 }
                 Variant::Empty | Variant::Null => {
                     return Ok(Variant::Array(vec![]));
@@ -257,7 +255,7 @@ impl Variant {
                     .collect::<Result<Vec<_>, WMIError>>()?;
 
                 Variant::Array(converted_variants)
-            },
+            }
             Variant::Unknown(u) => {
                 if cim_type == Wmi::CIM_OBJECT {
                     Variant::Object(u.to_wbem_class_obj()?)
@@ -265,9 +263,9 @@ impl Variant {
                     return Err(WMIError::ConvertVariantError(format!(
                         "A unknown Variant cannot be turned into a CIMTYPE {:?}",
                         cim_type,
-                    )))
+                    )));
                 }
-            },
+            }
             Variant::Object(o) => Variant::Object(o),
         };
 
@@ -303,7 +301,7 @@ impl Serialize for IUnknownWrapper {
     ///
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer
+        S: serde::Serializer,
     {
         serializer.serialize_unit()
     }

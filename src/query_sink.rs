@@ -1,16 +1,16 @@
-use crate::{result_enumerator::IWbemClassWrapper, WMIResult, WMIError, WMIConnection};
-use std::{
-    task::{Poll, Waker},
-    sync::{Arc, Mutex},
-    collections::VecDeque,
-};
+use crate::{result_enumerator::IWbemClassWrapper, WMIConnection, WMIError, WMIResult};
 use futures::Stream;
 use log::trace;
-use windows::Win32::System::Wmi::{
-    IWbemObjectSink, IWbemObjectSink_Impl, IWbemClassObject, WBEM_STATUS_COMPLETE
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+    task::{Poll, Waker},
 };
+use windows::core::{implement, Result as WinResult, BSTR, HRESULT};
 use windows::Win32::Foundation::E_POINTER;
-use windows::core::{implement, Result as WinResult, HRESULT, BSTR};
+use windows::Win32::System::Wmi::{
+    IWbemClassObject, IWbemObjectSink, IWbemObjectSink_Impl, WBEM_STATUS_COMPLETE,
+};
 
 #[derive(Default)]
 pub struct AsyncQueryResultStreamImpl {
@@ -146,7 +146,11 @@ pub struct QuerySink {
 /// When finished,the SetStatus method is called.
 /// # <https://docs.microsoft.com/fr-fr/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer-asynchronously>
 impl IWbemObjectSink_Impl for QuerySink {
-    fn Indicate(&self, lObjectCount: i32, apObjArray: *const Option<IWbemClassObject>) ->  WinResult<()> {
+    fn Indicate(
+        &self,
+        lObjectCount: i32,
+        apObjArray: *const Option<IWbemClassObject>,
+    ) -> WinResult<()> {
         trace!("Indicate call with {} objects", lObjectCount);
         // Case of an incorrect or too restrictive query
         if lObjectCount <= 0 {
@@ -166,28 +170,25 @@ impl IWbemObjectSink_Impl for QuerySink {
         //   alignment and size.
         // - `apObjArray` points to lObjectCount consecutive pointers.
         // - the memory behind this pointer is not modified while the slice is alive
-        let objs = unsafe {
-            std::slice::from_raw_parts(
-                apObjArray,
-                lObjectCount,
-            )
-        };
-        self.stream.extend(objs.iter().map(|obj| {
-            match obj {
-                Some(p_el) => {
-                    Ok(IWbemClassWrapper::new(p_el.clone()))
-                },
-                None => {
-                    res = Err(E_POINTER.into());
-                    Err(WMIError::NullPointerResult)
-                }
+        let objs = unsafe { std::slice::from_raw_parts(apObjArray, lObjectCount) };
+        self.stream.extend(objs.iter().map(|obj| match obj {
+            Some(p_el) => Ok(IWbemClassWrapper::new(p_el.clone())),
+            None => {
+                res = Err(E_POINTER.into());
+                Err(WMIError::NullPointerResult)
             }
         }));
 
         res
     }
 
-    fn SetStatus(&self, lFlags: i32, _hResult: HRESULT, _strParam: &BSTR, _pObjParam: &Option<IWbemClassObject>) ->  WinResult<()> {
+    fn SetStatus(
+        &self,
+        lFlags: i32,
+        _hResult: HRESULT,
+        _strParam: &BSTR,
+        _pObjParam: &Option<IWbemClassObject>,
+    ) -> WinResult<()> {
         // SetStatus is called only once as flag=WBEM_FLAG_BIDIRECTIONAL in ExecQueryAsync
         // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-setstatus
         // If you do not specify WBEM_FLAG_SEND_STATUS when calling your provider or service method,
@@ -214,7 +215,9 @@ mod tests {
     async fn async_it_should_send_result() {
         let con = wmi_con();
         let stream = AsyncQueryResultStreamInner::new();
-        let sink = QuerySink { stream: stream.clone() };
+        let sink = QuerySink {
+            stream: stream.clone(),
+        };
         let p_sink: IWbemObjectSink = sink.into();
         let mut stream = AsyncQueryResultStream::new(stream, con.clone(), p_sink.clone());
 
@@ -237,7 +240,9 @@ mod tests {
         }
 
         unsafe {
-            p_sink.Indicate(&[raw_os.inner.clone(), raw_os2.inner.clone()]).unwrap();
+            p_sink
+                .Indicate(&[raw_os.inner.clone(), raw_os2.inner.clone()])
+                .unwrap();
         }
         // tests on ref count after Indicate call
         unsafe {
@@ -261,17 +266,16 @@ mod tests {
     async fn async_it_should_complete_after_set_status_call() {
         let con = wmi_con();
         let stream = AsyncQueryResultStreamInner::new();
-        let sink = QuerySink { stream: stream.clone() };
+        let sink = QuerySink {
+            stream: stream.clone(),
+        };
         let p_sink: IWbemObjectSink = sink.into();
         let stream = AsyncQueryResultStream::new(stream, con.clone(), p_sink.clone());
 
         unsafe {
-            p_sink.SetStatus(
-                WBEM_STATUS_COMPLETE.0,
-                HRESULT(0),
-                &BSTR::new(),
-                None,
-            ).unwrap();
+            p_sink
+                .SetStatus(WBEM_STATUS_COMPLETE.0, HRESULT(0), &BSTR::new(), None)
+                .unwrap();
         }
 
         let results: Vec<_> = stream.collect().await;
@@ -283,7 +287,9 @@ mod tests {
     async fn async_it_should_return_e_pointer_after_indicate_call_with_null_pointer() {
         let con = wmi_con();
         let stream = AsyncQueryResultStreamInner::new();
-        let sink = QuerySink { stream: stream.clone() };
+        let sink = QuerySink {
+            stream: stream.clone(),
+        };
         let p_sink: IWbemObjectSink = sink.into();
         let mut stream = AsyncQueryResultStream::new(stream, con.clone(), p_sink.clone());
 
@@ -306,24 +312,24 @@ mod tests {
     async fn async_test_notification() {
         let con = wmi_con();
         let inner = AsyncQueryResultStreamInner::new();
-        let sink = QuerySink { stream: inner.clone() };
+        let sink = QuerySink {
+            stream: inner.clone(),
+        };
         let p_sink: IWbemObjectSink = sink.into();
 
         // Exec a notification to setup the sink properly
         let query_language = BSTR::from("WQL");
-        let query = BSTR::from("SELECT * FROM __InstanceModificationEvent \
-             WHERE TargetInstance ISA 'Win32_LocalTime'");
+        let query = BSTR::from(
+            "SELECT * FROM __InstanceModificationEvent \
+             WHERE TargetInstance ISA 'Win32_LocalTime'",
+        );
 
         unsafe {
             // As p_sink's RefCount = 1 before this call,
             // p_sink won't be dropped at the end of ExecNotificationQueryAsync
-            con.svc.ExecNotificationQueryAsync(
-                &query_language,
-                &query,
-                0,
-                None,
-                &p_sink,
-            ).unwrap()
+            con.svc
+                .ExecNotificationQueryAsync(&query_language, &query, 0, None, &p_sink)
+                .unwrap()
         };
 
         // lets cheat by keeping the inner stream locally, before dropping the stream object,

@@ -1,16 +1,20 @@
 use crate::utils::WMIResult;
 use crate::WMIError;
-use std::marker::PhantomData;
 use log::debug;
-use windows::Win32::Foundation::RPC_E_TOO_LATE;
-use windows::Win32::System::Wmi::{IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT, WbemLocator};
-use windows::Win32::System::Com::{CoSetProxyBlanket, CoCreateInstance, CLSCTX_INPROC_SERVER, RPC_C_AUTHN_LEVEL_CALL};
-use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
-use windows::Win32::System::Com::{
-    CoInitializeEx, COINIT_MULTITHREADED, CoInitializeSecurity, RPC_C_AUTHN_LEVEL_DEFAULT,
-    RPC_C_IMP_LEVEL_IMPERSONATE, EOAC_NONE
-};
+use std::marker::PhantomData;
 use windows::core::BSTR;
+use windows::Win32::Foundation::RPC_E_TOO_LATE;
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoSetProxyBlanket, CLSCTX_INPROC_SERVER, RPC_C_AUTHN_LEVEL_CALL,
+};
+use windows::Win32::System::Com::{
+    CoInitializeEx, CoInitializeSecurity, COINIT_MULTITHREADED, EOAC_NONE,
+    RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
+};
+use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
+use windows::Win32::System::Wmi::{
+    IWbemLocator, IWbemServices, WbemLocator, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+};
 
 /// A marker to indicate that the current thread was `CoInitialize`d.
 ///
@@ -96,7 +100,7 @@ impl COMLibrary {
     fn init_security(&self) -> WMIResult<()> {
         unsafe {
             CoInitializeSecurity(
-                    None,
+                None,
                 -1, // let COM choose.
                 None,
                 None,
@@ -144,10 +148,7 @@ impl WMIConnection {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn with_namespace_path(
-        namespace_path: &str,
-        com_lib: COMLibrary,
-    ) -> WMIResult<Self> {
+    pub fn with_namespace_path(namespace_path: &str, com_lib: COMLibrary) -> WMIResult<Self> {
         let loc = create_locator()?;
         let svc = create_services(&loc, namespace_path)?;
 
@@ -166,8 +167,8 @@ impl WMIConnection {
         unsafe {
             CoSetProxyBlanket(
                 &self.svc,
-                RPC_C_AUTHN_WINNT,           // RPC_C_AUTHN_xxx
-                RPC_C_AUTHZ_NONE,            // RPC_C_AUTHZ_xxx
+                RPC_C_AUTHN_WINNT, // RPC_C_AUTHN_xxx
+                RPC_C_AUTHZ_NONE,  // RPC_C_AUTHZ_xxx
                 None,
                 RPC_C_AUTHN_LEVEL_CALL,      // RPC_C_AUTHN_LEVEL_xxx
                 RPC_C_IMP_LEVEL_IMPERSONATE, // RPC_C_IMP_LEVEL_xxx
@@ -183,13 +184,7 @@ impl WMIConnection {
 fn create_locator() -> WMIResult<IWbemLocator> {
     debug!("Calling CoCreateInstance for CLSID_WbemLocator");
 
-    let loc = unsafe {
-        CoCreateInstance(
-            &WbemLocator,
-            None,
-            CLSCTX_INPROC_SERVER,
-        )?
-    };
+    let loc = unsafe { CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER)? };
 
     debug!("Got locator {:?}", loc);
 
