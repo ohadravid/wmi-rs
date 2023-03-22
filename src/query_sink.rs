@@ -187,7 +187,7 @@ impl IWbemObjectSink_Impl for QuerySink {
         lFlags: i32,
         _hResult: HRESULT,
         _strParam: &BSTR,
-        _pObjParam: &Option<IWbemClassObject>,
+        _pObjParam: Option<&IWbemClassObject>,
     ) -> WinResult<()> {
         // SetStatus is called only once as flag=WBEM_FLAG_BIDIRECTIONAL in ExecQueryAsync
         // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-setstatus

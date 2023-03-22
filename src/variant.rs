@@ -3,7 +3,7 @@ use crate::{
 };
 use serde::Serialize;
 use std::convert::TryFrom;
-use windows::core::{IUnknown, Interface, BSTR};
+use windows::core::{ComInterface, IUnknown, BSTR};
 use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Com::{self, VARENUM, VARIANT, VT_ARRAY, VT_TYPEMASK};
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
@@ -106,7 +106,7 @@ impl Variant {
             Com::VT_I1 => {
                 let num = unsafe { vt.Anonymous.Anonymous.Anonymous.cVal };
 
-                Variant::I1(num.0 as _)
+                Variant::I1(num as _)
             }
             Com::VT_I2 => {
                 let num: i16 = unsafe { vt.Anonymous.Anonymous.Anonymous.iVal };
