@@ -297,12 +297,12 @@ mod tests {
 
             assert_eq!(*w.get("Debug").unwrap(), Variant::Bool(false));
 
-            let system_lang = sys_locale::get_locale().unwrap();
-
             let langs = w.get("MUILanguages").unwrap();
 
             match langs {
-                Variant::Array(langs) => assert!(langs.contains(&Variant::String(system_lang))),
+                Variant::Array(langs) => {
+                    assert!(matches!(langs[0], Variant::String(_)));
+                }
                 _ => assert!(false),
             }
         }

@@ -54,16 +54,19 @@ impl IWbemClassWrapper {
 
         let mut vt_prop = VARIANT::default();
 
-        let mut cim_type = 0;
+        let cim_type = -1;
 
         unsafe {
             self.inner.Get(
                 PCWSTR::from_raw(name_prop.as_ptr()),
                 0,
                 &mut vt_prop,
-                Some(&mut cim_type),
+                Some(&cim_type),
                 None,
             )?;
+
+            // BUG: cim_type is mutated by `Get`.
+            assert_ne!(cim_type, -1);
 
             let property_value = Variant::from_variant(&vt_prop)?
                 .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))?;

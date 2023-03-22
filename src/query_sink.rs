@@ -209,7 +209,7 @@ mod tests {
     use super::*;
     use crate::tests::fixtures::*;
     use futures::StreamExt;
-    use windows::core::{IUnknown, Vtable};
+    use windows::core::{ComInterface, IUnknown, Interface};
 
     #[async_std::test]
     async fn async_it_should_send_result() {
@@ -230,7 +230,7 @@ mod tests {
 
         // tests on ref count before Indicate call
         unsafe {
-            let test_ptr: IUnknown = raw_os.inner.clone().into();
+            let test_ptr: IUnknown = raw_os.inner.clone().cast().unwrap();
             let refcount = (test_ptr.vtable().AddRef)(std::mem::transmute_copy(&test_ptr));
             // 1 from p_sink + 1 from test_ptr + 1 from AddRef
             assert_eq!(refcount, 3);
@@ -241,12 +241,12 @@ mod tests {
 
         unsafe {
             p_sink
-                .Indicate(&[raw_os.inner.clone(), raw_os2.inner.clone()])
+                .Indicate(&[Some(raw_os.inner.clone()), Some(raw_os2.inner.clone())])
                 .unwrap();
         }
         // tests on ref count after Indicate call
         unsafe {
-            let test_ptr: IUnknown = raw_os.inner.clone().into();
+            let test_ptr: IUnknown = raw_os.inner.clone().cast().unwrap();
             let refcount = (test_ptr.vtable().AddRef)(std::mem::transmute_copy(&test_ptr));
             // 1 from p_sink + 1 from test_ptr + 1 from AddRef + 1 from the Indicate call
             assert_eq!(refcount, 4);
@@ -293,12 +293,10 @@ mod tests {
         let p_sink: IWbemObjectSink = sink.into();
         let mut stream = AsyncQueryResultStream::new(stream, con.clone(), p_sink.clone());
 
-        let mut arr = vec![std::ptr::null_mut()];
+        let arr = vec![None];
 
-        let result = unsafe {
-            (Vtable::vtable(&p_sink).Indicate)(Vtable::as_raw(&p_sink), 1, arr.as_mut_ptr())
-        };
-        assert_eq!(result, E_POINTER);
+        let result = unsafe { p_sink.Indicate(&arr) };
+        assert_eq!(result.unwrap_err().code(), E_POINTER);
 
         let item = stream.next().await.unwrap();
 
