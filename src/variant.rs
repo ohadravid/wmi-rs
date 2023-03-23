@@ -190,20 +190,16 @@ impl Variant {
             */
             return match self {
                 // If we got an array, we just need to convert it's elements.
-                Variant::Array(arr) => {
-                    Variant::Array(arr)
-                        .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff))
-                }
-                Variant::Empty | Variant::Null => {
-                    Ok(Variant::Array(vec![]))
-                }
+                Variant::Array(arr) => Variant::Array(arr)
+                    .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff)),
+                Variant::Empty | Variant::Null => Ok(Variant::Array(vec![])),
                 // If we didn't get an array, we need to convert the element, but also wrap it in an array.
                 not_array => {
-                    Ok(Variant::Array(vec![
-                        not_array.convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff))?
-                    ]))
+                    Ok(Variant::Array(vec![not_array.convert_into_cim_type(
+                        CIMTYPE_ENUMERATION(cim_type.0 & 0xff),
+                    )?]))
                 }
-            }
+            };
         }
 
         // The `convert_into_cim_type` function is used to convert a `Variant` into a CIM-type.
