@@ -188,20 +188,20 @@ impl Variant {
             that results in the most significant octet containing 0x20
             and the lower octet containing the value of the CimBaseType."
             */
-            match self {
+            return match self {
                 // If we got an array, we just need to convert it's elements.
                 Variant::Array(arr) => {
-                    return Variant::Array(arr)
+                    Variant::Array(arr)
                         .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff))
                 }
                 Variant::Empty | Variant::Null => {
-                    return Ok(Variant::Array(vec![]));
+                    Ok(Variant::Array(vec![]))
                 }
                 // If we didn't get an array, we need to convert the element, but also wrap it in an array.
                 not_array => {
-                    return Ok(Variant::Array(vec![
+                    Ok(Variant::Array(vec![
                         not_array.convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type.0 & 0xff))?
-                    ]));
+                    ]))
                 }
             }
         }

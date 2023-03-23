@@ -497,7 +497,7 @@ impl WMIConnection {
     ///     User(Win32_UserAccount),
     ///     #[serde(rename = "Win32_Group")]
     ///     Group(Win32_Group),
-    /// };
+    /// }
     ///
     /// for account in accounts_in_group {
     ///     let user: User = con.get_by_path(&account.__Path)?;
@@ -854,7 +854,7 @@ mod tests {
 
             for res in results {
                 match res.get("Antecedent") {
-                    Some(Variant::String(s)) => assert!(s != ""),
+                    Some(Variant::String(s)) => assert_ne!(s, ""),
                     _ => assert!(false),
                 }
             }
@@ -865,12 +865,12 @@ mod tests {
 
         for res in results {
             match res.get("GroupComponent") {
-                Some(Variant::String(s)) => assert!(s != ""),
+                Some(Variant::String(s)) => assert_ne!(s, ""),
                 _ => assert!(false),
             }
 
             match res.get("PartComponent") {
-                Some(Variant::String(s)) => assert!(s != ""),
+                Some(Variant::String(s)) => assert_ne!(s, ""),
                 _ => assert!(false),
             }
         }

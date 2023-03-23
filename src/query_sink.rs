@@ -102,7 +102,7 @@ impl Stream for AsyncQueryResultStream {
     fn poll_next(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    ) -> Poll<Option<Self::Item>> {
         let waker = cx.waker();
         let mut inner = self.inner.0.lock().unwrap();
 

@@ -4,8 +4,8 @@ use serde::{de, ser};
 use std::{fmt, str::FromStr};
 
 /// A wrapper type around `chrono`'s `DateTime` (if the `chrono` feature is active. ), which supports parsing from WMI-format strings.
-#[derive(Debug)]
-pub struct WMIDateTime(pub chrono::DateTime<FixedOffset>);
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct WMIDateTime(pub DateTime<FixedOffset>);
 
 impl FromStr for WMIDateTime {
     type Err = WMIError;
@@ -24,6 +24,7 @@ impl FromStr for WMIDateTime {
     }
 }
 
+#[derive(Debug, Clone)]
 struct DateTimeVisitor;
 
 impl<'de> de::Visitor<'de> for DateTimeVisitor {
@@ -34,8 +35,8 @@ impl<'de> de::Visitor<'de> for DateTimeVisitor {
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
+        where
+            E: de::Error,
     {
         value.parse().map_err(|err| E::custom(format!("{}", err)))
     }
@@ -43,8 +44,8 @@ impl<'de> de::Visitor<'de> for DateTimeVisitor {
 
 impl<'de> de::Deserialize<'de> for WMIDateTime {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
+        where
+            D: de::Deserializer<'de>,
     {
         deserializer.deserialize_str(DateTimeVisitor)
     }
@@ -52,8 +53,8 @@ impl<'de> de::Deserialize<'de> for WMIDateTime {
 
 impl ser::Serialize for WMIDateTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: ser::Serializer,
+        where
+            S: ser::Serializer,
     {
         let formatted = self.0.to_rfc3339();
 
