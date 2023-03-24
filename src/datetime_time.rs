@@ -8,7 +8,7 @@ use time::{
 
 /// A wrapper type around `time`'s `OffsetDateTime` (if the
 // `time` feature is active), which supports parsing from WMI-format strings.
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct WMIOffsetDateTime(pub time::OffsetDateTime);
 
 impl FromStr for WMIOffsetDateTime {

@@ -4,7 +4,7 @@ use serde::{de, ser};
 use std::{fmt, str::FromStr};
 
 /// A wrapper type around `chrono`'s `DateTime` (if the `chrono` feature is active. ), which supports parsing from WMI-format strings.
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct WMIDateTime(pub DateTime<FixedOffset>);
 
 impl FromStr for WMIDateTime {
