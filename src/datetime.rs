@@ -4,8 +4,8 @@ use serde::{de, ser};
 use std::{fmt, str::FromStr};
 
 /// A wrapper type around `chrono`'s `DateTime` (if the `chrono` feature is active. ), which supports parsing from WMI-format strings.
-#[derive(Debug)]
-pub struct WMIDateTime(pub chrono::DateTime<FixedOffset>);
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct WMIDateTime(pub DateTime<FixedOffset>);
 
 impl FromStr for WMIDateTime {
     type Err = WMIError;
@@ -24,6 +24,7 @@ impl FromStr for WMIDateTime {
     }
 }
 
+#[derive(Debug, Clone)]
 struct DateTimeVisitor;
 
 impl<'de> de::Visitor<'de> for DateTimeVisitor {

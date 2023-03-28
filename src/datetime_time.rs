@@ -8,7 +8,7 @@ use time::{
 
 /// A wrapper type around `time`'s `OffsetDateTime` (if the
 // `time` feature is active), which supports parsing from WMI-format strings.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct WMIOffsetDateTime(pub time::OffsetDateTime);
 
 impl FromStr for WMIOffsetDateTime {
@@ -55,6 +55,7 @@ impl FromStr for WMIOffsetDateTime {
     }
 }
 
+#[derive(Debug, Clone)]
 struct DateTimeVisitor;
 
 impl<'de> de::Visitor<'de> for DateTimeVisitor {

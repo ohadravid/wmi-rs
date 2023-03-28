@@ -61,7 +61,7 @@ impl WMIConnection {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # use futures::executor::block_on;
-    /// # fn main() -> wmi::WMIResult<()> {
+    /// # fn main() -> WMIResult<()> {
     /// #   block_on(exec_async_query())?;
     /// #   Ok(())
     /// # }
@@ -92,7 +92,7 @@ impl WMIConnection {
     /// # use wmi::*;
     /// # use std::collections::HashMap;
     /// # use futures::executor::block_on;
-    /// # fn main() -> wmi::WMIResult<()> {
+    /// # fn main() -> WMIResult<()> {
     /// #   block_on(exec_async_query())?;
     /// #   Ok(())
     /// # }
@@ -192,12 +192,12 @@ mod tests {
 
         for res in results {
             match res.get("GroupComponent") {
-                Some(Variant::String(s)) => assert!(s != ""),
+                Some(Variant::String(s)) => assert_ne!(s, ""),
                 _ => assert!(false),
             }
 
             match res.get("PartComponent") {
-                Some(Variant::String(s)) => assert!(s != ""),
+                Some(Variant::String(s)) => assert_ne!(s, ""),
                 _ => assert!(false),
             }
         }

@@ -4,7 +4,7 @@ use std::{fmt, str::FromStr, time::Duration};
 
 /// A wrapper type around Duration, which supports parsing from WMI-format strings.
 ///
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct WMIDuration(pub Duration);
 
 impl FromStr for WMIDuration {
@@ -27,6 +27,7 @@ impl FromStr for WMIDuration {
     }
 }
 
+#[derive(Debug, Clone)]
 struct DurationVisitor;
 
 impl<'de> de::Visitor<'de> for DurationVisitor {
