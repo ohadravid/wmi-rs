@@ -9,7 +9,7 @@ use serde::{
     Serialize,
 };
 use std::{convert::TryInto, ptr};
-use windows::core::HSTRING;
+use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::System::Com::VARIANT;
 use windows::Win32::System::Ole::{SafeArrayDestroy, VariantClear};
 use windows::Win32::System::Wmi::{
@@ -57,8 +57,13 @@ impl IWbemClassWrapper {
         let mut cim_type = 0;
 
         unsafe {
-            self.inner
-                .Get(&name_prop, 0, &mut vt_prop, &mut cim_type, ptr::null_mut())?;
+            self.inner.Get(
+                PCWSTR::from_raw(name_prop.as_ptr()),
+                0,
+                &mut vt_prop,
+                Some(&mut cim_type),
+                None,
+            )?;
 
             let property_value = Variant::from_variant(&vt_prop)?
                 .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))?;
