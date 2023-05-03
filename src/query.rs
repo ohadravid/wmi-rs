@@ -18,6 +18,8 @@ pub enum FilterValue {
     Number(i64),
     Str(&'static str),
     String(String),
+    StrLike(&'static str),
+    StringLike(String),
     IsA(&'static str),
 }
 
@@ -190,6 +192,22 @@ where
                         FilterValue::Number(n) => format!("{}", n),
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
                         FilterValue::String(s) => quote_and_escape_wql_str(s),
+                        FilterValue::StrLike(s) => {
+                            conditions.push(format!(
+                                "{} LIKE {}",
+                                field,
+                                quote_and_escape_wql_str(s)
+                            ));
+                            continue;
+                        },
+                        FilterValue::StringLike(s) => {
+                            conditions.push(format!(
+                                "{} LIKE {}",
+                                field,
+                                quote_and_escape_wql_str(s)
+                            ));
+                            continue;
+                        },
                         FilterValue::IsA(s) => {
                             conditions.push(format!(
                                 "{} ISA {}",
