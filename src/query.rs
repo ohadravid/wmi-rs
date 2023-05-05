@@ -13,6 +13,7 @@ use windows::Win32::System::Wmi::{
     WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE,
 };
 
+#[non_exhaustive]
 pub enum FilterValue {
     Bool(bool),
     Number(i64),
