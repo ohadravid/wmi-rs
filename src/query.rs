@@ -199,7 +199,7 @@ where
                                 quote_and_escape_wql_str(s)
                             ));
                             continue;
-                        },
+                        }
                         FilterValue::StringLike(s) => {
                             conditions.push(format!(
                                 "{} LIKE {}",
@@ -207,7 +207,7 @@ where
                                 quote_and_escape_wql_str(s)
                             ));
                             continue;
-                        },
+                        }
                         FilterValue::IsA(s) => {
                             conditions.push(format!(
                                 "{} ISA {}",
