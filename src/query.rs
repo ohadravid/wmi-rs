@@ -18,6 +18,8 @@ pub enum FilterValue {
     Number(i64),
     Str(&'static str),
     String(String),
+    StrLike(&'static str),
+    StringLike(String),
     IsA(&'static str),
 }
 
@@ -190,6 +192,22 @@ where
                         FilterValue::Number(n) => format!("{}", n),
                         FilterValue::Str(s) => quote_and_escape_wql_str(s),
                         FilterValue::String(s) => quote_and_escape_wql_str(s),
+                        FilterValue::StrLike(s) => {
+                            conditions.push(format!(
+                                "{} LIKE {}",
+                                field,
+                                quote_and_escape_wql_str(s)
+                            ));
+                            continue;
+                        }
+                        FilterValue::StringLike(s) => {
+                            conditions.push(format!(
+                                "{} LIKE {}",
+                                field,
+                                quote_and_escape_wql_str(s)
+                            ));
+                            continue;
+                        }
                         FilterValue::IsA(s) => {
                             conditions.push(format!(
                                 "{} ISA {}",
@@ -735,10 +753,12 @@ mod tests {
             "C7".to_owned(),
             FilterValue::is_a::<Win32_OperatingSystem>().unwrap(),
         );
+        filters.insert("C8".to_owned(), FilterValue::StrLike("c"));
+        filters.insert("C9".to_owned(), FilterValue::StringLike("d".to_owned()));
 
         let query = build_query::<Win32_OperatingSystem>(Some(&filters)).unwrap();
         let select_part = r#"SELECT Caption FROM Win32_OperatingSystem "#.to_owned();
-        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_OperatingSystem""#;
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_OperatingSystem" AND C8 LIKE "c" AND C9 LIKE "d""#;
 
         assert_eq!(query, select_part + where_part);
     }
@@ -766,6 +786,8 @@ mod tests {
             "C7".to_owned(),
             FilterValue::is_a::<Win32_ProcessStartTrace>().unwrap(),
         );
+        filters.insert("C8".to_owned(), FilterValue::StrLike("c"));
+        filters.insert("C9".to_owned(), FilterValue::StringLike("d".to_owned()));
 
         let query = build_notification_query::<Win32_ProcessStartTrace>(
             Some(&filters),
@@ -774,7 +796,7 @@ mod tests {
         .unwrap();
         let select_part = r#"SELECT * FROM Win32_ProcessStartTrace "#.to_owned();
         let within_part = r#"WITHIN 10.5 "#;
-        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_ProcessStartTrace""#;
+        let where_part = r#"WHERE C1 = "a" AND C2 = "b" AND C3 = 42 AND C4 = false AND C5 = "with \" and \\ chars" AND C6 ISA "Class" AND C7 ISA "Win32_ProcessStartTrace" AND C8 LIKE "c" AND C9 LIKE "d""#;
 
         assert_eq!(query, select_part + within_part + where_part);
     }
