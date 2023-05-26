@@ -81,10 +81,27 @@ impl<'de> serde::Deserializer<'de> for Variant {
         }
     }
 
+    fn deserialize_enum<V>(
+        self,
+        name: &'static str,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        match self {
+            Variant::Object(o) => {
+                Deserializer::from_wbem_class_obj(o).deserialize_enum(name, fields, visitor)
+            }
+            _ => self.deserialize_any(visitor),
+        }
+    }
+
     forward_to_deserialize_any! {
         bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
         bytes byte_buf unit unit_struct newtype_struct seq tuple
-        tuple_struct map enum identifier ignored_any
+        tuple_struct map identifier ignored_any
     }
 }
 
