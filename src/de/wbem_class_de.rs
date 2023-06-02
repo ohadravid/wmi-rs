@@ -227,8 +227,10 @@ mod tests {
 
     use crate::duration::WMIDuration;
     use crate::variant::Variant;
+    use crate::FilterValue;
     use serde::Deserialize;
     use std::collections::HashMap;
+    use std::time::Duration;
 
     use crate::tests::fixtures::*;
     use std::process;
@@ -435,35 +437,54 @@ mod tests {
     }
 
     #[test]
-    fn it_can_desr_newtype_enum() {
+    fn it_can_desr_newtype_enum_field() {
         let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
-        pub struct Win32_UserAccount {
-            pub __Path: String,
-            pub Name: String,
+        struct Win32_Process {}
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_Thread {}
+
+        #[derive(Deserialize, Debug)]
+        enum Instance {
+            #[serde(rename = "Win32_Process")]
+            Process(Win32_Process),
+            #[serde(rename = "Win32_Thread")]
+            Thread(Win32_Thread),
         }
 
         #[derive(Deserialize, Debug)]
-        pub struct Win32_SystemAccount {
-            pub Name: String,
+        struct __InstanceCreationEvent {
+            TargetInstance: Instance,
         }
 
-        #[derive(Deserialize, Debug)]
-        enum User {
-            #[serde(rename = "Win32_SystemAccount")]
-            System(Win32_SystemAccount),
-            #[serde(rename = "Win32_UserAccount")]
-            User(Win32_UserAccount),
-        }
+        let mut filters_process = HashMap::new();
 
-        let user: Win32_UserAccount = wmi_con.get().unwrap();
+        filters_process.insert(
+            "TargetInstance".to_owned(),
+            FilterValue::is_a::<Win32_Process>().unwrap(),
+        );
 
-        let user_enum: User = wmi_con.get_by_path(&user.__Path).unwrap();
+        filters_process.insert(
+            "TargetInstance.Name".to_owned(),
+            FilterValue::String("ping.exe".to_owned()),
+        );
 
-        match user_enum {
-            User::System(_) => assert!(false),
-            User::User(_) => assert!(true),
-        };
+        let mut instances_iter = wmi_con
+            .filtered_notification::<__InstanceCreationEvent>(
+                &filters_process,
+                Some(Duration::from_secs(1)),
+            )
+            .unwrap();
+
+        std::process::Command::new("ping.exe")
+            .arg("127.0.0.1")
+            .status()
+            .unwrap();
+
+        let proc = instances_iter.next().unwrap().unwrap();
+
+        assert!(matches!(proc.TargetInstance, Instance::Process(..)))
     }
 }
