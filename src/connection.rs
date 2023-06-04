@@ -33,7 +33,7 @@ use windows::Win32::System::Wmi::{
 ///     WMIConnection::new(com_lib).unwrap()
 /// }
 /// ```
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct COMLibrary {
     // Force the type to be `!Send`, as each thread must be initialized separately.
     _phantom: PhantomData<*mut ()>,
@@ -122,7 +122,7 @@ impl COMLibrary {
 /// ```
 fn _test_com_lib_not_send(_s: impl Send) {}
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WMIConnection {
     _com_con: COMLibrary,
     pub svc: IWbemServices,
