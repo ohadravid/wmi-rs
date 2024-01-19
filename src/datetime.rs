@@ -18,7 +18,10 @@ impl FromStr for WMIDateTime {
         let (datetime_part, tz_part) = s.split_at(21);
         let tz_min: i32 = tz_part.parse()?;
         let tz = FixedOffset::east_opt(tz_min * 60).unwrap();
-        let dt = tz.datetime_from_str(datetime_part, "%Y%m%d%H%M%S.%f")?;
+        let dt = NaiveDateTime::parse_from_str(datetime_part, "%Y%m%d%H%M%S.%f")?
+            .and_local_timezone(tz)
+            .single()
+            .ok_or(WMIError::ParseDatetimeLocalError)?;
 
         Ok(Self(dt))
     }

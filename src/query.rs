@@ -430,7 +430,7 @@ impl WMIConnection {
         unsafe {
             self.svc.GetObject(
                 &object_path,
-                WBEM_FLAG_RETURN_WBEM_COMPLETE.0 as _,
+                WBEM_FLAG_RETURN_WBEM_COMPLETE,
                 None,
                 Some(&mut pcls_obj),
                 None,
