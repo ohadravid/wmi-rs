@@ -1,6 +1,6 @@
 [package]
 name = "wmi"
-version = "0.13.1"
+version = "0.13.2"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -26,7 +26,7 @@ default = ["chrono"]
 test = []
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.48", features = [
+windows = { version = "0.52", features = [
     "implement",
     "Win32_Foundation",
     "Win32_Security",
@@ -34,6 +34,7 @@ windows = { version = "0.48", features = [
     "Win32_System_Ole",
     "Win32_System_Rpc",
     "Win32_System_Wmi",
+    "Win32_System_Variant",
 ] }
 time = { version = "0.3", features = ["formatting", "parsing", "macros", "serde"], optional = true }
 chrono = { version = "0.4", features = ["clock", "std", "serde"], optional = true, default-features = false }

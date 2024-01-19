@@ -39,7 +39,7 @@ impl WMIConnection {
             self.svc.ExecQueryAsync(
                 &query_language,
                 &query,
-                WBEM_FLAG_BIDIRECTIONAL.0 as _,
+                WBEM_FLAG_BIDIRECTIONAL,
                 None,
                 &p_sink_handle,
             )?;

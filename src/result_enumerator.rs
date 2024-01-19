@@ -8,13 +8,16 @@ use serde::{
     ser::{Error, SerializeMap},
     Serialize,
 };
-use std::{convert::TryInto, ptr};
-use windows::core::{HSTRING, PCWSTR};
-use windows::Win32::System::Com::VARIANT;
-use windows::Win32::System::Ole::{SafeArrayDestroy, VariantClear};
+use std::ptr;
+use windows::Win32::System::Ole::SafeArrayDestroy;
+use windows::Win32::System::Variant::{VariantClear, VARIANT};
 use windows::Win32::System::Wmi::{
     IEnumWbemClassObject, IWbemClassObject, CIMTYPE_ENUMERATION, WBEM_FLAG_ALWAYS,
     WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE,
+};
+use windows::{
+    core::{HSTRING, PCWSTR},
+    Win32::System::Wmi::WBEM_CONDITION_FLAG_TYPE,
 };
 
 /// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
@@ -37,7 +40,7 @@ impl IWbemClassWrapper {
         let p_names = unsafe {
             self.inner.GetNames(
                 None,
-                WBEM_FLAG_ALWAYS.0 | WBEM_FLAG_NONSYSTEM_ONLY.0,
+                WBEM_CONDITION_FLAG_TYPE(WBEM_FLAG_ALWAYS.0 | WBEM_FLAG_NONSYSTEM_ONLY.0),
                 ptr::null_mut(),
             )
         }?;

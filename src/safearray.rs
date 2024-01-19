@@ -4,10 +4,11 @@ use crate::{
 };
 use std::{iter::Iterator, ptr::null_mut, slice};
 use windows::core::BSTR;
-use windows::Win32::System::Com::{self, SAFEARRAY, VARENUM, VT_BSTR};
+use windows::Win32::System::Com::SAFEARRAY;
 use windows::Win32::System::Ole::{
     SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayUnaccessData,
 };
+use windows::Win32::System::Variant::*;
 
 #[derive(Debug)]
 pub struct SafeArrayAccessor<'a, T> {
@@ -109,17 +110,17 @@ pub fn safe_array_to_vec(arr: &SAFEARRAY, item_type: VARENUM) -> WMIResult<Vec<V
     }
 
     match item_type {
-        Com::VT_I1 => copy_type_to_vec(arr, Variant::I1),
-        Com::VT_I2 => copy_type_to_vec(arr, Variant::I2),
-        Com::VT_I4 => copy_type_to_vec(arr, Variant::I4),
-        Com::VT_I8 => copy_type_to_vec(arr, Variant::I8),
-        Com::VT_UI1 => copy_type_to_vec(arr, Variant::UI1),
-        Com::VT_UI2 => copy_type_to_vec(arr, Variant::UI2),
-        Com::VT_UI4 => copy_type_to_vec(arr, Variant::UI4),
-        Com::VT_UI8 => copy_type_to_vec(arr, Variant::UI8),
-        Com::VT_R4 => copy_type_to_vec(arr, Variant::R4),
-        Com::VT_R8 => copy_type_to_vec(arr, Variant::R8),
-        Com::VT_BSTR => {
+        VT_I1 => copy_type_to_vec(arr, Variant::I1),
+        VT_I2 => copy_type_to_vec(arr, Variant::I2),
+        VT_I4 => copy_type_to_vec(arr, Variant::I4),
+        VT_I8 => copy_type_to_vec(arr, Variant::I8),
+        VT_UI1 => copy_type_to_vec(arr, Variant::UI1),
+        VT_UI2 => copy_type_to_vec(arr, Variant::UI2),
+        VT_UI4 => copy_type_to_vec(arr, Variant::UI4),
+        VT_UI8 => copy_type_to_vec(arr, Variant::UI8),
+        VT_R4 => copy_type_to_vec(arr, Variant::R4),
+        VT_R8 => copy_type_to_vec(arr, Variant::R8),
+        VT_BSTR => {
             let mut items = vec![];
             let accessor = unsafe { SafeArrayAccessor::<BSTR>::new(arr)? };
 
