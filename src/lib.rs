@@ -262,6 +262,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(unused_unsafe)]
+#![allow(clippy::arc_with_non_send_sync)]
 #![cfg(windows)]
 
 pub mod connection;

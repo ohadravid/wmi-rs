@@ -16,6 +16,9 @@ pub enum WMIError {
     #[cfg(feature = "chrono")]
     #[error(transparent)]
     ParseDatetimeError(#[from] chrono::format::ParseError),
+    #[cfg(feature = "chrono")]
+    #[error("Cannot parse a non unique local timestamp")]
+    ParseDatetimeLocalError,
     #[cfg(feature = "time")]
     #[error(transparent)]
     ParseOffsetDatetimeError(#[from] time::Error),
