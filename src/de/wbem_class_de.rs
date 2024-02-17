@@ -487,4 +487,26 @@ mod tests {
 
         assert!(matches!(proc.TargetInstance, Instance::Process(..)))
     }
+
+    #[test]
+    fn it_can_desr_unit_enum_field_from_string() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug, PartialEq, Eq)]
+        enum Status {
+            OK,
+        }
+        
+        #[derive(Deserialize, Debug)] 
+        struct Win32_OperatingSystem {
+            Status: Status,
+        }
+
+        let os: Win32_OperatingSystem = wmi_con
+            .get()
+            .unwrap();
+
+        assert_eq!(os.Status, Status::OK);
+    }
+
 }

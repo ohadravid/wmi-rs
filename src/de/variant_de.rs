@@ -1,5 +1,5 @@
 use crate::{de::wbem_class_de::Deserializer, variant::Variant, WMIError};
-use serde::{de, forward_to_deserialize_any, Deserialize};
+use serde::{de::{self, IntoDeserializer}, forward_to_deserialize_any, Deserialize};
 use std::{fmt, vec::IntoIter};
 
 #[derive(Debug)]
@@ -84,7 +84,7 @@ impl<'de> serde::Deserializer<'de> for Variant {
     fn deserialize_enum<V>(
         self,
         name: &'static str,
-        fields: &'static [&'static str],
+        variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
@@ -92,7 +92,10 @@ impl<'de> serde::Deserializer<'de> for Variant {
     {
         match self {
             Variant::Object(o) => {
-                Deserializer::from_wbem_class_obj(o).deserialize_enum(name, fields, visitor)
+                Deserializer::from_wbem_class_obj(o).deserialize_enum(name, variants, visitor)
+            }
+            Variant::String(str) => {
+                str.into_deserializer().deserialize_enum(name, variants, visitor)
             }
             _ => self.deserialize_any(visitor),
         }
