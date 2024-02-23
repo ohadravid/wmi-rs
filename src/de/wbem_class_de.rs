@@ -494,19 +494,42 @@ mod tests {
 
         #[derive(Deserialize, Debug, PartialEq, Eq)]
         enum Status {
+            SomeValue,
             OK,
+            SomeOtherValue,
         }
-        
-        #[derive(Deserialize, Debug)] 
+
+        #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
             Status: Status,
         }
 
-        let os: Win32_OperatingSystem = wmi_con
-            .get()
-            .unwrap();
+        let os: Win32_OperatingSystem = wmi_con.get().unwrap();
 
         assert_eq!(os.Status, Status::OK);
     }
 
+    #[test]
+    fn it_fail_to_desr_unit_enum_field_from_unexpected_string() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug, PartialEq, Eq)]
+        enum Status {
+            Potato,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            Status: Status,
+        }
+
+        let res: Result<Win32_OperatingSystem, WMIError> = wmi_con.get();
+
+        let err = res.err().unwrap();
+
+        assert_eq!(
+            format!("{}", err),
+            "unknown variant `OK`, expected `Potato`"
+        )
+    }
 }
