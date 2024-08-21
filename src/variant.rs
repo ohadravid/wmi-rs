@@ -3,11 +3,10 @@ use crate::{
 };
 use serde::Serialize;
 use std::convert::TryFrom;
-use windows::core::{IUnknown, BSTR, VARIANT};
+use windows::core::{IUnknown, Interface, BSTR, VARIANT};
 use windows::Win32::Foundation::{VARIANT_BOOL, VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
-use windows_core::Interface;
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -169,8 +168,7 @@ impl Variant {
             VT_EMPTY => Variant::Empty,
             VT_NULL => Variant::Null,
             VT_UNKNOWN => {
-                let unk = unsafe { &(vt.Anonymous.Anonymous.Anonymous.punkVal as *const IUnknown) };
-                let ptr = unsafe { unk.as_ref() }.ok_or(WMIError::NullPointerResult)?;
+                let ptr = unsafe { IUnknown::from_raw(vt.Anonymous.Anonymous.Anonymous.punkVal) };
                 Variant::Unknown(IUnknownWrapper::new(ptr.clone()))
             }
             _ => return Err(WMIError::ConvertError(variant_type)),
