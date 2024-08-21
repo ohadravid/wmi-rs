@@ -4,6 +4,7 @@ use crate::{
 };
 use std::{iter::Iterator, ptr::null_mut, slice};
 use windows::core::BSTR;
+// use windows_core::imp::SAFEARRAY;
 use windows::Win32::System::Com::SAFEARRAY;
 use windows::Win32::System::Ole::{
     SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayUnaccessData,

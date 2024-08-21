@@ -63,7 +63,7 @@ impl COMLibrary {
     /// `CoInitialize`s the COM library for use by the calling thread, but without setting the security context.
     ///
     pub fn without_security() -> WMIResult<Self> {
-        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED)? }
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok()? }
 
         let instance = Self {
             _phantom: PhantomData,
