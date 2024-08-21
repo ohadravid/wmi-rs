@@ -209,7 +209,7 @@ mod tests {
     use super::*;
     use crate::tests::fixtures::*;
     use futures::StreamExt;
-    use windows::core::{ComInterface, IUnknown, Interface};
+    use windows::core::{IUnknown, Interface};
 
     #[async_std::test]
     async fn async_it_should_send_result() {
