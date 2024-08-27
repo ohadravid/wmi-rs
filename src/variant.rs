@@ -104,7 +104,10 @@ impl Variant {
         let variant_value = match VARENUM(variant_type) {
             VT_BSTR => {
                 let bstr_ptr = unsafe { BSTR::from_raw(vt.Anonymous.Anonymous.Anonymous.bstrVal) };
-                Variant::String(bstr_ptr.try_into()?)
+                let bstr_as_str = bstr_ptr.to_string();
+                // We don't want to be the ones freeing the BSTR.
+                let _ = bstr_ptr.into_raw();
+                Variant::String(bstr_as_str)
             }
             VT_I1 => {
                 let num = unsafe { vt.Anonymous.Anonymous.Anonymous.cVal };
