@@ -171,7 +171,9 @@ impl Variant {
             VT_EMPTY => Variant::Empty,
             VT_NULL => Variant::Null,
             VT_UNKNOWN => {
-                let ptr = unsafe { IUnknown::from_raw_borrowed(&vt.Anonymous.Anonymous.Anonymous.punkVal) };
+                let ptr = unsafe {
+                    IUnknown::from_raw_borrowed(&vt.Anonymous.Anonymous.Anonymous.punkVal)
+                };
                 let ptr = ptr.cloned().ok_or(WMIError::NullPointerResult)?;
                 Variant::Unknown(IUnknownWrapper::new(ptr))
             }
