@@ -145,7 +145,7 @@ pub struct QuerySink {
 /// receives asynchronously the result of the query, through Indicate calls.
 /// When finished,the SetStatus method is called.
 /// # <https://docs.microsoft.com/fr-fr/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer-asynchronously>
-impl IWbemObjectSink_Impl for QuerySink {
+impl IWbemObjectSink_Impl for QuerySink_Impl {
     fn Indicate(
         &self,
         lObjectCount: i32,
@@ -209,7 +209,7 @@ mod tests {
     use super::*;
     use crate::tests::fixtures::*;
     use futures::StreamExt;
-    use windows::core::{ComInterface, IUnknown, Interface};
+    use windows::core::{IUnknown, Interface};
 
     #[async_std::test]
     async fn async_it_should_send_result() {

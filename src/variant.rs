@@ -3,8 +3,8 @@ use crate::{
 };
 use serde::Serialize;
 use std::convert::TryFrom;
-use windows::core::{ComInterface, IUnknown, BSTR};
-use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
+use windows::core::{IUnknown, Interface, BSTR, VARIANT};
+use windows::Win32::Foundation::{VARIANT_BOOL, VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
 
@@ -79,15 +79,19 @@ impl Variant {
     ///
     /// This function is unsafe as it is the caller's responsibility to ensure that the VARIANT is correctly initialized.
     pub fn from_variant(vt: &VARIANT) -> WMIResult<Variant> {
+        let vt = vt.as_raw();
         let variant_type = unsafe { vt.Anonymous.Anonymous.vt };
 
         // variant_type has two 'forms':
         // 1. A simple type like `VT_BSTR` .
         // 2. An array of certain type like `VT_ARRAY | VT_BSTR`.
-        if variant_type.0 & VT_ARRAY.0 == VT_ARRAY.0 {
-            let array = unsafe { vt.Anonymous.Anonymous.Anonymous.parray };
+        if variant_type & VT_ARRAY.0 == VT_ARRAY.0 {
+            let array = unsafe {
+                vt.Anonymous.Anonymous.Anonymous.parray
+                    as *const windows::Win32::System::Com::SAFEARRAY
+            };
 
-            let item_type = VARENUM(variant_type.0 & VT_TYPEMASK.0);
+            let item_type = VARENUM(variant_type & VT_TYPEMASK.0);
 
             return Ok(Variant::Array(unsafe {
                 safe_array_to_vec(&*array, item_type)?
@@ -97,11 +101,13 @@ impl Variant {
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.
         // Rust can infer the return type of `vt.*Val()` calls,
         // but it's easier to read when the type is named explicitly.
-        let variant_value = match variant_type {
+        let variant_value = match VARENUM(variant_type) {
             VT_BSTR => {
-                let bstr_ptr: &BSTR = unsafe { &vt.Anonymous.Anonymous.Anonymous.bstrVal };
-
-                Variant::String(bstr_ptr.try_into()?)
+                let bstr_ptr = unsafe { BSTR::from_raw(vt.Anonymous.Anonymous.Anonymous.bstrVal) };
+                let bstr_as_str = bstr_ptr.to_string();
+                // We don't want to be the ones freeing the BSTR.
+                let _ = bstr_ptr.into_raw();
+                Variant::String(bstr_as_str)
             }
             VT_I1 => {
                 let num = unsafe { vt.Anonymous.Anonymous.Anonymous.cVal };
@@ -136,10 +142,10 @@ impl Variant {
             VT_BOOL => {
                 let value = unsafe { vt.Anonymous.Anonymous.Anonymous.boolVal };
 
-                match value {
+                match VARIANT_BOOL(value) {
                     VARIANT_FALSE => Variant::Bool(false),
                     VARIANT_TRUE => Variant::Bool(true),
-                    _ => return Err(WMIError::ConvertBoolError(value.0)),
+                    _ => return Err(WMIError::ConvertBoolError(value)),
                 }
             }
             VT_UI1 => {
@@ -165,11 +171,13 @@ impl Variant {
             VT_EMPTY => Variant::Empty,
             VT_NULL => Variant::Null,
             VT_UNKNOWN => {
-                let unk = unsafe { &vt.Anonymous.Anonymous.Anonymous.punkVal };
-                let ptr = unk.as_ref().ok_or(WMIError::NullPointerResult)?;
-                Variant::Unknown(IUnknownWrapper::new(ptr.clone()))
+                let ptr = unsafe {
+                    IUnknown::from_raw_borrowed(&vt.Anonymous.Anonymous.Anonymous.punkVal)
+                };
+                let ptr = ptr.cloned().ok_or(WMIError::NullPointerResult)?;
+                Variant::Unknown(IUnknownWrapper::new(ptr))
             }
-            _ => return Err(WMIError::ConvertError(variant_type.0)),
+            _ => return Err(WMIError::ConvertError(variant_type)),
         };
 
         Ok(variant_value)
