@@ -71,8 +71,6 @@ impl IWbemClassWrapper {
             let property_value = Variant::from_variant(&vt_prop)?
                 .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))?;
 
-            VariantClear(&mut vt_prop)?;
-
             Ok(property_value)
         }
     }
