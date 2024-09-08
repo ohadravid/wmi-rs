@@ -2,20 +2,16 @@ use crate::{
     utils::{WMIError, WMIResult},
     Variant,
 };
-use std::{iter::Iterator, ptr::null_mut, slice};
+use std::{iter::Iterator, ptr::null_mut};
 use windows::core::BSTR;
 use windows::Win32::System::Com::SAFEARRAY;
-use windows::Win32::System::Ole::{
-    SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayUnaccessData,
-};
+use windows::Win32::System::Ole::{SafeArrayAccessData, SafeArrayUnaccessData};
 use windows::Win32::System::Variant::*;
 
 #[derive(Debug)]
 pub struct SafeArrayAccessor<'a, T> {
     arr: &'a SAFEARRAY,
     p_data: *mut T,
-    lower_bound: i32,
-    upper_bound: i32,
 }
 
 /// An accessor to SafeArray, which:
@@ -38,34 +34,34 @@ impl<'a, T> SafeArrayAccessor<'a, T> {
     ///
     /// This function is unsafe as it is the caller's responsibility to verify that the array is
     /// of items of type T.
-    pub fn new(arr: &'a SAFEARRAY) -> WMIResult<Self> {
+    pub unsafe fn new(arr: &'a SAFEARRAY) -> WMIResult<Self> {
         let mut p_data = null_mut();
 
-        let lower_bound = unsafe { SafeArrayGetLBound(arr, 1)? };
-        let upper_bound = unsafe { SafeArrayGetUBound(arr, 1)? };
+        if arr.cDims != 1 {
+            return Err(WMIError::UnimplementedArrayItem);
+        }
+
         unsafe { SafeArrayAccessData(arr, &mut p_data)? };
 
         Ok(Self {
             arr,
             p_data: p_data as *mut T,
-            lower_bound,
-            upper_bound,
         })
     }
 
-    /// Return a slice which can access the data of the array.
-    pub fn as_slice(&self) -> &[T] {
-        // upper_bound can be -1, in which case the array is empty and we will return a 0 length slice.
-        let data_slice =
-            unsafe { slice::from_raw_parts(self.p_data, (self.upper_bound + 1) as usize) };
+    /// Return an iterator over the items of the array.
+    pub fn iter(&self) -> impl Iterator<Item = &'_ T> + '_ {
+        // Safety: We required the caller of `new` to ensure that the array is valid and contains only items of type T (and one dimensional).
+        // `SafeArrayAccessData` returns a pointer to the data of the array, which can be accessed for `arr.rgsabound[0].cElements` elements.
+        // See: https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-safearrayaccessdata#examples
+        let element_count = self.arr.rgsabound[0].cElements;
 
-        &data_slice[(self.lower_bound as usize)..]
+        (0..element_count).map(move |i| unsafe { &*self.p_data.offset(i as isize) })
     }
 }
 
 impl<'a, T> Drop for SafeArrayAccessor<'a, T> {
     fn drop(&mut self) {
-        // TOOD: Should we handle errors in some way?
         unsafe {
             let _result = SafeArrayUnaccessData(self.arr);
         }
@@ -75,7 +71,7 @@ impl<'a, T> Drop for SafeArrayAccessor<'a, T> {
 /// # Safety
 ///
 /// The caller must ensure that the array is valid and contains only strings.
-pub fn safe_array_to_vec_of_strings(arr: &SAFEARRAY) -> WMIResult<Vec<String>> {
+pub unsafe fn safe_array_to_vec_of_strings(arr: &SAFEARRAY) -> WMIResult<Vec<String>> {
     let items = safe_array_to_vec(arr, VT_BSTR)?;
 
     let string_items = items
@@ -91,22 +87,16 @@ pub fn safe_array_to_vec_of_strings(arr: &SAFEARRAY) -> WMIResult<Vec<String>> {
 
 /// # Safety
 ///
-/// The caller must ensure that the array is valid.
-pub fn safe_array_to_vec(arr: &SAFEARRAY, item_type: VARENUM) -> WMIResult<Vec<Variant>> {
+/// The caller must ensure that the array is valid and contains elements on the specified type.
+pub unsafe fn safe_array_to_vec(arr: &SAFEARRAY, item_type: VARENUM) -> WMIResult<Vec<Variant>> {
     fn copy_type_to_vec<T, F>(arr: &SAFEARRAY, variant_builder: F) -> WMIResult<Vec<Variant>>
     where
         T: Copy,
         F: Fn(T) -> Variant,
     {
-        let mut items = vec![];
+        let accessor = unsafe { SafeArrayAccessor::<T>::new(arr)? };
 
-        let accessor = SafeArrayAccessor::<T>::new(arr)?;
-
-        for item in accessor.as_slice().iter() {
-            items.push(variant_builder(*item));
-        }
-
-        Ok(items)
+        Ok(accessor.iter().map(|item| variant_builder(*item)).collect())
     }
 
     match item_type {
@@ -121,13 +111,12 @@ pub fn safe_array_to_vec(arr: &SAFEARRAY, item_type: VARENUM) -> WMIResult<Vec<V
         VT_R4 => copy_type_to_vec(arr, Variant::R4),
         VT_R8 => copy_type_to_vec(arr, Variant::R8),
         VT_BSTR => {
-            let mut items = vec![];
             let accessor = unsafe { SafeArrayAccessor::<BSTR>::new(arr)? };
 
-            for item_bstr in accessor.as_slice().iter() {
-                items.push(Variant::String(item_bstr.try_into()?));
-            }
-            Ok(items)
+            accessor
+                .iter()
+                .map(|item| item.try_into().map(Variant::String).map_err(WMIError::from))
+                .collect()
         }
         // TODO: Add support for all other types of arrays.
         _ => Err(WMIError::UnimplementedArrayItem),
