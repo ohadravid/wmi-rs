@@ -1,6 +1,7 @@
 # wmi
 
-[![check](https://github.com/ohadravid/wmi-rs/actions/workflows/check.yml/badge.svg?branch=main)](https://github.com/ohadravid/wmi-rs/actions/workflows/check.yml)[![crates.io](https://img.shields.io/crates/v/wmi.svg)](https://crates.io/crates/wmi)
+[![check](https://github.com/ohadravid/wmi-rs/actions/workflows/check.yml/badge.svg?branch=main)](https://github.com/ohadravid/wmi-rs/actions/workflows/check.yml)
+[![crates.io](https://img.shields.io/crates/v/wmi.svg)](https://crates.io/crates/wmi)
 [![docs.rs](https://docs.rs/wmi/badge.svg)](https://docs.rs/crate/wmi)
 
 WMI (Windows Management Instrumentation) crate for rust.
@@ -8,7 +9,7 @@ WMI (Windows Management Instrumentation) crate for rust.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "0.13"
+wmi = "0.14"
 ```
 
 ## Examples
