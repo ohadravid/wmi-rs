@@ -11,7 +11,6 @@ use serde::{
 use std::ptr;
 use windows::core::VARIANT;
 use windows::Win32::System::Ole::SafeArrayDestroy;
-use windows::Win32::System::Variant::VariantClear;
 use windows::Win32::System::Wmi::{
     IEnumWbemClassObject, IWbemClassObject, CIMTYPE_ENUMERATION, WBEM_FLAG_ALWAYS,
     WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE,
@@ -46,7 +45,7 @@ impl IWbemClassWrapper {
             )
         }?;
 
-        let res = safe_array_to_vec_of_strings(unsafe { &*p_names });
+        let res = unsafe { safe_array_to_vec_of_strings(unsafe { &*p_names }) };
 
         unsafe { SafeArrayDestroy(p_names) }?;
 
@@ -71,8 +70,6 @@ impl IWbemClassWrapper {
 
             let property_value = Variant::from_variant(&vt_prop)?
                 .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))?;
-
-            VariantClear(&mut vt_prop)?;
 
             Ok(property_value)
         }
@@ -149,8 +146,8 @@ impl<'a> Iterator for QueryResultEnumerator<'a> {
             &objs[0]
         );
 
-        let mut objs = objs.into_iter();
-        let pcls_ptr = objs.next().unwrap().ok_or(WMIError::NullPointerResult);
+        let [obj] = objs;
+        let pcls_ptr = obj.ok_or(WMIError::NullPointerResult);
 
         match pcls_ptr {
             Err(e) => Some(Err(e)),

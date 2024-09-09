@@ -3,7 +3,7 @@ use crate::{
 };
 use serde::Serialize;
 use std::convert::TryFrom;
-use windows::core::{IUnknown, Interface, BSTR, VARIANT};
+use windows::core::{IUnknown, Interface, VARIANT};
 use windows::Win32::Foundation::{VARIANT_BOOL, VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
@@ -75,11 +75,10 @@ macro_rules! cast_num {
 impl Variant {
     /// Create a `Variant` instance from a raw `VARIANT`.
     ///
-    /// # Safety
-    ///
-    /// This function is unsafe as it is the caller's responsibility to ensure that the VARIANT is correctly initialized.
-    pub fn from_variant(vt: &VARIANT) -> WMIResult<Variant> {
-        let vt = vt.as_raw();
+    /// Note: this function is safe since manipulating a `VARIANT` by hand is an *unsafe* operation,
+    /// so we can assume that the `VARIANT` is valid.
+    pub fn from_variant(variant: &VARIANT) -> WMIResult<Variant> {
+        let vt = variant.as_raw();
         let variant_type = unsafe { vt.Anonymous.Anonymous.vt };
 
         // variant_type has two 'forms':
@@ -102,13 +101,7 @@ impl Variant {
         // Rust can infer the return type of `vt.*Val()` calls,
         // but it's easier to read when the type is named explicitly.
         let variant_value = match VARENUM(variant_type) {
-            VT_BSTR => {
-                let bstr_ptr = unsafe { BSTR::from_raw(vt.Anonymous.Anonymous.Anonymous.bstrVal) };
-                let bstr_as_str = bstr_ptr.to_string();
-                // We don't want to be the ones freeing the BSTR.
-                let _ = bstr_ptr.into_raw();
-                Variant::String(bstr_as_str)
-            }
+            VT_BSTR => Variant::String(variant.to_string()),
             VT_I1 => {
                 let num = unsafe { vt.Anonymous.Anonymous.Anonymous.cVal };
 
