@@ -13,7 +13,8 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
 use windows::Win32::System::Wmi::{
-    IWbemLocator, IWbemServices, WbemLocator, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+    IWbemContext, IWbemLocator, IWbemServices, WbemContext, WbemLocator,
+    WBEM_FLAG_CONNECT_USE_MAX_WAIT,
 };
 
 /// A marker to indicate that the current thread was `CoInitialize`d.
@@ -126,6 +127,7 @@ fn _test_com_lib_not_send(_s: impl Send) {}
 pub struct WMIConnection {
     _com_con: COMLibrary,
     pub svc: IWbemServices,
+    pub ctx: IWbemContext,
 }
 
 /// A connection to the local WMI provider, which provides querying capabilities.
@@ -151,10 +153,12 @@ impl WMIConnection {
     pub fn with_namespace_path(namespace_path: &str, com_lib: COMLibrary) -> WMIResult<Self> {
         let loc = create_locator()?;
         let svc = create_services(&loc, namespace_path)?;
+        let ctx = create_context()?;
 
         let this = Self {
             _com_con: com_lib,
             svc,
+            ctx,
         };
 
         this.set_proxy()?;
@@ -189,6 +193,16 @@ fn create_locator() -> WMIResult<IWbemLocator> {
     debug!("Got locator {:?}", loc);
 
     Ok(loc)
+}
+
+fn create_context() -> WMIResult<IWbemContext> {
+    debug!("Calling CoCreateInstance for CLSID_WbemContext");
+
+    let ctx = unsafe { CoCreateInstance(&WbemContext, None, CLSCTX_INPROC_SERVER)? };
+
+    debug!("Got context {:?}", ctx);
+
+    Ok(ctx)
 }
 
 fn create_services(loc: &IWbemLocator, path: &str) -> WMIResult<IWbemServices> {
