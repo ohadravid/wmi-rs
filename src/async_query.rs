@@ -40,7 +40,7 @@ impl WMIConnection {
                 &query_language,
                 &query,
                 WBEM_FLAG_BIDIRECTIONAL,
-                &self.ctx,
+                &self.ctx.0,
                 &p_sink_handle,
             )?;
         }

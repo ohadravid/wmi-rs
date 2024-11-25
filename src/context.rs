@@ -1,12 +1,13 @@
-use std::collections::HashMap;
-
-use serde::Serialize;
+use crate::{WMIConnection, WMIResult};
+use log::debug;
+use windows::Win32::System::{
+    Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
+    Wmi::{IWbemContext, WbemContext},
+};
 use windows_core::{BSTR, VARIANT};
 
-use crate::{WMIConnection, WMIResult};
-
-#[derive(Debug, PartialEq, Serialize, Clone)]
-#[serde(untagged)]
+#[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ContextValueType {
     String(String),
     I4(i32),
@@ -25,26 +26,43 @@ impl From<ContextValueType> for VARIANT {
     }
 }
 
-impl WMIConnection {
-    /// Sets the specified named context values for use in providing additional context information to queries.
+#[derive(Clone, Debug)]
+pub struct WMIContext(pub(crate) IWbemContext);
+
+impl WMIContext {
+    /// Creates a new instances of [`WMIContext`]
+    pub(crate) fn new() -> WMIResult<WMIContext> {
+        debug!("Calling CoCreateInstance for CLSID_WbemContext");
+
+        let ctx = unsafe { CoCreateInstance(&WbemContext, None, CLSCTX_INPROC_SERVER)? };
+
+        debug!("Got context {:?}", ctx);
+
+        Ok(WMIContext(ctx))
+    }
+
+    /// Sets the specified named context value for use in providing additional context information to queries.
     ///
-    /// Note the context values will persist across subsequent queries until [`WMIConnection::clear_ctx_values`] is called.
-    pub fn set_ctx_values(
-        &mut self,
-        ctx_values: HashMap<String, ContextValueType>,
-    ) -> WMIResult<()> {
-        for (k, v) in ctx_values {
-            let key = BSTR::from(k);
-            let value = v.clone().into();
-            unsafe { self.ctx.SetValue(&key, 0, &value)? };
-        }
+    /// Note the context values will persist across subsequent queries until [`WMIConnection::delete_all`] is called.
+    pub fn set_value(&mut self, key: &str, value: impl Into<ContextValueType>) -> WMIResult<()> {
+        let value = value.into();
+        unsafe { self.0.SetValue(&BSTR::from(key), 0, &value.into())? };
 
         Ok(())
     }
 
     /// Clears all named values from the underlying context object.
-    pub fn clear_ctx_values(&mut self) -> WMIResult<()> {
-        unsafe { self.ctx.DeleteAll().map_err(Into::into) }
+    pub fn delete_all(&mut self) -> WMIResult<()> {
+        unsafe { self.0.DeleteAll()? };
+
+        Ok(())
+    }
+}
+
+impl WMIConnection {
+    /// Returns a mutable reference to the [`WMIContext`] object
+    pub fn ctx(&mut self) -> &mut WMIContext {
+        &mut self.ctx
     }
 }
 
@@ -86,16 +104,39 @@ mod tests {
         let mut orig_adapters = wmi_con.query::<MSFT_NetAdapter>().unwrap();
         assert!(!orig_adapters.is_empty());
 
-        let mut ctx_values = HashMap::new();
-        ctx_values.insert("IncludeHidden".into(), true.into());
-        wmi_con.set_ctx_values(ctx_values).unwrap();
-
         // With 'IncludeHidden' set to 'true', expect the response to contain additional adapters
+        wmi_con.ctx().set_value("IncludeHidden", true).unwrap();
         let all_adapters = wmi_con.query::<MSFT_NetAdapter>().unwrap();
         assert!(all_adapters.len() > orig_adapters.len());
 
-        wmi_con.clear_ctx_values().unwrap();
+        wmi_con.ctx().delete_all().unwrap();
         let mut adapters = wmi_con.query::<MSFT_NetAdapter>().unwrap();
+        adapters.sort();
+        orig_adapters.sort();
+        assert_eq!(adapters, orig_adapters);
+    }
+
+    #[tokio::test]
+    async fn async_verify_ctx_values_used() {
+        let com_con = COMLibrary::new().unwrap();
+        let mut wmi_con =
+            WMIConnection::with_namespace_path("ROOT\\StandardCimv2", com_con).unwrap();
+
+        #[derive(Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+        struct MSFT_NetAdapter {
+            InterfaceName: String,
+        }
+
+        let mut orig_adapters = wmi_con.async_query::<MSFT_NetAdapter>().await.unwrap();
+        assert!(!orig_adapters.is_empty());
+
+        // With 'IncludeHidden' set to 'true', expect the response to contain additional adapters
+        wmi_con.ctx().set_value("IncludeHidden", true).unwrap();
+        let all_adapters = wmi_con.async_query::<MSFT_NetAdapter>().await.unwrap();
+        assert!(all_adapters.len() > orig_adapters.len());
+
+        wmi_con.ctx().delete_all().unwrap();
+        let mut adapters = wmi_con.async_query::<MSFT_NetAdapter>().await.unwrap();
         adapters.sort();
         orig_adapters.sort();
         assert_eq!(adapters, orig_adapters);

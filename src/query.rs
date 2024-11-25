@@ -279,7 +279,7 @@ impl WMIConnection {
                 &query_language,
                 &query,
                 WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-                &self.ctx,
+                &self.ctx.0,
             )?
         };
 
@@ -431,7 +431,7 @@ impl WMIConnection {
             self.svc.GetObject(
                 &object_path,
                 WBEM_FLAG_RETURN_WBEM_COMPLETE,
-                None,
+                &self.ctx.0,
                 Some(&mut pcls_obj),
                 None,
             )?;
