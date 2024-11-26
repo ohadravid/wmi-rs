@@ -279,7 +279,7 @@ impl WMIConnection {
                 &query_language,
                 &query,
                 WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-                None,
+                &self.ctx.0,
             )?
         };
 
@@ -431,7 +431,7 @@ impl WMIConnection {
             self.svc.GetObject(
                 &object_path,
                 WBEM_FLAG_RETURN_WBEM_COMPLETE,
-                None,
+                &self.ctx.0,
                 Some(&mut pcls_obj),
                 None,
             )?;
@@ -536,7 +536,7 @@ impl WMIConnection {
 
     /// Query all the associators of type T of the given object.
     /// The `object_path` argument can be provided by querying an object wih it's `__Path` property.
-    /// `AssocClass` must be have the name as the conneting association class between the original object and the results.
+    /// `AssocClass` must be have the name as the connecting association class between the original object and the results.
     /// See <https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-diskdrivetodiskpartition> for example.
     ///
     /// ```edition2018

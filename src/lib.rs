@@ -273,6 +273,7 @@ pub mod datetime;
 #[cfg(feature = "time")]
 mod datetime_time;
 
+pub mod context;
 pub mod de;
 pub mod duration;
 pub mod query;

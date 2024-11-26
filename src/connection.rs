@@ -1,3 +1,4 @@
+use crate::context::WMIContext;
 use crate::utils::WMIResult;
 use crate::WMIError;
 use log::debug;
@@ -126,6 +127,7 @@ fn _test_com_lib_not_send(_s: impl Send) {}
 pub struct WMIConnection {
     _com_con: COMLibrary,
     pub svc: IWbemServices,
+    pub(crate) ctx: WMIContext,
 }
 
 /// A connection to the local WMI provider, which provides querying capabilities.
@@ -151,10 +153,12 @@ impl WMIConnection {
     pub fn with_namespace_path(namespace_path: &str, com_lib: COMLibrary) -> WMIResult<Self> {
         let loc = create_locator()?;
         let svc = create_services(&loc, namespace_path)?;
+        let ctx = WMIContext::new()?;
 
         let this = Self {
             _com_con: com_lib,
             svc,
+            ctx,
         };
 
         this.set_proxy()?;
