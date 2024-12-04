@@ -130,7 +130,6 @@ impl WMIConnection {
     /// filters.insert("TargetInstance".to_owned(), FilterValue::is_a::<Win32_Process>()?);
     ///
     /// let iterator = con.filtered_notification::<__InstanceCreationEvent>(&filters, Some(Duration::from_secs(1)))?;
-
     /// #   Ok(())
     /// # }
     /// ```
