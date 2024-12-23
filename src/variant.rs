@@ -270,6 +270,104 @@ impl Variant {
     }
 }
 
+impl From<Variant> for VARIANT {
+    fn from(value: Variant) -> VARIANT {
+        match value {
+            Variant::Empty => VARIANT::new(),
+
+            Variant::String(string) => VARIANT::from(string.as_str()),
+            Variant::I1(int8) => VARIANT::from(int8),
+            Variant::I2(int16) => VARIANT::from(int16),
+            Variant::I4(int32) => VARIANT::from(int32),
+            Variant::I8(int64) => VARIANT::from(int64),
+
+            Variant::R4(float32) => VARIANT::from(float32),
+            Variant::R8(float64) => VARIANT::from(float64),
+
+            Variant::Bool(b) => VARIANT::from(b),
+
+            Variant::UI1(uint8) => VARIANT::from(uint8),
+            Variant::UI2(uint16) => VARIANT::from(uint16),
+            Variant::UI4(uint32) => VARIANT::from(uint32),
+            Variant::UI8(uint64) => VARIANT::from(uint64),
+
+            // Covers Variant::Null, Variant::Array, Variant::Unknown, Variant::Object
+            // windows-rs' VARIANT does not support creating these types of VARIANT at present
+            _ => unimplemented!(),
+        }
+    }
+}
+
+macro_rules! impl_try_from_variant {
+    ($target_type:ty, $variant_type:ident) => {
+        impl TryFrom<Variant> for $target_type {
+            type Error = WMIError;
+
+            fn try_from(value: Variant) -> Result<$target_type, Self::Error> {
+                match value {
+                    Variant::$variant_type(item) => Ok(item),
+                    other => Err(WMIError::ConvertVariantError(format!(
+                        "Variant {:?} cannot be turned into a {}",
+                        &other,
+                        stringify!($target_type)
+                    ))),
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_wrap_type {
+    ($target_type:ty, $variant_type:ident) => {
+        impl From<$target_type> for Variant {
+            fn from(value: $target_type) -> Self {
+                Variant::$variant_type(value)
+            }
+        }
+    };
+}
+
+macro_rules! bidirectional_variant_convert {
+    ($target_type:ty, $variant_type:ident) => {
+        impl_try_from_variant!($target_type, $variant_type);
+        impl_wrap_type!($target_type, $variant_type);
+    };
+}
+
+bidirectional_variant_convert!(String, String);
+bidirectional_variant_convert!(i8, I1);
+bidirectional_variant_convert!(i16, I2);
+bidirectional_variant_convert!(i32, I4);
+bidirectional_variant_convert!(i64, I8);
+bidirectional_variant_convert!(u8, UI1);
+bidirectional_variant_convert!(u16, UI2);
+bidirectional_variant_convert!(u32, UI4);
+bidirectional_variant_convert!(u64, UI8);
+bidirectional_variant_convert!(f32, R4);
+bidirectional_variant_convert!(f64, R8);
+bidirectional_variant_convert!(bool, Bool);
+
+impl From<()> for Variant {
+    fn from(_value: ()) -> Self {
+        Variant::Empty
+    }
+}
+
+impl TryFrom<Variant> for () {
+    type Error = WMIError;
+
+    fn try_from(value: Variant) -> Result<(), Self::Error> {
+        match value {
+            Variant::Empty => Ok(()),
+            other => Err(WMIError::ConvertVariantError(format!(
+                "Variant {:?} cannot be turned into a {}",
+                &other,
+                stringify!(())
+            ))),
+        }
+    }
+}
+
 /// A wrapper around the [`IUnknown`] interface. \
 /// Used to retrive [`IWbemClassObject`][winapi::um::Wmi::IWbemClassObject]
 ///
@@ -303,38 +401,6 @@ impl Serialize for IUnknownWrapper {
         serializer.serialize_unit()
     }
 }
-
-macro_rules! impl_try_from_variant {
-    ($target_type:ty, $variant_type:ident) => {
-        impl TryFrom<Variant> for $target_type {
-            type Error = WMIError;
-
-            fn try_from(value: Variant) -> Result<$target_type, Self::Error> {
-                match value {
-                    Variant::$variant_type(item) => Ok(item),
-                    other => Err(WMIError::ConvertVariantError(format!(
-                        "Variant {:?} cannot be turned into a {}",
-                        &other,
-                        stringify!($target_type)
-                    ))),
-                }
-            }
-        }
-    };
-}
-
-impl_try_from_variant!(String, String);
-impl_try_from_variant!(i8, I1);
-impl_try_from_variant!(i16, I2);
-impl_try_from_variant!(i32, I4);
-impl_try_from_variant!(i64, I8);
-impl_try_from_variant!(u8, UI1);
-impl_try_from_variant!(u16, UI2);
-impl_try_from_variant!(u32, UI4);
-impl_try_from_variant!(u64, UI8);
-impl_try_from_variant!(f32, R4);
-impl_try_from_variant!(f64, R8);
-impl_try_from_variant!(bool, Bool);
 
 #[cfg(test)]
 mod tests {
@@ -543,5 +609,43 @@ mod tests {
         let variant = Variant::Empty;
         let converted = variant.convert_into_cim_type(cim_type).unwrap();
         assert_eq!(converted, Variant::Array(vec![]));
+    }
+
+    #[test]
+    fn it_bidirectional_string_convert() {
+        let string = "Test String".to_string();
+        let variant = Variant::from(string.clone());
+        assert_eq!(
+            <Variant as TryInto<String>>::try_into(variant).unwrap(),
+            string
+        );
+
+        let variant = Variant::from(string.clone());
+        let ms_variant = VARIANT::try_from(variant).unwrap();
+        let variant = Variant::from(string.clone());
+        assert_eq!(Variant::from_variant(&ms_variant).unwrap(), variant);
+    }
+
+    #[test]
+    fn it_bidirectional_empty_convert() {
+        let variant = Variant::from(());
+        assert_eq!(<Variant as TryInto<()>>::try_into(variant).unwrap(), ());
+
+        let variant = Variant::from(());
+        let ms_variant = VARIANT::try_from(variant).unwrap();
+        let variant = Variant::from(());
+        assert_eq!(Variant::from_variant(&ms_variant).unwrap(), variant);
+    }
+
+    #[test]
+    fn it_bidirectional_r8_convert() {
+        let num = 0.123456789;
+        let variant = Variant::from(num);
+        assert_eq!(<Variant as TryInto<f64>>::try_into(variant).unwrap(), num);
+
+        let variant = Variant::from(num);
+        let ms_variant = VARIANT::try_from(variant).unwrap();
+        let variant = Variant::from(num);
+        assert_eq!(Variant::from_variant(&ms_variant).unwrap(), variant);
     }
 }

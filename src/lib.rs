@@ -280,6 +280,7 @@ pub mod duration;
 pub mod query;
 pub mod result_enumerator;
 pub mod safearray;
+pub mod ser;
 pub mod utils;
 pub mod variant;
 

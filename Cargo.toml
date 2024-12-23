@@ -43,6 +43,7 @@ serde = { version = "1.0", features = ["derive"] }
 futures = { version = "0.3" }
 thiserror = "^2"
 log = "0.4"
+typeid = "1.0.2"
 
 [dev-dependencies]
 async-std = { version = "1.10",  features = ["attributes"] }
