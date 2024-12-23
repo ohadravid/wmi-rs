@@ -7,15 +7,201 @@ use serde::{
 };
 use thiserror::Error;
 
+macro_rules! serialize_struct_err_stub {
+    ($signature:ident, $type:ty) => {
+        fn $signature(self, _v: $type) -> Result<Self::Ok, Self::Error> {
+            Err(VariantSerializerError::ExpectedStruct)
+        }
+    };
+}
+
+macro_rules! serialize_variant_err_stub {
+    ($signature:ident, $type:ty) => {
+        fn $signature(self, _v: $type) -> Result<Self::Ok, Self::Error> {
+            Err(VariantSerializerError::UnsupportedVariantType(
+                type_name::<$type>().to_string(),
+            ))
+        }
+    };
+}
+
+macro_rules! serialize_variant {
+    ($signature:ident, $type:ty) => {
+        fn $signature(self, v: $type) -> Result<Self::Ok, Self::Error> {
+            Ok(Variant::from(v))
+        }
+    };
+}
+
+struct VariantSerializer {}
+
+impl Serializer for VariantSerializer {
+    type Ok = Variant;
+    type Error = VariantSerializerError;
+
+    type SerializeSeq = Impossible<Self::Ok, Self::Error>;
+    type SerializeTuple = Impossible<Self::Ok, Self::Error>;
+    type SerializeTupleStruct = Impossible<Self::Ok, Self::Error>;
+    type SerializeTupleVariant = Impossible<Self::Ok, Self::Error>;
+    type SerializeMap = Impossible<Self::Ok, Self::Error>;
+    type SerializeStruct = Impossible<Self::Ok, Self::Error>;
+    type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
+
+    serialize_variant!(serialize_bool, bool);
+    serialize_variant!(serialize_i8, i8);
+    serialize_variant!(serialize_i16, i16);
+    serialize_variant!(serialize_i32, i32);
+    serialize_variant!(serialize_i64, i64);
+    serialize_variant!(serialize_u8, u8);
+    serialize_variant!(serialize_u16, u16);
+    serialize_variant!(serialize_u32, u32);
+    serialize_variant!(serialize_u64, u64);
+    serialize_variant!(serialize_f32, f32);
+    serialize_variant!(serialize_f64, f64);
+
+    fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
+        Ok(Variant::Empty)
+    }
+
+    fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
+        Ok(Variant::from(v.to_string()))
+    }
+
+    serialize_variant_err_stub!(serialize_char, char);
+    serialize_variant_err_stub!(serialize_bytes, &[u8]);
+
+    fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            "None".to_string(),
+        ))
+    }
+
+    fn serialize_some<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            type_name::<T>().to_string(),
+        ))
+    }
+
+    fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            name.to_string(),
+        ))
+    }
+
+    fn serialize_unit_variant(
+        self,
+        name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+    ) -> Result<Self::Ok, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(format!(
+            "{variant}::{name}"
+        )))
+    }
+
+    fn serialize_newtype_struct<T>(
+        self,
+        _name: &'static str,
+        _value: &T,
+    ) -> Result<Self::Ok, Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            type_name::<T>().to_string(),
+        ))
+    }
+
+    fn serialize_newtype_variant<T>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _value: &T,
+    ) -> Result<Self::Ok, Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            type_name::<T>().to_string(),
+        ))
+    }
+
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            "Sequence".to_string(),
+        ))
+    }
+
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            "Tuple".to_string(),
+        ))
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleStruct, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            name.to_string(),
+        ))
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleVariant, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(format!(
+            "{variant}::{name}"
+        )))
+    }
+
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            "Map".to_string(),
+        ))
+    }
+
+    fn serialize_struct(
+        self,
+        name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStruct, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(
+            name.to_string(),
+        ))
+    }
+
+    fn serialize_struct_variant(
+        self,
+        name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStructVariant, Self::Error> {
+        Err(VariantSerializerError::UnsupportedVariantType(format!(
+            "{variant}::{name}"
+        )))
+    }
+}
+
 pub struct VariantStructSerializer {
     variant_map: HashMap<String, Variant>,
 }
 
 #[derive(Debug, Error)]
-pub enum VariantStructSerializerError {
+pub enum VariantSerializerError {
     #[error("Unknown error when serializing struct:\n{0}")]
     Unknown(String),
-    #[error("VariantSerializer can only be used to serialize structs.")]
+    #[error("VariantStructSerializer can only be used to serialize structs.")]
     ExpectedStruct,
     #[error("{0} cannot be serialized to a Variant.")]
     UnsupportedVariantType(String),
@@ -29,27 +215,19 @@ impl VariantStructSerializer {
     }
 }
 
-impl serde::ser::Error for VariantStructSerializerError {
+impl serde::ser::Error for VariantSerializerError {
     fn custom<T>(msg: T) -> Self
     where
         T: Display,
     {
-        VariantStructSerializerError::Unknown(msg.to_string())
+        VariantSerializerError::Unknown(msg.to_string())
     }
-}
-
-macro_rules! serialize_type_stub {
-    ($signature:ident, $type:ty) => {
-        fn $signature(self, _v: $type) -> Result<Self::Ok, Self::Error> {
-            Err(VariantStructSerializerError::ExpectedStruct)
-        }
-    };
 }
 
 impl Serializer for VariantStructSerializer {
     type Ok = HashMap<String, Variant>;
 
-    type Error = VariantStructSerializerError;
+    type Error = VariantSerializerError;
 
     type SerializeStruct = Self;
 
@@ -67,41 +245,41 @@ impl Serializer for VariantStructSerializer {
 
     // The following is code for a generic Serializer implementation not relevant to this use case
 
-    type SerializeSeq = Impossible<Self::Ok, VariantStructSerializerError>;
-    type SerializeTuple = Impossible<Self::Ok, VariantStructSerializerError>;
-    type SerializeTupleStruct = Impossible<Self::Ok, VariantStructSerializerError>;
-    type SerializeTupleVariant = Impossible<Self::Ok, VariantStructSerializerError>;
-    type SerializeMap = Impossible<Self::Ok, VariantStructSerializerError>;
-    type SerializeStructVariant = Impossible<Self::Ok, VariantStructSerializerError>;
+    type SerializeSeq = Impossible<Self::Ok, VariantSerializerError>;
+    type SerializeTuple = Impossible<Self::Ok, VariantSerializerError>;
+    type SerializeTupleStruct = Impossible<Self::Ok, VariantSerializerError>;
+    type SerializeTupleVariant = Impossible<Self::Ok, VariantSerializerError>;
+    type SerializeMap = Impossible<Self::Ok, VariantSerializerError>;
+    type SerializeStructVariant = Impossible<Self::Ok, VariantSerializerError>;
 
-    serialize_type_stub!(serialize_bool, bool);
-    serialize_type_stub!(serialize_i8, i8);
-    serialize_type_stub!(serialize_i16, i16);
-    serialize_type_stub!(serialize_i32, i32);
-    serialize_type_stub!(serialize_i64, i64);
-    serialize_type_stub!(serialize_u8, u8);
-    serialize_type_stub!(serialize_u16, u16);
-    serialize_type_stub!(serialize_u32, u32);
-    serialize_type_stub!(serialize_u64, u64);
-    serialize_type_stub!(serialize_f32, f32);
-    serialize_type_stub!(serialize_f64, f64);
-    serialize_type_stub!(serialize_char, char);
-    serialize_type_stub!(serialize_str, &str);
-    serialize_type_stub!(serialize_bytes, &[u8]);
+    serialize_struct_err_stub!(serialize_bool, bool);
+    serialize_struct_err_stub!(serialize_i8, i8);
+    serialize_struct_err_stub!(serialize_i16, i16);
+    serialize_struct_err_stub!(serialize_i32, i32);
+    serialize_struct_err_stub!(serialize_i64, i64);
+    serialize_struct_err_stub!(serialize_u8, u8);
+    serialize_struct_err_stub!(serialize_u16, u16);
+    serialize_struct_err_stub!(serialize_u32, u32);
+    serialize_struct_err_stub!(serialize_u64, u64);
+    serialize_struct_err_stub!(serialize_f32, f32);
+    serialize_struct_err_stub!(serialize_f64, f64);
+    serialize_struct_err_stub!(serialize_char, char);
+    serialize_struct_err_stub!(serialize_str, &str);
+    serialize_struct_err_stub!(serialize_bytes, &[u8]);
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_some<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + Serialize,
     {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_unit_variant(
@@ -110,7 +288,7 @@ impl Serializer for VariantStructSerializer {
         _variant_index: u32,
         _variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_newtype_struct<T>(
@@ -121,7 +299,7 @@ impl Serializer for VariantStructSerializer {
     where
         T: ?Sized + Serialize,
     {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_newtype_variant<T>(
@@ -134,15 +312,15 @@ impl Serializer for VariantStructSerializer {
     where
         T: ?Sized + Serialize,
     {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_tuple_struct(
@@ -150,7 +328,7 @@ impl Serializer for VariantStructSerializer {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_tuple_variant(
@@ -160,11 +338,11 @@ impl Serializer for VariantStructSerializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
 
     fn serialize_struct_variant(
@@ -174,61 +352,26 @@ impl Serializer for VariantStructSerializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        Err(VariantStructSerializerError::ExpectedStruct)
+        Err(VariantSerializerError::ExpectedStruct)
     }
-}
-
-macro_rules! match_type_unsafe {
-    ($target_type:ty, $value:ident) => {
-        || {
-            if typeid::of::<T>() == typeid::of::<$target_type>() {
-                Some(Variant::from(*unsafe {
-                    std::mem::transmute_copy::<&T, &$target_type>(&$value)
-                }))
-            } else {
-                None
-            }
-        }
-    };
 }
 
 impl SerializeStruct for VariantStructSerializer {
     type Ok = <VariantStructSerializer as Serializer>::Ok;
 
-    type Error = VariantStructSerializerError;
+    type Error = VariantSerializerError;
 
     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error>
     where
         T: ?Sized + Serialize,
     {
-        let variant = match_type_unsafe!((), value)()
-            .or_else(match_type_unsafe!(i8, value))
-            .or_else(match_type_unsafe!(i16, value))
-            .or_else(match_type_unsafe!(i32, value))
-            .or_else(match_type_unsafe!(i64, value))
-            .or_else(match_type_unsafe!(f32, value))
-            .or_else(match_type_unsafe!(f64, value))
-            .or_else(match_type_unsafe!(bool, value))
-            .or_else(match_type_unsafe!(u8, value))
-            .or_else(match_type_unsafe!(u16, value))
-            .or_else(match_type_unsafe!(u32, value))
-            .or_else(match_type_unsafe!(u64, value))
-            .or_else(|| {
-                if typeid::of::<T>() == typeid::of::<String>() {
-                    Some(Variant::from(
-                        unsafe { std::mem::transmute_copy::<&T, &String>(&value) }.clone(),
-                    ))
-                } else {
-                    None
-                }
-            });
-
+        let variant = value.serialize(VariantSerializer {});
         match variant {
-            Some(value) => {
+            Ok(value) => {
                 self.variant_map.insert(key.to_string(), value);
                 Ok(())
             }
-            None => Err(VariantStructSerializerError::UnsupportedVariantType(
+            Err(_) => Err(VariantSerializerError::UnsupportedVariantType(
                 type_name::<T>().to_string(),
             )),
         }
