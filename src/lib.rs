@@ -277,6 +277,7 @@ mod datetime_time;
 pub mod context;
 pub mod de;
 pub mod duration;
+pub mod method;
 pub mod query;
 pub mod result_enumerator;
 pub mod safearray;
