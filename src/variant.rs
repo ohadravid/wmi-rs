@@ -8,7 +8,7 @@ use windows::Win32::Foundation::{VARIANT_BOOL, VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Variant {
     Empty,
@@ -270,30 +270,41 @@ impl Variant {
     }
 }
 
-impl From<Variant> for VARIANT {
-    fn from(value: Variant) -> VARIANT {
+impl TryFrom<Variant> for VARIANT {
+    type Error = WMIError;
+    fn try_from(value: Variant) -> WMIResult<VARIANT> {
         match value {
-            Variant::Empty => VARIANT::new(),
+            Variant::Empty => Ok(VARIANT::new()),
 
-            Variant::String(string) => VARIANT::from(string.as_str()),
-            Variant::I1(int8) => VARIANT::from(int8),
-            Variant::I2(int16) => VARIANT::from(int16),
-            Variant::I4(int32) => VARIANT::from(int32),
-            Variant::I8(int64) => VARIANT::from(int64),
+            Variant::String(string) => Ok(VARIANT::from(string.as_str())),
+            Variant::I1(int8) => Ok(VARIANT::from(int8)),
+            Variant::I2(int16) => Ok(VARIANT::from(int16)),
+            Variant::I4(int32) => Ok(VARIANT::from(int32)),
+            Variant::I8(int64) => Ok(VARIANT::from(int64)),
 
-            Variant::R4(float32) => VARIANT::from(float32),
-            Variant::R8(float64) => VARIANT::from(float64),
+            Variant::R4(float32) => Ok(VARIANT::from(float32)),
+            Variant::R8(float64) => Ok(VARIANT::from(float64)),
 
-            Variant::Bool(b) => VARIANT::from(b),
+            Variant::Bool(b) => Ok(VARIANT::from(b)),
 
-            Variant::UI1(uint8) => VARIANT::from(uint8),
-            Variant::UI2(uint16) => VARIANT::from(uint16),
-            Variant::UI4(uint32) => VARIANT::from(uint32),
-            Variant::UI8(uint64) => VARIANT::from(uint64),
+            Variant::UI1(uint8) => Ok(VARIANT::from(uint8)),
+            Variant::UI2(uint16) => Ok(VARIANT::from(uint16)),
+            Variant::UI4(uint32) => Ok(VARIANT::from(uint32)),
+            Variant::UI8(uint64) => Ok(VARIANT::from(uint64)),
 
-            // Covers Variant::Null, Variant::Array, Variant::Unknown, Variant::Object
             // windows-rs' VARIANT does not support creating these types of VARIANT at present
-            _ => unimplemented!(),
+            Variant::Null => Err(WMIError::ConvertVariantError(
+                "Cannot convert Variant::Null to a Windows VARIANT".to_string(),
+            )),
+            Variant::Array(_) => Err(WMIError::ConvertVariantError(
+                "Cannot convert Variant::Array to a Windows VARIANT".to_string(),
+            )),
+            Variant::Unknown(_) => Err(WMIError::ConvertVariantError(
+                "Cannot convert Variant::Unknown to a Windows VARIANT".to_string(),
+            )),
+            Variant::Object(_) => Err(WMIError::ConvertVariantError(
+                "Cannot convert Variant::Object to a Windows VARIANT".to_string(),
+            )),
         }
     }
 }
@@ -372,7 +383,7 @@ impl TryFrom<Variant> for () {
 /// Used to retrive [`IWbemClassObject`][winapi::um::Wmi::IWbemClassObject]
 ///
 #[repr(transparent)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IUnknownWrapper {
     inner: IUnknown,
 }

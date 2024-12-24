@@ -1,3 +1,5 @@
+//! This module implements a custom serializer type, [`VariantStructSerializer`],
+//! to serialize a Rust struct into a HashMap mapping field name strings to [`Variant`] values
 use std::{any::type_name, collections::HashMap, fmt::Display};
 
 use crate::Variant;
@@ -67,6 +69,45 @@ impl Serializer for VariantSerializer {
         Ok(Variant::from(v.to_string()))
     }
 
+    fn serialize_newtype_variant<T>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        value: &T,
+    ) -> Result<Self::Ok, Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(self)
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
+        self.serialize_unit()
+    }
+
+    fn serialize_newtype_struct<T>(
+        self,
+        _name: &'static str,
+        value: &T,
+    ) -> Result<Self::Ok, Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(self)
+    }
+
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+    ) -> Result<Self::Ok, Self::Error> {
+        Ok(Variant::from(variant.to_string()))
+    }
+
+    // Generic serializer code not relevant to this use case
+
     serialize_variant_err_stub!(serialize_char, char);
     serialize_variant_err_stub!(serialize_bytes, &[u8]);
 
@@ -77,51 +118,6 @@ impl Serializer for VariantSerializer {
     }
 
     fn serialize_some<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
-    where
-        T: ?Sized + Serialize,
-    {
-        Err(VariantSerializerError::UnsupportedVariantType(
-            type_name::<T>().to_string(),
-        ))
-    }
-
-    fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
-        Err(VariantSerializerError::UnsupportedVariantType(
-            name.to_string(),
-        ))
-    }
-
-    fn serialize_unit_variant(
-        self,
-        name: &'static str,
-        _variant_index: u32,
-        variant: &'static str,
-    ) -> Result<Self::Ok, Self::Error> {
-        Err(VariantSerializerError::UnsupportedVariantType(format!(
-            "{variant}::{name}"
-        )))
-    }
-
-    fn serialize_newtype_struct<T>(
-        self,
-        _name: &'static str,
-        _value: &T,
-    ) -> Result<Self::Ok, Self::Error>
-    where
-        T: ?Sized + Serialize,
-    {
-        Err(VariantSerializerError::UnsupportedVariantType(
-            type_name::<T>().to_string(),
-        ))
-    }
-
-    fn serialize_newtype_variant<T>(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        _variant: &'static str,
-        _value: &T,
-    ) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + Serialize,
     {
@@ -193,6 +189,7 @@ impl Serializer for VariantSerializer {
     }
 }
 
+#[derive(Default)]
 pub struct VariantStructSerializer {
     variant_map: HashMap<String, Variant>,
 }
@@ -240,7 +237,22 @@ impl Serializer for VariantStructSerializer {
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
+        self.serialize_unit()
+    }
+
+    fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
         Ok(HashMap::new())
+    }
+
+    fn serialize_newtype_struct<T>(
+        self,
+        _name: &'static str,
+        value: &T,
+    ) -> Result<Self::Ok, Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(self)
     }
 
     // The following is code for a generic Serializer implementation not relevant to this use case
@@ -278,27 +290,12 @@ impl Serializer for VariantStructSerializer {
         Err(VariantSerializerError::ExpectedStruct)
     }
 
-    fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        Err(VariantSerializerError::ExpectedStruct)
-    }
-
     fn serialize_unit_variant(
         self,
         _name: &'static str,
         _variant_index: u32,
         _variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        Err(VariantSerializerError::ExpectedStruct)
-    }
-
-    fn serialize_newtype_struct<T>(
-        self,
-        _name: &'static str,
-        _value: &T,
-    ) -> Result<Self::Ok, Self::Error>
-    where
-        T: ?Sized + Serialize,
-    {
         Err(VariantSerializerError::ExpectedStruct)
     }
 
@@ -452,6 +449,73 @@ mod tests {
 
         let variant_serializer = VariantStructSerializer::new();
         let field_map = test_struct.serialize(variant_serializer).unwrap();
+
+        assert_eq!(field_map, expected_field_map);
+    }
+
+    #[derive(Serialize)]
+    struct NewtypeTest(u32);
+    #[derive(Serialize)]
+    struct NewtypeTestWrapper {
+        newtype: NewtypeTest,
+    }
+    #[test]
+    fn it_serialize_newtype() {
+        let test_struct = NewtypeTestWrapper {
+            newtype: NewtypeTest(17),
+        };
+
+        let expected_field_map: HashMap<String, Variant> =
+            [("newtype".to_string(), Variant::UI4(17))]
+                .into_iter()
+                .collect();
+
+        let field_map = test_struct
+            .serialize(VariantStructSerializer::new())
+            .unwrap();
+
+        assert_eq!(field_map, expected_field_map);
+    }
+
+    #[derive(Serialize)]
+    struct UnitTest;
+
+    #[test]
+    fn it_serialize_unit() {
+        let expected_field_map = HashMap::new();
+        let field_map = UnitTest {}
+            .serialize(VariantStructSerializer::new())
+            .unwrap();
+
+        assert_eq!(field_map, expected_field_map);
+    }
+
+    #[derive(Serialize)]
+    #[allow(dead_code)]
+    enum EnumTest {
+        NTFS,
+        FAT32,
+        ReFS,
+    }
+
+    #[derive(Serialize)]
+    struct EnumStructTest {
+        enum_test: EnumTest,
+    }
+
+    #[test]
+    fn it_serialize_enum() {
+        let test_enum_struct = EnumStructTest {
+            enum_test: EnumTest::NTFS,
+        };
+
+        let expected_field_map = [("enum_test".to_string(), Variant::from("NTFS".to_string()))]
+            .into_iter()
+            .collect();
+
+        let field_map = test_enum_struct
+            .serialize(VariantStructSerializer::new())
+            .unwrap();
 
         assert_eq!(field_map, expected_field_map);
     }

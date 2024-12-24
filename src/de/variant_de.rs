@@ -33,7 +33,7 @@ impl<'de> serde::Deserializer<'de> for Variant {
     {
         match self {
             Variant::Null => visitor.visit_none(),
-            Variant::Empty => visitor.visit_none(),
+            Variant::Empty => visitor.visit_unit(),
             Variant::String(s) => visitor.visit_string(s),
             Variant::I1(n) => visitor.visit_i8(n),
             Variant::I2(n) => visitor.visit_i16(n),

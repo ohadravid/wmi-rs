@@ -5,77 +5,87 @@ use windows_core::{BSTR, HSTRING, VARIANT};
 
 use crate::{
     de::meta::struct_name_and_fields, result_enumerator::IWbemClassWrapper,
-    ser::variant_ser::VariantStructSerializer, WMIConnection, WMIError, WMIResult,
+    ser::variant_ser::VariantStructSerializer, Variant, WMIConnection, WMIError, WMIResult,
 };
 
 impl WMIConnection {
-    fn exec_method_native_wrapper(
+    pub fn exec_method_native_wrapper(
         &self,
         method_class: impl AsRef<str>,
         object_path: impl AsRef<str>,
         method: impl AsRef<str>,
-        in_params: HashMap<String, VARIANT>,
+        in_params: &HashMap<String, Variant>,
     ) -> WMIResult<Option<IWbemClassWrapper>> {
         let method_class = BSTR::from(method_class.as_ref());
         let object_path = BSTR::from(object_path.as_ref());
         let method = BSTR::from(method.as_ref());
 
+        // See https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-getmethod
+        // GetMethod can only be called on a class definition, so we retrieve that before retrieving a specific object
+        let mut class_definition = None;
         unsafe {
-            let mut class_object = None;
             self.svc.GetObject(
                 &method_class,
                 Default::default(),
                 &self.ctx.0,
-                Some(&mut class_object),
+                Some(&mut class_definition),
                 None,
             )?;
+        }
+        let class_definition = class_definition.ok_or(WMIError::ResultEmpty)?;
+        // The fields of the resulting IWbemClassObject will have the names and types of the WMI method's input parameters
+        let mut input_signature = None;
+        unsafe {
+            class_definition.GetMethod(
+                &method,
+                Default::default(),
+                &mut input_signature,
+                std::ptr::null_mut(),
+            )?;
+        }
+        let in_params = match input_signature {
+            Some(input) => {
+                let inst;
+                unsafe {
+                    inst = input.SpawnInstance(Default::default())?;
+                };
+                for (wszname, value) in in_params {
+                    let wszname = HSTRING::from(wszname);
+                    let value = TryInto::<VARIANT>::try_into(value.clone())?;
 
-            match class_object {
-                Some(class) => {
-                    let mut input_signature = None;
-                    class.GetMethod(
-                        &method,
-                        Default::default(),
-                        &mut input_signature,
-                        std::ptr::null_mut(),
-                    )?;
-                    let object = match input_signature {
-                        Some(input) => {
-                            let inst = input.SpawnInstance(0)?;
-                            for (wszname, value) in in_params {
-                                inst.Put(&HSTRING::from(wszname), Default::default(), &value, 0)?;
-                            }
-                            Some(inst)
-                        }
-                        None => None,
-                    };
-
-                    let mut output = None;
-                    self.svc.ExecMethod(
-                        &object_path,
-                        &method,
-                        Default::default(),
-                        &self.ctx.0,
-                        object.as_ref(),
-                        Some(&mut output),
-                        None,
-                    )?;
-
-                    match output {
-                        Some(wbem_class_obj) => Ok(Some(IWbemClassWrapper::new(wbem_class_obj))),
-                        None => Ok(None),
+                    // See https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put
+                    // Note that the example shows the variant being cleared (dropped) after the call to Put,
+                    // so passing &value is acceptable here
+                    unsafe {
+                        inst.Put(&wszname, Default::default(), &value, 0)?;
                     }
                 }
-                None => Err(WMIError::ResultEmpty),
+                Some(inst)
             }
+            None => None,
+        };
+
+        let mut output = None;
+        unsafe {
+            self.svc.ExecMethod(
+                &object_path,
+                &method,
+                Default::default(),
+                &self.ctx.0,
+                in_params.as_ref(),
+                Some(&mut output),
+                None,
+            )?;
         }
+
+        Ok(output.map(IWbemClassWrapper::new))
     }
 
     pub fn exec_class_method<MethodClass, In, Out>(
         &self,
         method: impl AsRef<str>,
         in_params: In,
-    ) -> WMIResult<Option<Out>>
+    ) -> WMIResult<Out>
     where
         MethodClass: de::DeserializeOwned,
         In: Serialize,
@@ -90,7 +100,7 @@ impl WMIConnection {
         method: impl AsRef<str>,
         object_path: impl AsRef<str>,
         in_params: In,
-    ) -> WMIResult<Option<Out>>
+    ) -> WMIResult<Out>
     where
         MethodClass: de::DeserializeOwned,
         In: Serialize,
@@ -100,22 +110,12 @@ impl WMIConnection {
         let serializer = VariantStructSerializer::new();
         match in_params.serialize(serializer) {
             Ok(field_map) => {
-                let field_map: HashMap<String, VARIANT> = field_map
-                    .into_iter()
-                    .filter_map(|(k, v)| match TryInto::<VARIANT>::try_into(v).ok() {
-                        Some(variant) => Some((k, variant)),
-                        None => None,
-                    })
-                    .collect();
                 let output =
-                    self.exec_method_native_wrapper(method_class, object_path, method, field_map);
+                    self.exec_method_native_wrapper(method_class, object_path, method, &field_map)?;
 
                 match output {
-                    Ok(wbem_class_obj) => match wbem_class_obj {
-                        Some(wbem_class_obj) => Ok(Some(wbem_class_obj.into_desr()?)),
-                        None => Ok(None),
-                    },
-                    Err(e) => Err(e),
+                    Some(class_wrapper) => Ok(class_wrapper.into_desr()?),
+                    None => Out::deserialize(Variant::Empty),
                 }
             }
             Err(e) => Err(WMIError::ConvertVariantError(e.to_string())),
@@ -138,35 +138,15 @@ mod tests {
         CommandLine: String,
     }
 
-    #[derive(Serialize)]
-    struct TerminateParams {}
-
-    #[derive(Deserialize)]
-    struct TerminateOutput {}
-
     #[derive(Deserialize)]
     #[allow(non_snake_case)]
     struct CreateOutput {
+        ReturnValue: u32,
         ProcessId: u32,
     }
 
     #[test]
-    fn it_exec_class_method() {
-        let wmi_con = wmi_con();
-        let in_params = CreateParams {
-            CommandLine: "notepad.exe".to_string(),
-        };
-
-        let out = wmi_con
-            .exec_class_method::<Win32_Process, CreateParams, CreateOutput>("Create", in_params)
-            .unwrap()
-            .unwrap();
-
-        assert!(out.ProcessId != 0);
-    }
-
-    #[test]
-    fn it_exec_instance_method() {
+    fn it_exec_methods() {
         // Create notepad instance
         let wmi_con = wmi_con();
         let in_params = CreateParams {
@@ -174,8 +154,9 @@ mod tests {
         };
         let out = wmi_con
             .exec_class_method::<Win32_Process, CreateParams, CreateOutput>("Create", in_params)
-            .unwrap()
             .unwrap();
+
+        assert_eq!(out.ReturnValue, 0);
 
         let process = wmi_con
             .raw_query::<Win32_Process>(format!(
@@ -187,12 +168,19 @@ mod tests {
             .next()
             .unwrap();
 
-        let _ = wmi_con
-            .exec_instance_method::<Win32_Process, TerminateParams, TerminateOutput>(
-                "Terminate",
-                process.__Path,
-                TerminateParams {},
-            )
+        wmi_con
+            .exec_instance_method::<Win32_Process, (), ()>("Terminate", process.__Path, ())
             .unwrap();
+
+        assert!(
+            wmi_con
+                .raw_query::<Win32_Process>(format!(
+                    "SELECT * FROM Win32_Process WHERE ProcessId = {}",
+                    out.ProcessId
+                ))
+                .unwrap()
+                .len()
+                == 0
+        );
     }
 }
