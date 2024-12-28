@@ -8,7 +8,7 @@ use windows::Win32::Foundation::{VARIANT_BOOL, VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Variant {
     Empty,
@@ -385,7 +385,7 @@ impl TryFrom<Variant> for () {
 /// Used to retrive [`IWbemClassObject`][winapi::um::Wmi::IWbemClassObject]
 ///
 #[repr(transparent)]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct IUnknownWrapper {
     inner: IUnknown,
 }
@@ -628,10 +628,7 @@ mod tests {
     fn it_bidirectional_string_convert() {
         let string = "Test String".to_string();
         let variant = Variant::from(string.clone());
-        assert_eq!(
-            <Variant as TryInto<String>>::try_into(variant).unwrap(),
-            string
-        );
+        assert_eq!(variant.try_into().ok(), Some(string.clone()));
 
         let variant = Variant::from(string.clone());
         let ms_variant = VARIANT::try_from(variant).unwrap();
@@ -642,7 +639,7 @@ mod tests {
     #[test]
     fn it_bidirectional_empty_convert() {
         let variant = Variant::from(());
-        assert_eq!(<Variant as TryInto<()>>::try_into(variant).unwrap(), ());
+        assert_eq!(variant.try_into().ok(), Some(()));
 
         let variant = Variant::from(());
         let ms_variant = VARIANT::try_from(variant).unwrap();
@@ -654,7 +651,7 @@ mod tests {
     fn it_bidirectional_r8_convert() {
         let num = 0.123456789;
         let variant = Variant::from(num);
-        assert_eq!(<Variant as TryInto<f64>>::try_into(variant).unwrap(), num);
+        assert_eq!(variant.try_into().ok(), Some(num));
 
         let variant = Variant::from(num);
         let ms_variant = VARIANT::try_from(variant).unwrap();

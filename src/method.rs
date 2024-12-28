@@ -16,32 +16,30 @@ impl WMIConnection {
     ///
     /// In the case of a class ("static") method, `object_path` should be the same as `method_class`.
     ///
-    /// Returns `None` if the method has no out parameters and a VOID return type, and an [`IWbemClassWrapper`] containing the output otherwise.
+    /// Returns `None` if the method has no out parameters and a `void` return type, and an [`IWbemClassWrapper`] containing the output otherwise.
+    /// A method with a return type other than `void` will always have a generic property named `ReturnValue` in the output class wrapper with the return value of the WMI method call.
     ///
     /// ```edition2021
-    /// use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
+    /// # use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
+    /// # fn main() -> WMIResult<()> {
+    /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    /// let in_params = [
+    ///     ("CommandLine".to_string(), Variant::from("systeminfo".to_string()))
+    /// ].into_iter().collect();
     ///
-    /// fn main() -> WMIResult<()> {
-    ///     let in_params = [
-    ///         ("CommandLine".to_string(), Variant::from("systeminfo".to_string()))
-    ///     ].into_iter().collect();
-    ///
-    ///     let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
-    ///
-    ///     // Because Create has a return value and out parameters, the Option returned will never be none.
-    ///     // Note: The Create call can be unreliable, so consider using another means of starting processes.
-    ///     let out = wmi_con.exec_method_native_wrapper("Win32_Process", "Win32_Process", "Create", &in_params)?.unwrap();
-    ///     println!("The return code of the Create call is {:?}", out.get_property("ReturnValue")?);
-    ///
-    ///     Ok(())
-    /// }
+    /// // Because Create has a return value and out parameters, the Option returned will never be None.
+    /// // Note: The Create call can be unreliable, so consider using another means of starting processes.
+    /// let out = wmi_con.exec_method_native_wrapper("Win32_Process", "Win32_Process", "Create", in_params)?.unwrap();
+    /// println!("The return code of the Create call is {:?}", out.get_property("ReturnValue")?);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn exec_method_native_wrapper(
         &self,
         method_class: impl AsRef<str>,
         object_path: impl AsRef<str>,
         method: impl AsRef<str>,
-        in_params: &HashMap<String, Variant>,
+        in_params: HashMap<String, Variant>,
     ) -> WMIResult<Option<IWbemClassWrapper>> {
         let method_class = BSTR::from(method_class.as_ref());
         let object_path = BSTR::from(object_path.as_ref());
@@ -82,7 +80,7 @@ impl WMIConnection {
                 // Set every field of the input object to the corresponding input parameter passed to this function
                 for (wszname, value) in in_params {
                     let wszname = HSTRING::from(wszname);
-                    let value = TryInto::<VARIANT>::try_into(value.clone())?;
+                    let value = TryInto::<VARIANT>::try_into(value)?;
 
                     // See https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put
                     // Note that the example shows the variant is expected to be cleared (dropped) after the call to Put,
@@ -120,46 +118,45 @@ impl WMIConnection {
     /// `MethodClass` should have the name of the class on which the method is being invoked.
     /// `In` and `Out` can be `()` or any custom structs supporting (de)serialization containing the input and output parameters of the function.
     ///
+    /// A method with a return type other than `void` will always try to populate a generic property named `ReturnValue` in the output object with the return value of the WMI method call.
+    /// If the method call has a `void` return type and no out parameters, the only acceptable type for `Out` is `()`.
+    ///
     /// Arrays, Options, unknowns, and nested objects cannot be passed as input parameters due to limitations in how variants are constructed by `windows-rs`.
     ///
     /// This function uses [`WMIConnection::exec_instance_method`] internally, with the name of the method class being the instance path, as is expected by WMI.
     ///
     /// ```edition2021
-    /// use serde::{Deserialize, Serialize};
-    /// use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
-    ///
+    /// # use serde::{Deserialize, Serialize};
+    /// # use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
     /// #[derive(Serialize)]
-    /// #[serde(rename_all = "PascalCase")]
+    /// # #[allow(non_snake_case)]
     /// struct CreateInput {
-    ///     command_line: String
+    ///     CommandLine: String
     /// }
     ///
     /// #[derive(Deserialize)]
-    /// #[serde(rename_all = "PascalCase")]
+    /// # #[allow(non_snake_case)]
     /// struct CreateOutput {
-    ///     return_value: u32,
-    ///     process_id: u32
+    ///     ReturnValue: u32,
+    ///     ProcessId: u32
     /// }
     ///
     /// #[derive(Deserialize)]
-    /// #[serde(rename = "Win32_Process")]
-    /// struct Win32Process;
+    /// # #[allow(non_camel_case_types)]
+    /// struct Win32_Process;
     ///
-    /// fn main() -> WMIResult<()> {
+    /// # fn main() -> WMIResult<()> {
+    /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    /// // Note: The Create call can be unreliable, so consider using another means of starting processes.
+    /// let input = CreateInput {
+    ///     CommandLine: "systeminfo".to_string()
+    /// };
+    /// let output: CreateOutput = wmi_con.exec_class_method::<Win32_Process, _, _>("Create", input)?;
     ///
-    ///     let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
-    ///
-    ///     // Note: The Create call can be unreliable, so consider using another means of starting processes.
-    ///     let input = CreateInput {
-    ///         command_line: "systeminfo".to_string()
-    ///     };
-    ///     let output: CreateOutput = wmi_con.exec_class_method::<Win32Process, _, _>("Create", input)?;
-    ///
-    ///     println!("The return code of the Create call is {}", output.return_value);
-    ///     println!("The ID of the created process is: {}", output.process_id);
-    ///
-    ///     Ok(())
-    /// }
+    /// println!("The return code of the Create call is {}", output.ReturnValue);
+    /// println!("The ID of the created process is: {}", output.ProcessId);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn exec_class_method<MethodClass, In, Out>(
         &self,
@@ -181,42 +178,41 @@ impl WMIConnection {
     ///
     /// `MethodClass` should have the name of the class on which the method is being invoked.
     /// `In` and `Out` can be `()` or any custom structs supporting (de)serialization containing the input and output parameters of the function.
-    /// `object_path` is the `__PATH` variable of the class instance on which the method is being called, which can be obtained from a WMI query.
+    /// `object_path` is the `__Path` variable of the class instance on which the method is being called, which can be obtained from a WMI query.
+    ///
+    /// A method with a return type other than `void` will always try to populate a generic property named `ReturnValue` in the output object with the return value of the WMI method call.
+    /// If the method call has a `void` return type and no out parameters, the only acceptable type for `Out` is `()`.
     ///
     /// Arrays, Options, unknowns, and nested objects cannot be passed as input parameters due to limitations in how variants are constructed by `windows-rs`.
     ///
     /// ```edition2021
-    /// use serde::{Deserialize, Serialize};
-    /// use wmi::{COMLibrary, FilterValue, Variant, WMIConnection, WMIResult};
-    ///
+    /// # use serde::{Deserialize, Serialize};
+    /// # use wmi::{COMLibrary, FilterValue, Variant, WMIConnection, WMIResult};
     /// #[derive(Deserialize)]
-    /// #[serde(rename_all = "PascalCase")]
+    /// # #[allow(non_snake_case)]
     /// struct PrinterOutput {
-    ///     return_value: u32
+    ///     ReturnValue: u32
     /// }
     ///
     /// #[derive(Deserialize)]
-    /// #[allow(non_camel_case_types)]
+    /// # #[allow(non_camel_case_types, non_snake_case)]
     /// struct Win32_Printer {
-    ///     #[serde(rename = "__PATH")]
-    ///     path: String
+    ///     __Path: String
     /// }
     ///
-    /// fn main() -> WMIResult<()> {
-    ///     let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # fn main() -> WMIResult<()> {
+    /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    /// let printers: Vec<Win32_Printer> = wmi_con.query()?;
     ///
-    ///     let printers: Vec<Win32_Printer> = wmi_con.query()?;
+    /// for printer in printers {
+    ///     let output: PrinterOutput = wmi_con.exec_instance_method::<Win32_Printer, _, _>("Pause", &printer.__Path, ())?;
+    ///     println!("Pausing the printer returned {}", output.ReturnValue);
     ///
-    ///     for printer in printers {
-    ///         let output: PrinterOutput = wmi_con.exec_instance_method::<Win32_Printer, _, _>("Pause", &printer.path, ())?;
-    ///         println!("Pausing the printer returned {}", output.return_value);
-    ///
-    ///         let output: PrinterOutput = wmi_con.exec_instance_method::<Win32_Printer, _, _>("Resume", &printer.path, ())?;
-    ///         println!("Resuming the printer returned {}", output.return_value);
-    ///     }
-    ///
-    ///     Ok(())
+    ///     let output: PrinterOutput = wmi_con.exec_instance_method::<Win32_Printer, _, _>("Resume", &printer.__Path, ())?;
+    ///     println!("Resuming the printer returned {}", output.ReturnValue);
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn exec_instance_method<MethodClass, In, Out>(
         &self,
@@ -234,7 +230,7 @@ impl WMIConnection {
         match in_params.serialize(serializer) {
             Ok(field_map) => {
                 let output =
-                    self.exec_method_native_wrapper(method_class, object_path, method, &field_map)?;
+                    self.exec_method_native_wrapper(method_class, object_path, method, field_map)?;
 
                 match output {
                     Some(class_wrapper) => Ok(class_wrapper.into_desr()?),
@@ -270,10 +266,10 @@ mod tests {
 
     #[test]
     fn it_exec_methods() {
-        // Create notepad instance
+        // Create powershell instance
         let wmi_con = wmi_con();
         let in_params = CreateParams {
-            CommandLine: "notepad.exe".to_string(),
+            CommandLine: "powershell.exe".to_string(),
         };
         let out = wmi_con
             .exec_class_method::<Win32_Process, CreateParams, CreateOutput>("Create", in_params)
