@@ -203,9 +203,8 @@ impl WMIConnection {
     /// }
     ///
     /// fn main() -> WMIResult<()> {
-    ///
     ///     let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
-
+    ///
     ///     let printers: Vec<Win32_Printer> = wmi_con.query()?;
     ///
     ///     for printer in printers {
