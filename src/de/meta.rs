@@ -50,8 +50,19 @@ where
 
         forward_to_deserialize_any! {
             bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
-            byte_buf option unit unit_struct seq tuple
+            byte_buf option unit seq tuple
             tuple_struct map enum identifier ignored_any
+        }
+
+        fn deserialize_unit_struct<V>(
+            self,
+            name: &'static str,
+            visitor: V,
+        ) -> Result<V::Value, Self::Error>
+        where
+            V: Visitor<'de>,
+        {
+            self.deserialize_struct(name, &[], visitor)
         }
     }
 

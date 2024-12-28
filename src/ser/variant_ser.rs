@@ -189,6 +189,31 @@ impl Serializer for VariantSerializer {
     }
 }
 
+/// Serializes a struct to a HashMap of key-value pairs, with the key being the field name, and the value being the field value wrapped in a [`Variant`].
+///
+/// VariantStructSerializer only supports serializing fields with basic Rust data types: `i32`, `()`, etc., as well as any of the former in a newtype.
+///
+/// ```edition2021
+/// use serde::Serialize;
+/// use wmi::ser::variant_ser::VariantStructSerializer;
+///
+/// #[derive(Serialize)]
+/// struct TestStruct {
+///     number: f32,
+///     text: String
+/// }
+///
+/// let test_struct = TestStruct {
+///     number: 0.6,
+///     text: "foobar".to_string()
+/// };
+///
+/// let fields = test_struct.serialize(VariantStructSerializer::new()).unwrap();
+///
+/// for (field_name, field_value) in fields {
+///     println!("{field_name}: {field_value:?}");
+/// }
+/// ```
 #[derive(Default)]
 pub struct VariantStructSerializer {
     variant_map: HashMap<String, Variant>,

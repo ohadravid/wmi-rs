@@ -9,6 +9,33 @@ use crate::{
 };
 
 impl WMIConnection {
+    /// Wrapper for WMI's [ExecMethod](https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execmethod) function.
+    ///
+    /// This function is used internally by [`WMIConnection::exec_class_method`] and [`WMIConnection::exec_instance_method`],
+    /// which are a higher-level abstraction, dealing with Rust data types instead of raw Variants, that should be preferred to use.
+    ///
+    /// In the case of a class ("static") method, `object_path` should be the same as `method_class`.
+    ///
+    /// Returns `None` if the method has no out parameters and a VOID return type, and an [`IWbemClassWrapper`] containing the output otherwise.
+    ///
+    /// ```edition2021
+    /// use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
+    ///
+    /// fn main() -> WMIResult<()> {
+    ///     let in_params = [
+    ///         ("CommandLine".to_string(), Variant::from("systeminfo".to_string()))
+    ///     ].into_iter().collect();
+    ///
+    ///     let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    ///
+    ///     // Because Create has a return value and out parameters, the Option returned will never be none.
+    ///     // Note: The Create call can be unreliable, so consider using another means of starting processes.
+    ///     let out = wmi_con.exec_method_native_wrapper("Win32_Process", "Win32_Process", "Create", &in_params)?.unwrap();
+    ///     println!("The return code of the Create call is {:?}", out.get_property("ReturnValue")?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn exec_method_native_wrapper(
         &self,
         method_class: impl AsRef<str>,
@@ -33,6 +60,7 @@ impl WMIConnection {
             )?;
         }
         let class_definition = class_definition.ok_or(WMIError::ResultEmpty)?;
+        // Retrieve the input signature of the WMI method.
         // The fields of the resulting IWbemClassObject will have the names and types of the WMI method's input parameters
         let mut input_signature = None;
         unsafe {
@@ -43,18 +71,21 @@ impl WMIConnection {
                 std::ptr::null_mut(),
             )?;
         }
+
+        // The method may have no input parameters, such as in this case: https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/reboot-method-in-class-win32-operatingsystem
         let in_params = match input_signature {
             Some(input) => {
                 let inst;
                 unsafe {
                     inst = input.SpawnInstance(Default::default())?;
                 };
+                // Set every field of the input object to the corresponding input parameter passed to this function
                 for (wszname, value) in in_params {
                     let wszname = HSTRING::from(wszname);
                     let value = TryInto::<VARIANT>::try_into(value.clone())?;
 
                     // See https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put
-                    // Note that the example shows the variant being cleared (dropped) after the call to Put,
+                    // Note that the example shows the variant is expected to be cleared (dropped) after the call to Put,
                     // so passing &value is acceptable here
                     unsafe {
                         inst.Put(&wszname, Default::default(), &value, 0)?;
@@ -65,6 +96,7 @@ impl WMIConnection {
             None => None,
         };
 
+        // In the case of a method with no out parameters and a VOID return type, there will be no out-parameters object
         let mut output = None;
         unsafe {
             self.svc.ExecMethod(
@@ -81,6 +113,54 @@ impl WMIConnection {
         Ok(output.map(IWbemClassWrapper::new))
     }
 
+    /// Executes a method of a WMI class not tied to any specific instance. Examples include
+    /// [Create](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/create-method-in-class-win32-process) of `Win32_Process`
+    /// and [AddPrinterConnection](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/addprinterconnection-method-in-class-win32-printer) of `Win32_Printer`.
+    ///
+    /// `MethodClass` should have the name of the class on which the method is being invoked.
+    /// `In` and `Out` can be `()` or any custom structs supporting (de)serialization containing the input and output parameters of the function.
+    ///
+    /// Arrays, Options, unknowns, and nested objects cannot be passed as input parameters due to limitations in how variants are constructed by `windows-rs`.
+    ///
+    /// This function uses [`WMIConnection::exec_instance_method`] internally, with the name of the method class being the instance path, as is expected by WMI.
+    ///
+    /// ```edition2021
+    /// use serde::{Deserialize, Serialize};
+    /// use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
+    ///
+    /// #[derive(Serialize)]
+    /// #[serde(rename_all = "PascalCase")]
+    /// struct CreateInput {
+    ///     command_line: String
+    /// }
+    ///
+    /// #[derive(Deserialize)]
+    /// #[serde(rename_all = "PascalCase")]
+    /// struct CreateOutput {
+    ///     return_value: u32,
+    ///     process_id: u32
+    /// }
+    ///
+    /// #[derive(Deserialize)]
+    /// #[serde(rename = "Win32_Process")]
+    /// struct Win32Process;
+    ///
+    /// fn main() -> WMIResult<()> {
+    ///
+    ///     let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    ///
+    ///     // Note: The Create call can be unreliable, so consider using another means of starting processes.
+    ///     let input = CreateInput {
+    ///         command_line: "systeminfo".to_string()
+    ///     };
+    ///     let output: CreateOutput = wmi_con.exec_class_method::<Win32Process, _, _>("Create", input)?;
+    ///
+    ///     println!("The return code of the Create call is {}", output.return_value);
+    ///     println!("The ID of the created process is: {}", output.process_id);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn exec_class_method<MethodClass, In, Out>(
         &self,
         method: impl AsRef<str>,
@@ -95,6 +175,50 @@ impl WMIConnection {
         self.exec_instance_method::<MethodClass, In, Out>(method, method_class, in_params)
     }
 
+    /// Executes a WMI method on a specific instance of a class. Examples include
+    /// [GetSupportedSize](https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-Volume-getsupportedsizes) of `MSFT_Volume`
+    /// and [Pause](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/pause-method-in-class-win32-printer) of `Win32_Printer`.
+    ///
+    /// `MethodClass` should have the name of the class on which the method is being invoked.
+    /// `In` and `Out` can be `()` or any custom structs supporting (de)serialization containing the input and output parameters of the function.
+    /// `object_path` is the `__PATH` variable of the class instance on which the method is being called, which can be obtained from a WMI query.
+    ///
+    /// Arrays, Options, unknowns, and nested objects cannot be passed as input parameters due to limitations in how variants are constructed by `windows-rs`.
+    ///
+    /// ```edition2021
+    /// use serde::{Deserialize, Serialize};
+    /// use wmi::{COMLibrary, FilterValue, Variant, WMIConnection, WMIResult};
+    ///
+    /// #[derive(Deserialize)]
+    /// #[serde(rename_all = "PascalCase")]
+    /// struct PrinterOutput {
+    ///     return_value: u32
+    /// }
+    ///
+    /// #[derive(Deserialize)]
+    /// #[allow(non_camel_case_types)]
+    /// struct Win32_Printer {
+    ///     #[serde(rename = "__PATH")]
+    ///     path: String
+    /// }
+    ///
+    /// fn main() -> WMIResult<()> {
+    ///
+    ///     let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+
+    ///     let printers: Vec<Win32_Printer> = wmi_con.query()?;
+    ///
+    ///     for printer in printers {
+    ///         let output: PrinterOutput = wmi_con.exec_instance_method::<Win32_Printer, _, _>("Pause", &printer.path, ())?;
+    ///         println!("Pausing the printer returned {}", output.return_value);
+    ///
+    ///         let output: PrinterOutput = wmi_con.exec_instance_method::<Win32_Printer, _, _>("Resume", &printer.path, ())?;
+    ///         println!("Resuming the printer returned {}", output.return_value);
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn exec_instance_method<MethodClass, In, Out>(
         &self,
         method: impl AsRef<str>,

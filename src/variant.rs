@@ -328,6 +328,7 @@ macro_rules! impl_try_from_variant {
     };
 }
 
+/// Infallible conversion from a Rust type into a Variant wrapper for that type
 macro_rules! impl_wrap_type {
     ($target_type:ty, $variant_type:ident) => {
         impl From<$target_type> for Variant {
@@ -338,6 +339,7 @@ macro_rules! impl_wrap_type {
     };
 }
 
+/// Add conversions from a Rust type to its Variant form and vice versa
 macro_rules! bidirectional_variant_convert {
     ($target_type:ty, $variant_type:ident) => {
         impl_try_from_variant!($target_type, $variant_type);
