@@ -269,7 +269,7 @@ mod tests {
         // Create powershell instance
         let wmi_con = wmi_con();
         let in_params = CreateParams {
-            CommandLine: "powershell.exe".to_string(),
+            CommandLine: "calc.exe".to_string(),
         };
         let out = wmi_con
             .exec_class_method::<Win32_Process, CreateParams, CreateOutput>("Create", in_params)
