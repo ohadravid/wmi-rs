@@ -194,6 +194,13 @@
 //! [WMI Code Creator]: https://www.microsoft.com/en-us/download/details.aspx?id=8572
 //! [`notification`]: connection/struct.WMIConnection.html#method.notification
 //!
+//! # Executing Methods
+//!
+//! The crate also offers support for executing WMI methods on classes and instances.
+//!
+//! See [`WMIConnection::exec_class_method`], [`WMIConnection::exec_instance_method`] and [`WMIConnection::exec_method_native_wrapper`]
+//! for detailed examples.
+//!
 //! # Internals
 //!
 //! [`WMIConnection`](WMIConnection) is used to create and execute a WMI query, returning
@@ -277,9 +284,11 @@ mod datetime_time;
 pub mod context;
 pub mod de;
 pub mod duration;
+pub mod method;
 pub mod query;
 pub mod result_enumerator;
 pub mod safearray;
+pub mod ser;
 pub mod utils;
 pub mod variant;
 
