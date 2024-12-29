@@ -24,7 +24,7 @@ impl WMIConnection {
     /// # fn main() -> WMIResult<()> {
     /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
     /// let in_params = [
-    ///     ("CommandLine".to_string(), Variant::from("systeminfo".to_string()))
+    ///     ("CommandLine".to_string(), Variant::from("explorer.exe".to_string()))
     /// ].into_iter().collect();
     ///
     /// // Because Create has a return value and out parameters, the Option returned will never be None.
@@ -149,7 +149,7 @@ impl WMIConnection {
     /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
     /// // Note: The Create call can be unreliable, so consider using another means of starting processes.
     /// let input = CreateInput {
-    ///     CommandLine: "systeminfo".to_string()
+    ///     CommandLine: "explorer.exe".to_string()
     /// };
     /// let output: CreateOutput = wmi_con.exec_class_method::<Win32_Process, _, _>("Create", input)?;
     ///
@@ -246,6 +246,8 @@ impl WMIConnection {
 mod tests {
     use crate::tests::fixtures::wmi_con;
     use serde::{Deserialize, Serialize};
+    use std::thread::sleep;
+    use std::time::Duration;
 
     #[derive(Deserialize)]
     struct Win32_Process {
@@ -266,10 +268,9 @@ mod tests {
 
     #[test]
     fn it_exec_methods() {
-        // Create powershell instance
         let wmi_con = wmi_con();
         let in_params = CreateParams {
-            CommandLine: "calc.exe".to_string(),
+            CommandLine: "explorer.exe".to_string(),
         };
         let out = wmi_con
             .exec_class_method::<Win32_Process, CreateParams, CreateOutput>("Create", in_params)
@@ -277,29 +278,25 @@ mod tests {
 
         assert_eq!(out.ReturnValue, 0);
 
-        let process = wmi_con
-            .raw_query::<Win32_Process>(format!(
-                "SELECT * FROM Win32_Process WHERE ProcessId = {}",
-                out.ProcessId
-            ))
-            .unwrap()
-            .into_iter()
-            .next()
-            .unwrap();
+        let query = format!(
+            "SELECT * FROM Win32_Process WHERE ProcessId = {}",
+            out.ProcessId
+        );
+
+        let process = &wmi_con.raw_query::<Win32_Process>(&query).unwrap()[0];
 
         wmi_con
-            .exec_instance_method::<Win32_Process, (), ()>("Terminate", process.__Path, ())
+            .exec_instance_method::<Win32_Process, (), ()>("Terminate", &process.__Path, ())
             .unwrap();
 
-        assert!(
-            wmi_con
-                .raw_query::<Win32_Process>(format!(
-                    "SELECT * FROM Win32_Process WHERE ProcessId = {}",
-                    out.ProcessId
-                ))
-                .unwrap()
-                .len()
-                == 0
-        );
+        // It can take a moment for the process to terminate, so we retry the query a few times.
+        for _ in 0..10 {
+            if wmi_con.raw_query::<Win32_Process>(&query).unwrap().len() == 0 {
+                break;
+            }
+            sleep(Duration::from_millis(100));
+        }
+
+        assert!(wmi_con.raw_query::<Win32_Process>(&query).unwrap().len() == 0);
     }
 }
