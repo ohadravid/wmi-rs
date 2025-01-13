@@ -26,7 +26,7 @@ default = ["chrono"]
 test = []
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-core = { version = "0.58" }
+windows-core = { version = "0.59" }
 windows = { version = "0.58", features = [
     "implement",
     "Win32_Foundation",
