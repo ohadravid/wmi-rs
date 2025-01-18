@@ -1,10 +1,11 @@
 use crate::{WMIConnection, WMIResult};
 use log::debug;
+use windows::core::BSTR;
+use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::System::{
     Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
     Wmi::{IWbemContext, WbemContext},
 };
-use windows_core::{BSTR, VARIANT};
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]

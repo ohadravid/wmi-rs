@@ -250,7 +250,7 @@ where
 /// ```
 pub fn quote_and_escape_wql_str(s: impl AsRef<str>) -> String {
     let s = s.as_ref();
-    let mut o = String::with_capacity(s.as_bytes().len() + 2);
+    let mut o = String::with_capacity(s.len() + 2);
     o.push('"');
     for ch in s.chars() {
         match ch {

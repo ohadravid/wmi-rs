@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex},
     task::{Poll, Waker},
 };
-use windows::core::{implement, Result as WinResult, BSTR, HRESULT};
+use windows::core::{implement, Ref, Result as WinResult, BSTR, HRESULT};
 use windows::Win32::Foundation::E_POINTER;
 use windows::Win32::System::Wmi::{
     IWbemClassObject, IWbemObjectSink, IWbemObjectSink_Impl, WBEM_STATUS_COMPLETE,
@@ -187,7 +187,7 @@ impl IWbemObjectSink_Impl for QuerySink_Impl {
         lFlags: i32,
         _hResult: HRESULT,
         _strParam: &BSTR,
-        _pObjParam: Option<&IWbemClassObject>,
+        _pObjParam: Ref<IWbemClassObject>,
     ) -> WinResult<()> {
         // SetStatus is called only once as flag=WBEM_FLAG_BIDIRECTIONAL in ExecQueryAsync
         // https://docs.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemobjectsink-setstatus
