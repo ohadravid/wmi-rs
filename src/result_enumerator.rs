@@ -9,8 +9,8 @@ use serde::{
     Serialize,
 };
 use std::ptr;
-use windows::core::VARIANT;
 use windows::Win32::System::Ole::SafeArrayDestroy;
+use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::System::Wmi::{
     IEnumWbemClassObject, IWbemClassObject, CIMTYPE_ENUMERATION, WBEM_FLAG_ALWAYS,
     WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE,

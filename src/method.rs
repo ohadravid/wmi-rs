@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use serde::{de, Serialize};
-use windows_core::{BSTR, HSTRING, VARIANT};
+use windows::core::{BSTR, HSTRING};
+use windows::Win32::System::Variant::VARIANT;
 
 use crate::{
     de::meta::struct_name_and_fields, result_enumerator::IWbemClassWrapper,

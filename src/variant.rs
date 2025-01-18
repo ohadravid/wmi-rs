@@ -3,8 +3,8 @@ use crate::{
 };
 use serde::Serialize;
 use std::convert::TryFrom;
-use windows::core::{IUnknown, Interface, VARIANT};
-use windows::Win32::Foundation::{VARIANT_BOOL, VARIANT_FALSE, VARIANT_TRUE};
+use windows::core::{IUnknown, Interface};
+use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
 
@@ -77,20 +77,19 @@ impl Variant {
     ///
     /// Note: this function is safe since manipulating a `VARIANT` by hand is an *unsafe* operation,
     /// so we can assume that the `VARIANT` is valid.
-    pub fn from_variant(variant: &VARIANT) -> WMIResult<Variant> {
-        let vt = variant.as_raw();
+    pub fn from_variant(vt: &VARIANT) -> WMIResult<Variant> {
         let variant_type = unsafe { vt.Anonymous.Anonymous.vt };
 
         // variant_type has two 'forms':
         // 1. A simple type like `VT_BSTR` .
         // 2. An array of certain type like `VT_ARRAY | VT_BSTR`.
-        if variant_type & VT_ARRAY.0 == VT_ARRAY.0 {
+        if variant_type & VT_ARRAY == VT_ARRAY {
             let array = unsafe {
                 vt.Anonymous.Anonymous.Anonymous.parray
                     as *const windows::Win32::System::Com::SAFEARRAY
             };
 
-            let item_type = VARENUM(variant_type & VT_TYPEMASK.0);
+            let item_type = variant_type & VT_TYPEMASK;
 
             return Ok(Variant::Array(unsafe {
                 safe_array_to_vec(&*array, item_type)?
@@ -100,8 +99,12 @@ impl Variant {
         // See https://msdn.microsoft.com/en-us/library/cc237865.aspx for more info.
         // Rust can infer the return type of `vt.*Val()` calls,
         // but it's easier to read when the type is named explicitly.
-        let variant_value = match VARENUM(variant_type) {
-            VT_BSTR => Variant::String(variant.to_string()),
+        let variant_value = match variant_type {
+            VT_BSTR => {
+                let bstr_ptr = unsafe { &vt.Anonymous.Anonymous.Anonymous.bstrVal };
+                let bstr_as_str = bstr_ptr.to_string();
+                Variant::String(bstr_as_str)
+            }
             VT_I1 => {
                 let num = unsafe { vt.Anonymous.Anonymous.Anonymous.cVal };
 
@@ -135,10 +138,10 @@ impl Variant {
             VT_BOOL => {
                 let value = unsafe { vt.Anonymous.Anonymous.Anonymous.boolVal };
 
-                match VARIANT_BOOL(value) {
+                match value {
                     VARIANT_FALSE => Variant::Bool(false),
                     VARIANT_TRUE => Variant::Bool(true),
-                    _ => return Err(WMIError::ConvertBoolError(value)),
+                    _ => return Err(WMIError::ConvertBoolError(value.0)),
                 }
             }
             VT_UI1 => {
@@ -164,13 +167,11 @@ impl Variant {
             VT_EMPTY => Variant::Empty,
             VT_NULL => Variant::Null,
             VT_UNKNOWN => {
-                let ptr = unsafe {
-                    IUnknown::from_raw_borrowed(&vt.Anonymous.Anonymous.Anonymous.punkVal)
-                };
+                let ptr = unsafe { vt.Anonymous.Anonymous.Anonymous.punkVal.as_ref() };
                 let ptr = ptr.cloned().ok_or(WMIError::NullPointerResult)?;
                 Variant::Unknown(IUnknownWrapper::new(ptr))
             }
-            _ => return Err(WMIError::ConvertError(variant_type)),
+            _ => return Err(WMIError::ConvertError(variant_type.0)),
         };
 
         Ok(variant_value)
@@ -274,7 +275,7 @@ impl TryFrom<Variant> for VARIANT {
     type Error = WMIError;
     fn try_from(value: Variant) -> WMIResult<VARIANT> {
         match value {
-            Variant::Empty => Ok(VARIANT::new()),
+            Variant::Empty => Ok(VARIANT::default()),
 
             Variant::String(string) => Ok(VARIANT::from(string.as_str())),
             Variant::I1(int8) => Ok(VARIANT::from(int8)),
