@@ -8,7 +8,7 @@ use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Clone)]
 #[serde(untagged)]
 pub enum Variant {
     Empty,
@@ -386,7 +386,7 @@ impl TryFrom<Variant> for () {
 /// Used to retrive [`IWbemClassObject`][winapi::um::Wmi::IWbemClassObject]
 ///
 #[repr(transparent)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IUnknownWrapper {
     inner: IUnknown,
 }
