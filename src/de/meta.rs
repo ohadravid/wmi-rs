@@ -4,7 +4,8 @@ use serde::forward_to_deserialize_any;
 /// Return the fields of a struct.
 /// Taken directly from <https://github.com/serde-rs/serde/issues/1110>
 ///
-pub fn struct_name_and_fields<'de, T>() -> Result<(&'static str, &'static [&'static str]), Error>
+pub fn struct_name_and_fields<'de, T>(
+) -> Result<(&'static str, Option<&'static [&'static str]>), Error>
 where
     T: Deserialize<'de>,
 {
@@ -25,12 +26,13 @@ where
 
         fn deserialize_newtype_struct<V>(
             self,
-            _name: &'static str,
+            name: &'static str,
             visitor: V,
         ) -> Result<V::Value, Self::Error>
         where
             V: Visitor<'de>,
         {
+            *self.name = Some(name);
             visitor.visit_newtype_struct(self)
         }
 
@@ -83,7 +85,7 @@ where
                 validate_identifier(field)?;
             }
 
-            Ok((name, fields.unwrap()))
+            Ok((name, fields))
         }
     }
 }
@@ -132,6 +134,7 @@ fn validate_identifier<E: de::Error>(s: &str) -> Result<&str, E> {
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 mod tests {
     use super::*;
     use crate::Variant;
@@ -142,16 +145,14 @@ mod tests {
     fn it_works() {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
-            #[allow(dead_code)]
             Caption: String,
-            #[allow(dead_code)]
             Name: String,
         }
 
         let (name, fields) = struct_name_and_fields::<Win32_OperatingSystem>().unwrap();
 
         assert_eq!(name, "Win32_OperatingSystem");
-        assert_eq!(fields, ["Caption", "Name"]);
+        assert_eq!(fields.unwrap(), ["Caption", "Name"]);
     }
 
     #[test]
@@ -160,16 +161,34 @@ mod tests {
         #[serde(rename = "Win32_OperatingSystem")]
         #[serde(rename_all = "PascalCase")]
         struct Win32OperatingSystem {
-            #[allow(dead_code)]
             caption: String,
-            #[allow(dead_code)]
             name: String,
         }
 
         let (name, fields) = struct_name_and_fields::<Win32OperatingSystem>().unwrap();
 
         assert_eq!(name, "Win32_OperatingSystem");
-        assert_eq!(fields, ["Caption", "Name"]);
+        assert_eq!(fields.unwrap(), ["Caption", "Name"]);
+    }
+
+    #[test]
+    fn it_works_with_flatten() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem_inner {
+            Caption: String,
+            Name: String,
+
+            #[serde(flatten)]
+            extra: HashMap<String, Variant>,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem(pub Win32_OperatingSystem_inner);
+
+        let (name, fields) = struct_name_and_fields::<Win32_OperatingSystem>().unwrap();
+
+        assert_eq!(name, "Win32_OperatingSystem");
+        assert_eq!(fields, None);
     }
 
     #[test]
@@ -181,7 +200,6 @@ mod tests {
         #[derive(Deserialize, Debug)]
         struct EvilFieldName {
             #[serde(rename = "Evil\"Field\"Name")]
-            #[allow(dead_code)]
             field: String,
         }
 
