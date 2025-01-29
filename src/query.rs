@@ -230,7 +230,7 @@ where
         }
     };
 
-    Ok((name, fields, optional_where_clause))
+    Ok((name, fields.unwrap_or(&["*"]), optional_where_clause))
 }
 
 /// Quote/escape a string for WQL.
@@ -690,12 +690,72 @@ mod tests {
     }
 
     #[test]
+    fn it_builds_correct_query_for_newtype_struct() {
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem(pub HashMap<String, Variant>);
+
+        let query = build_query::<Win32_OperatingSystem>(None).unwrap();
+        let select_part = r#"SELECT * FROM Win32_OperatingSystem "#.to_owned();
+
+        assert_eq!(query, select_part);
+    }
+
+    #[test]
+    fn it_can_query_a_newtype_struct() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem(pub HashMap<String, Variant>);
+
+        let results = wmi_con.query::<Win32_OperatingSystem>().unwrap();
+
+        for os in results {
+            match os.0.get("Caption").unwrap() {
+                Variant::String(s) => assert!(s.starts_with("Microsoft Windows")),
+                _ => assert!(false),
+            }
+        }
+    }
+
+    #[test]
+    fn con_query_flatten() {
+        // Due to serde#1346, it's not possible to use `query` with a struct that has a `flatten` field,
+        // so we need to either use `raw_query` or a newtype struct.
+
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize, Debug)]
+        struct Win32_OperatingSystem {
+            Caption: String,
+            Name: String,
+
+            #[serde(flatten)]
+            extra: HashMap<String, Variant>,
+        }
+
+        let system: Vec<Win32_OperatingSystem> = wmi_con
+            .raw_query("SELECT * FROM Win32_OperatingSystem")
+            .unwrap();
+        let system = system.into_iter().next().unwrap();
+        assert_ne!(system.Name, "");
+        assert!(system.extra.contains_key("BuildNumber"));
+
+        #[derive(Deserialize, Debug)]
+        #[serde(rename = "Win32_OperatingSystem")]
+        struct Win32_OperatingSystemWrapper(pub Win32_OperatingSystem);
+        let system = wmi_con.query::<Win32_OperatingSystemWrapper>().unwrap();
+        let system = system.into_iter().next().unwrap();
+
+        assert_ne!(system.0.Name, "");
+        assert!(system.0.extra.contains_key("BuildNumber"));
+    }
+
+    #[test]
     fn it_fails_gracefully_when_querying_a_struct() {
         let wmi_con = wmi_con();
 
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
-            #[allow(dead_code)]
             NoSuchField: String,
         }
 
@@ -708,7 +768,6 @@ mod tests {
     fn it_builds_correct_query_without_filters() {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
-            #[allow(dead_code)]
             Caption: String,
         }
 
@@ -722,7 +781,6 @@ mod tests {
     fn it_builds_correct_notification_query_without_filters() {
         #[derive(Deserialize, Debug)]
         struct Win32_ProcessStartTrace {
-            #[allow(dead_code)]
             Caption: String,
         }
 
@@ -736,7 +794,6 @@ mod tests {
     fn it_builds_correct_query() {
         #[derive(Deserialize, Debug)]
         struct Win32_OperatingSystem {
-            #[allow(dead_code)]
             Caption: String,
         }
 
@@ -769,7 +826,6 @@ mod tests {
     fn it_builds_correct_notification_query() {
         #[derive(Deserialize, Debug)]
         struct Win32_ProcessStartTrace {
-            #[allow(dead_code)]
             Caption: String,
         }
 
@@ -930,7 +986,6 @@ mod tests {
         #[derive(Deserialize, Debug)]
         struct Win32_DiskDrive {
             __Path: String,
-            #[allow(dead_code)]
             Caption: String,
         }
 
