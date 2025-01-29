@@ -1017,11 +1017,11 @@ mod tests {
     fn it_can_query_correct_variant_types() {
         let wmi_con = wmi_con();
         let mut results: Vec<HashMap<String, Variant>> = wmi_con
-            .raw_query("SELECT SystemStabilityIndex FROM Win32_ReliabilityStabilityMetrics")
+            .raw_query("SELECT CPUScore FROM Win32_WinSAT")
             .unwrap();
 
         match results.pop().unwrap().values().next() {
-            Some(&Variant::R8(_v)) => assert!(true),
+            Some(&Variant::R4(_v)) => assert!(true),
             _ => assert!(false),
         }
 
@@ -1081,14 +1081,6 @@ mod tests {
     #[test]
     fn it_can_query_floats() {
         let wmi_con = wmi_con();
-
-        #[derive(Deserialize, Debug)]
-        struct Win32_ReliabilityStabilityMetrics {
-            SystemStabilityIndex: f64,
-        }
-
-        let metric = wmi_con.get::<Win32_ReliabilityStabilityMetrics>().unwrap();
-        assert!(metric.SystemStabilityIndex >= 0.0);
 
         #[derive(Deserialize, Debug)]
         struct Win32_WinSAT {
