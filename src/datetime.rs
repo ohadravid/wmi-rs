@@ -7,6 +7,10 @@ use std::{fmt, str::FromStr};
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct WMIDateTime(pub DateTime<FixedOffset>);
 
+/// A wrapper type around `chrono`'s `DateTime` (if the `chrono` feature is active. ), which supports parsing from WMI-format strings with asterisks (it treats asterisks as zero in order to retrieve a valid datetime).
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct WMIDateTimeWithAsterisks(pub DateTime<FixedOffset>);
+
 impl FromStr for WMIDateTime {
     type Err = WMIError;
 
@@ -24,6 +28,20 @@ impl FromStr for WMIDateTime {
             .ok_or(WMIError::ParseDatetimeLocalError)?;
 
         Ok(Self(dt))
+    }
+}
+
+impl FromStr for WMIDateTimeWithAsterisks {
+    type Err = WMIError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        WMIDateTimeWithAsterisks::from(WMIDateTime::from_str(&s.replace('*', "0")))
+    }
+}
+
+impl From<WMIDateTime> for WMIDateTimeWithAsterisks {
+    fn from(value: WMIDateTime) -> Self {
+        WMIDateTimeWithAsterisks(value.0)
     }
 }
 
@@ -67,7 +85,7 @@ impl ser::Serialize for WMIDateTime {
 
 #[cfg(test)]
 mod tests {
-    use super::WMIDateTime;
+    use super::{WMIDateTime, WMIDateTimeWithAsterisks};
     use serde_json;
 
     #[test]
@@ -108,5 +126,14 @@ mod tests {
 
         let v = serde_json::to_string(&dt).unwrap();
         assert_eq!(v, "\"2019-01-13T20:05:17.000500+01:00\"");
+    }
+
+    #[test]
+    fn it_serializes_to_rfc_with_asterisks() {
+        let dt: WMIDateTimeWithAsterisks = "20210601114102.**********".parse().unwrap();
+
+
+        let v = serde_json::to_string(&dt).unwrap();
+        assert_eq!(v, "\"2011-06-01T11:41:02.000000+00:00\"");
     }
 }
