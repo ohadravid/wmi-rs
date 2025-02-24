@@ -87,7 +87,7 @@ impl IWbemClassWrapper {
     where
         T: de::DeserializeOwned,
     {
-        from_wbem_class_obj(self).map_err(WMIError::from)
+        from_wbem_class_obj(self)
     }
 }
 
