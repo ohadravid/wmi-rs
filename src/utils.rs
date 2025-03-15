@@ -1,3 +1,4 @@
+use super::hres;
 use serde::{de, ser};
 use std::fmt::{Debug, Display};
 use thiserror::Error;
@@ -7,7 +8,12 @@ use thiserror::Error;
 pub enum WMIError {
     /// You can find a useful resource for decoding error codes [here](https://docs.microsoft.com/en-us/windows/win32/wmisdk/wmi-error-constants)
     /// (or a github version [here](https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/WmiSdk/wmi-error-constants.md))
-    #[error("HRESULT Call failed with: {hres:#X}")]
+    #[error(
+        "HRESULT Call failed with: {hres:#X} ({class})\n{message}{detail}", 
+        class = hres::to_class(*hres),
+        message = hres::to_message(*hres),
+        detail = hres::to_detail(*hres))
+    ]
     HResultError { hres: i32 },
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),

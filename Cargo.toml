@@ -35,6 +35,8 @@ windows = { version = "0.60", features = [
     "Win32_System_Rpc",
     "Win32_System_Wmi",
     "Win32_System_Variant",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Diagnostics_Debug",
 ] }
 time = { version = "0.3", features = ["formatting", "parsing", "macros", "serde"], optional = true }
 chrono = { version = "0.4", features = ["clock", "std", "serde"], optional = true, default-features = false }
@@ -49,6 +51,7 @@ tokio = { version = "1.20.0", features = ["rt", "macros"] }
 serde_json = { version = "1.0" }
 criterion = "0.5"
 tempdir = "0.3"
+lazy-regex = "3.4.1"
 
 [[bin]]
 name = "wmiq"

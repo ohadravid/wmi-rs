@@ -291,6 +291,7 @@ pub mod safearray;
 pub mod ser;
 pub mod utils;
 pub mod variant;
+mod hres;
 
 pub mod async_query;
 // Keep QuerySink implementation private
