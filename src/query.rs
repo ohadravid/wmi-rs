@@ -599,6 +599,7 @@ mod tests {
     use serde::Deserialize;
     use std::collections::HashMap;
     use windows::Win32::System::Wmi::WBEM_E_INVALID_QUERY;
+    use lazy_regex::regex_is_match;
 
     use crate::tests::fixtures::*;
     use crate::{Variant, WMIError};
@@ -647,13 +648,23 @@ mod tests {
 
         let enumerator = wmi_con.exec_query_native_wrapper("42").unwrap();
 
-        // Show how to detect which error had occurred.
+        // Show how to detect and display which error had occurred.
         for res in enumerator {
             match res {
                 Ok(_) => assert!(false),
                 Err(wmi_err) => match wmi_err {
                     WMIError::HResultError { hres } => {
                         assert_eq!(hres, WBEM_E_INVALID_QUERY.0);
+                        let display = format!("{}", wmi_err);
+                        assert!(
+                            regex_is_match!(
+                                "^HRESULT Call failed with: 0x80041017 \\(WBEM_E_INVALID_QUERY\\)\
+                                \\n\\S[\\s\\S]+", 
+                                &display
+                            ), 
+                            "{}", 
+                            display
+                        );
                     }
                     _ => assert!(false),
                 },
