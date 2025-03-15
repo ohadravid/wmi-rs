@@ -1,6 +1,7 @@
 use std::ffi::{c_void, CString};
 use windows::core::{PCSTR, PWSTR};
 use windows::Win32::Foundation::GetLastError;
+use windows::Win32::System::Wmi::*; // WBEM*_E_* consts
 use windows::Win32::System::{
     Diagnostics::Debug::{
         FormatMessageW, FORMAT_MESSAGE_FROM_HMODULE, FORMAT_MESSAGE_FROM_SYSTEM,
@@ -68,7 +69,7 @@ pub fn to_message(hres: i32) -> String {
 
 /// Return a hard-coded stringified constant or a useful categorisation.
 pub const fn to_class(hres: i32) -> &'static str {
-    match hres as u32 {
+    match WBEMSTATUS(hres) {
         WBEM_E_FAILED => "WBEM_E_FAILED",
         WBEM_E_NOT_FOUND => "WBEM_E_NOT_FOUND",
         WBEM_E_ACCESS_DENIED => "WBEM_E_ACCESS_DENIED",
@@ -148,7 +149,7 @@ pub const fn to_class(hres: i32) -> &'static str {
         WBEM_E_UPDATE_OVERRIDE_NOT_ALLOWED => "WBEM_E_UPDATE_OVERRIDE_NOT_ALLOWED",
         WBEM_E_UPDATE_PROPAGATED_METHOD => "WBEM_E_UPDATE_PROPAGATED_METHOD",
         WBEM_E_METHOD_NOT_IMPLEMENTED => "WBEM_E_METHOD_NOT_IMPLEMENTED",
-        // WBEM_E_METHOD_DISABLED => "WBEM_E_METHOD_DISABLED",
+        WBEM_E_METHOD_DISABLED => "WBEM_E_METHOD_DISABLED",
         WBEM_E_REFRESHER_BUSY => "WBEM_E_REFRESHER_BUSY",
         WBEM_E_UNPARSABLE_QUERY => "WBEM_E_UNPARSABLE_QUERY",
         WBEM_E_NOT_EVENT_CLASS => "WBEM_E_NOT_EVENT_CLASS",
@@ -198,8 +199,6 @@ pub const fn to_class(hres: i32) -> &'static str {
         WBEMESS_E_REGISTRATION_TOO_BROAD => "WBEMESS_E_REGISTRATION_TOO_BROAD",
         WBEMESS_E_REGISTRATION_TOO_PRECISE => "WBEMESS_E_REGISTRATION_TOO_PRECISE",
         WBEMESS_E_AUTHZ_NOT_PRIVILEGED => "WBEMESS_E_AUTHZ_NOT_PRIVILEGED",
-        WBEM_E_RETRY_LATER => "WBEM_E_RETRY_LATER",
-        WBEM_E_RESOURCE_CONTENTION => "WBEM_E_RESOURCE_CONTENTION",
         WBEMMOF_E_EXPECTED_QUALIFIER_NAME => "WBEMMOF_E_EXPECTED_QUALIFIER_NAME",
         WBEMMOF_E_EXPECTED_SEMI => "WBEMMOF_E_EXPECTED_SEMI",
         WBEMMOF_E_EXPECTED_OPEN_BRACE => "WBEMMOF_E_EXPECTED_OPEN_BRACE",
@@ -211,7 +210,7 @@ pub const fn to_class(hres: i32) -> &'static str {
         WBEMMOF_E_EXPECTED_OPEN_PAREN => "WBEMMOF_E_EXPECTED_OPEN_PAREN",
         WBEMMOF_E_UNRECOGNIZED_TOKEN => "WBEMMOF_E_UNRECOGNIZED_TOKEN",
         WBEMMOF_E_UNRECOGNIZED_TYPE => "WBEMMOF_E_UNRECOGNIZED_TYPE",
-        // WBEMMOF_E_EXPECTED_PROPERTY_NAME => "WBEMMOF_E_EXPECTED_PROPERTY_NAME",
+        WBEMMOF_E_EXPECTED_PROPERTY_NAME => "WBEMMOF_E_EXPECTED_PROPERTY_NAME",
         WBEMMOF_E_TYPEDEF_NOT_SUPPORTED => "WBEMMOF_E_TYPEDEF_NOT_SUPPORTED",
         WBEMMOF_E_UNEXPECTED_ALIAS => "WBEMMOF_E_UNEXPECTED_ALIAS",
         WBEMMOF_E_UNEXPECTED_ARRAY_INIT => "WBEMMOF_E_UNEXPECTED_ARRAY_INIT",
@@ -249,17 +248,23 @@ pub const fn to_class(hres: i32) -> &'static str {
         WBEMMOF_E_ERROR_CREATING_TEMP_FILE => "WBEMMOF_E_ERROR_CREATING_TEMP_FILE",
         WBEMMOF_E_ERROR_INVALID_INCLUDE_FILE => "WBEMMOF_E_ERROR_INVALID_INCLUDE_FILE",
         WBEMMOF_E_INVALID_DELETECLASS_SYNTAX => "WBEMMOF_E_INVALID_DELETECLASS_SYNTAX",
-        x if x >= 0x80041068 && x <= 0x80041099 => "WMI",
-        x if x >= 0x80070000 && x <= 0x80079999 => "OS",
-        x if x >= 0x80040000 && x <= 0x80040999 => "DCOM",
-        x if x >= 0x80050000 && x <= 0x80059999 => "ADSI/LDAP",
-        _ => "UNKNOWN",
+        _ => match WBEM_EXTRA_RETURN_CODES(hres) {
+            WBEM_E_RETRY_LATER => "WBEM_E_RETRY_LATER",
+            WBEM_E_RESOURCE_CONTENTION => "WBEM_E_RESOURCE_CONTENTION",
+            _ => match hres as u32 {
+                x if x >= 0x80041068 && x <= 0x80041099 => "WMI",
+                x if x >= 0x80070000 && x <= 0x80079999 => "OS",
+                x if x >= 0x80040000 && x <= 0x80040999 => "DCOM",
+                x if x >= 0x80050000 && x <= 0x80059999 => "ADSI/LDAP",
+                _ => "UNKNOWN",
+            },
+        },
     }
 }
 
 /// Return a hard-coded English description, if possible.
 pub const fn to_detail(hres: i32) -> &'static str {
-    match hres as u32 {
+    match WBEMSTATUS(hres) {
         WBEM_E_FAILED => WBEM_E_FAILED_EN,
         WBEM_E_NOT_FOUND => WBEM_E_NOT_FOUND_EN,
         WBEM_E_ACCESS_DENIED => WBEM_E_ACCESS_DENIED_EN,
@@ -339,7 +344,7 @@ pub const fn to_detail(hres: i32) -> &'static str {
         WBEM_E_UPDATE_OVERRIDE_NOT_ALLOWED => WBEM_E_UPDATE_OVERRIDE_NOT_ALLOWED_EN,
         WBEM_E_UPDATE_PROPAGATED_METHOD => WBEM_E_UPDATE_PROPAGATED_METHOD_EN,
         WBEM_E_METHOD_NOT_IMPLEMENTED => WBEM_E_METHOD_NOT_IMPLEMENTED_EN,
-        // WBEM_E_METHOD_DISABLED => WBEM_E_METHOD_DISABLED_EN,
+        WBEM_E_METHOD_DISABLED => WBEM_E_METHOD_DISABLED_EN,
         WBEM_E_REFRESHER_BUSY => WBEM_E_REFRESHER_BUSY_EN,
         WBEM_E_UNPARSABLE_QUERY => WBEM_E_UNPARSABLE_QUERY_EN,
         WBEM_E_NOT_EVENT_CLASS => WBEM_E_NOT_EVENT_CLASS_EN,
@@ -389,8 +394,6 @@ pub const fn to_detail(hres: i32) -> &'static str {
         WBEMESS_E_REGISTRATION_TOO_BROAD => WBEMESS_E_REGISTRATION_TOO_BROAD_EN,
         WBEMESS_E_REGISTRATION_TOO_PRECISE => WBEMESS_E_REGISTRATION_TOO_PRECISE_EN,
         WBEMESS_E_AUTHZ_NOT_PRIVILEGED => WBEMESS_E_AUTHZ_NOT_PRIVILEGED_EN,
-        WBEM_E_RETRY_LATER => WBEM_E_RETRY_LATER_EN,
-        WBEM_E_RESOURCE_CONTENTION => WBEM_E_RESOURCE_CONTENTION_EN,
         WBEMMOF_E_EXPECTED_QUALIFIER_NAME => WBEMMOF_E_EXPECTED_QUALIFIER_NAME_EN,
         WBEMMOF_E_EXPECTED_SEMI => WBEMMOF_E_EXPECTED_SEMI_EN,
         WBEMMOF_E_EXPECTED_OPEN_BRACE => WBEMMOF_E_EXPECTED_OPEN_BRACE_EN,
@@ -402,7 +405,7 @@ pub const fn to_detail(hres: i32) -> &'static str {
         WBEMMOF_E_EXPECTED_OPEN_PAREN => WBEMMOF_E_EXPECTED_OPEN_PAREN_EN,
         WBEMMOF_E_UNRECOGNIZED_TOKEN => WBEMMOF_E_UNRECOGNIZED_TOKEN_EN,
         WBEMMOF_E_UNRECOGNIZED_TYPE => WBEMMOF_E_UNRECOGNIZED_TYPE_EN,
-        // WBEMMOF_E_EXPECTED_PROPERTY_NAME => WBEMMOF_E_EXPECTED_PROPERTY_NAME_EN,
+        WBEMMOF_E_EXPECTED_PROPERTY_NAME => WBEMMOF_E_EXPECTED_PROPERTY_NAME_EN,
         WBEMMOF_E_TYPEDEF_NOT_SUPPORTED => WBEMMOF_E_TYPEDEF_NOT_SUPPORTED_EN,
         WBEMMOF_E_UNEXPECTED_ALIAS => WBEMMOF_E_UNEXPECTED_ALIAS_EN,
         WBEMMOF_E_UNEXPECTED_ARRAY_INIT => WBEMMOF_E_UNEXPECTED_ARRAY_INIT_EN,
@@ -440,73 +443,59 @@ pub const fn to_detail(hres: i32) -> &'static str {
         WBEMMOF_E_ERROR_CREATING_TEMP_FILE => WBEMMOF_E_ERROR_CREATING_TEMP_FILE_EN,
         WBEMMOF_E_ERROR_INVALID_INCLUDE_FILE => WBEMMOF_E_ERROR_INVALID_INCLUDE_FILE_EN,
         WBEMMOF_E_INVALID_DELETECLASS_SYNTAX => WBEMMOF_E_INVALID_DELETECLASS_SYNTAX_EN,
-        _ => "",
+        _ => match WBEM_EXTRA_RETURN_CODES(hres) {
+            WBEM_E_RETRY_LATER => WBEM_E_RETRY_LATER_EN,
+            WBEM_E_RESOURCE_CONTENTION => WBEM_E_RESOURCE_CONTENTION_EN,
+            _ => "",
+        },
     }
 }
 
-// WBEM constants and English descriptions hard-coded from:
+// English descriptions of WBEM constants hard-coded from:
 // https://docs.microsoft.com/en-us/windows/win32/wmisdk/wmi-error-constants
 // https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/WmiSdk/wmi-error-constants.md
 
-const WBEM_E_FAILED: u32 = 0x80041001;
 const WBEM_E_FAILED_EN: &str = "Call failed.";
 
-const WBEM_E_NOT_FOUND: u32 = 0x80041002;
 const WBEM_E_NOT_FOUND_EN: &str = "Object cannot be found.";
 
-const WBEM_E_ACCESS_DENIED: u32 = 0x80041003;
 const WBEM_E_ACCESS_DENIED_EN: &str =
     "Current user does not have permission to perform the action.";
 
-const WBEM_E_PROVIDER_FAILURE: u32 = 0x80041004;
 const WBEM_E_PROVIDER_FAILURE_EN: &str =
     "Provider has failed at some time other than during initialization.";
 
-const WBEM_E_TYPE_MISMATCH: u32 = 0x80041005;
 const WBEM_E_TYPE_MISMATCH_EN: &str = "Type mismatch occurred.";
 
-const WBEM_E_OUT_OF_MEMORY: u32 = 0x80041006;
 const WBEM_E_OUT_OF_MEMORY_EN: &str = "Not enough memory for the operation.";
 
-const WBEM_E_INVALID_CONTEXT: u32 = 0x80041007;
 const WBEM_E_INVALID_CONTEXT_EN: &str = "The IWbemContext object is not valid.";
 
-const WBEM_E_INVALID_PARAMETER: u32 = 0x80041008;
 const WBEM_E_INVALID_PARAMETER_EN: &str = "One of the parameters to the call is not correct.";
 
-const WBEM_E_NOT_AVAILABLE: u32 = 0x80041009;
 const WBEM_E_NOT_AVAILABLE_EN: &str =
     "Resource, typically a remote server, is not currently available.";
 
-const WBEM_E_CRITICAL_ERROR: u32 = 0x8004100A;
 const WBEM_E_CRITICAL_ERROR_EN: &str =
     "Internal, critical, and unexpected error occurred. Report the error to Microsoft Technical \
     Support.";
 
-const WBEM_E_INVALID_STREAM: u32 = 0x8004100B;
 const WBEM_E_INVALID_STREAM_EN: &str =
     "One or more network packets were corrupted during a remote session.";
 
-const WBEM_E_NOT_SUPPORTED: u32 = 0x8004100C;
 const WBEM_E_NOT_SUPPORTED_EN: &str = "Feature or operation is not supported.";
 
-const WBEM_E_INVALID_SUPERCLASS: u32 = 0x8004100D;
 const WBEM_E_INVALID_SUPERCLASS_EN: &str = "Parent class specified is not valid.";
 
-const WBEM_E_INVALID_NAMESPACE: u32 = 0x8004100E;
 const WBEM_E_INVALID_NAMESPACE_EN: &str = "Namespace specified cannot be found.";
 
-const WBEM_E_INVALID_OBJECT: u32 = 0x8004100F;
 const WBEM_E_INVALID_OBJECT_EN: &str = "Specified instance is not valid.";
 
-const WBEM_E_INVALID_CLASS: u32 = 0x80041010;
 const WBEM_E_INVALID_CLASS_EN: &str = "Specified class is not valid.";
 
-const WBEM_E_PROVIDER_NOT_FOUND: u32 = 0x80041011;
 const WBEM_E_PROVIDER_NOT_FOUND_EN: &str =
     "Provider referenced in the schema does not have a corresponding registration.";
 
-const WBEM_E_INVALID_PROVIDER_REGISTRATION: u32 = 2147749906;
 const WBEM_E_INVALID_PROVIDER_REGISTRATION_EN: &str =
     "Provider referenced in the schema has an incorrect or incomplete registration.
     \n
@@ -520,7 +509,6 @@ const WBEM_E_INVALID_PROVIDER_REGISTRATION_EN: &str =
     \n• Failure to create an instance of or inherit from the __Win32Provider class to create the \
     provider registration in the MOF file.";
 
-const WBEM_E_PROVIDER_LOAD_FAILURE: u32 = 0x80041013;
 const WBEM_E_PROVIDER_LOAD_FAILURE_EN: &str =
     "COM cannot locate a provider referenced in the schema.
     \n
@@ -534,613 +522,454 @@ const WBEM_E_PROVIDER_LOAD_FAILURE_EN: &str =
     \n• Out-of-process provider was not registered using the /regserver switch. For example, \
     myprog.exe /regserver.";
 
-const WBEM_E_INITIALIZATION_FAILURE: u32 = 0x80041014;
 const WBEM_E_INITIALIZATION_FAILURE_EN: &str =
     "Component, such as a provider, failed to initialize for internal reasons.";
 
-const WBEM_E_TRANSPORT_FAILURE: u32 = 0x80041015;
 const WBEM_E_TRANSPORT_FAILURE_EN: &str =
     "Networking error that prevents normal operation has occurred.";
 
-const WBEM_E_INVALID_OPERATION: u32 = 0x80041016;
 const WBEM_E_INVALID_OPERATION_EN: &str =
     "Requested operation is not valid. This error usually applies to invalid attempts to delete \
     classes or properties.";
 
-const WBEM_E_INVALID_QUERY: u32 = 0x80041017;
 const WBEM_E_INVALID_QUERY_EN: &str = "Query was not syntactically valid.";
 
-const WBEM_E_INVALID_QUERY_TYPE: u32 = 0x80041018;
 const WBEM_E_INVALID_QUERY_TYPE_EN: &str = "Requested query language is not supported.";
 
-const WBEM_E_ALREADY_EXISTS: u32 = 0x80041019;
 const WBEM_E_ALREADY_EXISTS_EN: &str =
     "In a put operation, the wbemChangeFlagCreateOnly flag was specified, but the instance already \
     exists.";
 
-const WBEM_E_OVERRIDE_NOT_ALLOWED: u32 = 0x8004101A;
 const WBEM_E_OVERRIDE_NOT_ALLOWED_EN: &str =
     "Not possible to perform the add operation on this qualifier because the owning object does \
     not permit overrides.";
 
-const WBEM_E_PROPAGATED_QUALIFIER: u32 = 0x8004101B;
 const WBEM_E_PROPAGATED_QUALIFIER_EN: &str =
     "User attempted to delete a qualifier that was not owned. The qualifier was inherited from a \
     parent class.";
 
-const WBEM_E_PROPAGATED_PROPERTY: u32 = 0x8004101C;
 const WBEM_E_PROPAGATED_PROPERTY_EN: &str =
     "User attempted to delete a property that was not owned. The property was inherited from a \
     parent class.";
 
-const WBEM_E_UNEXPECTED: u32 = 0x8004101D;
 const WBEM_E_UNEXPECTED_EN: &str =
     "Client made an unexpected and illegal sequence of calls, such as calling EndEnumeration \
     before calling BeginEnumeration.";
 
-const WBEM_E_ILLEGAL_OPERATION: u32 = 0x8004101E;
 const WBEM_E_ILLEGAL_OPERATION_EN: &str =
     "User requested an illegal operation, such as spawning a class from an instance.";
 
-const WBEM_E_CANNOT_BE_KEY: u32 = 0x8004101F;
 const WBEM_E_CANNOT_BE_KEY_EN: &str =
     "Illegal attempt to specify a key qualifier on a property that cannot be a key. The keys are \
     specified in the class definition for an object and cannot be altered on a per-instance basis.";
 
-const WBEM_E_INCOMPLETE_CLASS: u32 = 0x80041020;
 const WBEM_E_INCOMPLETE_CLASS_EN: &str =
     "Current object is not a valid class definition. Either it is incomplete or it has not been \
     registered with WMI using SWbemObject.Put_.";
 
-const WBEM_E_INVALID_SYNTAX: u32 = 0x80041021;
 const WBEM_E_INVALID_SYNTAX_EN: &str = "Query is syntactically not valid.";
 
-const WBEM_E_NONDECORATED_OBJECT: u32 = 0x80041022;
 const WBEM_E_NONDECORATED_OBJECT_EN: &str = "Reserved for future use.";
 
-const WBEM_E_READ_ONLY: u32 = 0x80041023;
 const WBEM_E_READ_ONLY_EN: &str = "An attempt was made to modify a read-only property.";
 
-const WBEM_E_PROVIDER_NOT_CAPABLE: u32 = 0x80041024;
 const WBEM_E_PROVIDER_NOT_CAPABLE_EN: &str =
     "Provider cannot perform the requested operation. This can include a query that is too \
     complex, retrieving an instance, creating or updating a class, deleting a class, or \
     enumerating a class.";
 
-const WBEM_E_CLASS_HAS_CHILDREN: u32 = 0x80041025;
 const WBEM_E_CLASS_HAS_CHILDREN_EN: &str =
     "Attempt was made to make a change that invalidates a subclass.";
 
-const WBEM_E_CLASS_HAS_INSTANCES: u32 = 0x80041026;
 const WBEM_E_CLASS_HAS_INSTANCES_EN: &str =
     "Attempt was made to delete or modify a class that has instances.";
 
-const WBEM_E_QUERY_NOT_IMPLEMENTED: u32 = 0x80041027;
 const WBEM_E_QUERY_NOT_IMPLEMENTED_EN: &str = "Reserved for future use.";
 
-const WBEM_E_ILLEGAL_NULL: u32 = 0x80041028;
 const WBEM_E_ILLEGAL_NULL_EN: &str =
     "Value of Nothing/NULL was specified for a property that must have a value, such as one that \
     is marked by a Key, Indexed, or Not_Null qualifier.";
 
-const WBEM_E_INVALID_QUALIFIER_TYPE: u32 = 0x80041029;
 const WBEM_E_INVALID_QUALIFIER_TYPE_EN: &str =
     "Variant value for a qualifier was provided that is not a legal qualifier type.";
 
-const WBEM_E_INVALID_PROPERTY_TYPE: u32 = 0x8004102A;
 const WBEM_E_INVALID_PROPERTY_TYPE_EN: &str = "CIM type specified for a property is not valid.";
 
-const WBEM_E_VALUE_OUT_OF_RANGE: u32 = 0x8004102B;
 const WBEM_E_VALUE_OUT_OF_RANGE_EN: &str =
     "Request was made with an out-of-range value or it is incompatible with the type.";
 
-const WBEM_E_CANNOT_BE_SINGLETON: u32 = 0x8004102C;
 const WBEM_E_CANNOT_BE_SINGLETON_EN: &str =
     "Illegal attempt was made to make a class singleton, such as when the class is derived from a \
     non-singleton class.";
 
-const WBEM_E_INVALID_CIM_TYPE: u32 = 0x8004102D;
 const WBEM_E_INVALID_CIM_TYPE_EN: &str = "CIM type specified is not valid.";
 
-const WBEM_E_INVALID_METHOD: u32 = 0x8004102E;
 const WBEM_E_INVALID_METHOD_EN: &str = "Requested method is not available.";
 
-const WBEM_E_INVALID_METHOD_PARAMETERS: u32 = 0x8004102F;
 const WBEM_E_INVALID_METHOD_PARAMETERS_EN: &str =
     "Parameters provided for the method are not valid.";
 
-const WBEM_E_SYSTEM_PROPERTY: u32 = 0x80041030;
 const WBEM_E_SYSTEM_PROPERTY_EN: &str =
     "There was an attempt to get qualifiers on a system property.";
 
-const WBEM_E_INVALID_PROPERTY: u32 = 0x80041031;
 const WBEM_E_INVALID_PROPERTY_EN: &str = "Property type is not recognized.";
 
-const WBEM_E_CALL_CANCELLED: u32 = 0x80041032;
 const WBEM_E_CALL_CANCELLED_EN: &str =
     "Asynchronous process has been canceled internally or by the user. Note that due to the timing \
     and nature of the asynchronous operation, the operation may not have been truly canceled.";
 
-const WBEM_E_SHUTTING_DOWN: u32 = 0x80041033;
 const WBEM_E_SHUTTING_DOWN_EN: &str =
     "User has requested an operation while WMI is in the process of shutting down.";
 
-const WBEM_E_PROPAGATED_METHOD: u32 = 0x80041034;
 const WBEM_E_PROPAGATED_METHOD_EN: &str =
     "Attempt was made to reuse an existing method name from a parent class and the signatures do \
     not match.";
 
-const WBEM_E_UNSUPPORTED_PARAMETER: u32 = 0x80041035;
 const WBEM_E_UNSUPPORTED_PARAMETER_EN: &str =
     "One or more parameter values, such as a query text, is too complex or unsupported. WMI is \
     therefore requested to retry the operation with simpler parameters.";
 
-const WBEM_E_MISSING_PARAMETER_ID: u32 = 0x80041036;
 const WBEM_E_MISSING_PARAMETER_ID_EN: &str = "Parameter was missing from the method call.";
 
-const WBEM_E_INVALID_PARAMETER_ID: u32 = 0x80041037;
 const WBEM_E_INVALID_PARAMETER_ID_EN: &str =
     "Method parameter has an ID qualifier that is not valid.";
 
-const WBEM_E_NONCONSECUTIVE_PARAMETER_IDS: u32 = 0x80041038;
 const WBEM_E_NONCONSECUTIVE_PARAMETER_IDS_EN: &str =
     "One or more of the method parameters have ID qualifiers that are out of sequence.";
 
-const WBEM_E_PARAMETER_ID_ON_RETVAL: u32 = 0x80041039;
 const WBEM_E_PARAMETER_ID_ON_RETVAL_EN: &str = "Return value for a method has an ID qualifier.";
 
-const WBEM_E_INVALID_OBJECT_PATH: u32 = 0x8004103A;
 const WBEM_E_INVALID_OBJECT_PATH_EN: &str = "Specified object path was not valid.";
 
-const WBEM_E_OUT_OF_DISK_SPACE: u32 = 0x8004103B;
 const WBEM_E_OUT_OF_DISK_SPACE_EN: &str =
     "Disk is out of space or the 4 GB limit on WMI repository (CIM repository) size is reached.";
 
-const WBEM_E_BUFFER_TOO_SMALL: u32 = 0x8004103C;
 const WBEM_E_BUFFER_TOO_SMALL_EN: &str =
     "Supplied buffer was too small to hold all of the objects in the enumerator or to read a \
     string property.";
 
-const WBEM_E_UNSUPPORTED_PUT_EXTENSION: u32 = 0x8004103D;
 const WBEM_E_UNSUPPORTED_PUT_EXTENSION_EN: &str =
     "Provider does not support the requested put operation.";
 
-const WBEM_E_UNKNOWN_OBJECT_TYPE: u32 = 0x8004103E;
 const WBEM_E_UNKNOWN_OBJECT_TYPE_EN: &str =
     "Object with an incorrect type or version was encountered during marshaling.";
 
-const WBEM_E_UNKNOWN_PACKET_TYPE: u32 = 0x8004103F;
 const WBEM_E_UNKNOWN_PACKET_TYPE_EN: &str =
     "Packet with an incorrect type or version was encountered during marshaling.";
 
-const WBEM_E_MARSHAL_VERSION_MISMATCH: u32 = 0x80041040;
 const WBEM_E_MARSHAL_VERSION_MISMATCH_EN: &str = "Packet has an unsupported version.";
 
-const WBEM_E_MARSHAL_INVALID_SIGNATURE: u32 = 0x80041041;
 const WBEM_E_MARSHAL_INVALID_SIGNATURE_EN: &str = "Packet appears to be corrupt.";
 
-const WBEM_E_INVALID_QUALIFIER: u32 = 0x80041042;
 const WBEM_E_INVALID_QUALIFIER_EN: &str =
     "Attempt was made to mismatch qualifiers, such as putting [key] on an object instead of a \
     property.";
 
-const WBEM_E_INVALID_DUPLICATE_PARAMETER: u32 = 0x80041043;
 const WBEM_E_INVALID_DUPLICATE_PARAMETER_EN: &str =
     "Duplicate parameter was declared in a CIM method.";
 
-const WBEM_E_TOO_MUCH_DATA: u32 = 0x80041044;
 const WBEM_E_TOO_MUCH_DATA_EN: &str = "Reserved for future use.";
 
-const WBEM_E_SERVER_TOO_BUSY: u32 = 0x80041045;
 const WBEM_E_SERVER_TOO_BUSY_EN: &str =
     "Call to IWbemObjectSink::Indicate has failed. The provider can refire the event.";
 
-const WBEM_E_INVALID_FLAVOR: u32 = 0x80041046;
 const WBEM_E_INVALID_FLAVOR_EN: &str = "Specified qualifier flavor was not valid.";
 
-const WBEM_E_CIRCULAR_REFERENCE: u32 = 0x80041047;
 const WBEM_E_CIRCULAR_REFERENCE_EN: &str =
     "Attempt was made to create a reference that is circular (for example, deriving a class from \
     itself).";
 
-const WBEM_E_UNSUPPORTED_CLASS_UPDATE: u32 = 0x80041048;
 const WBEM_E_UNSUPPORTED_CLASS_UPDATE_EN: &str = "Specified class is not supported.";
 
-const WBEM_E_CANNOT_CHANGE_KEY_INHERITANCE: u32 = 0x80041049;
 const WBEM_E_CANNOT_CHANGE_KEY_INHERITANCE_EN: &str =
     "Attempt was made to change a key when instances or subclasses are already using the key.";
 
-const WBEM_E_CANNOT_CHANGE_INDEX_INHERITANCE: u32 = 0x80041050;
 const WBEM_E_CANNOT_CHANGE_INDEX_INHERITANCE_EN: &str =
     "An attempt was made to change an index when instances or subclasses are already using the \
     index.";
 
-const WBEM_E_TOO_MANY_PROPERTIES: u32 = 0x80041051;
 const WBEM_E_TOO_MANY_PROPERTIES_EN: &str =
     "Attempt was made to create more properties than the current version of the class supports.";
 
-const WBEM_E_UPDATE_TYPE_MISMATCH: u32 = 0x80041052;
 const WBEM_E_UPDATE_TYPE_MISMATCH_EN: &str =
     "Property was redefined with a conflicting type in a derived class.";
 
-const WBEM_E_UPDATE_OVERRIDE_NOT_ALLOWED: u32 = 0x80041053;
 const WBEM_E_UPDATE_OVERRIDE_NOT_ALLOWED_EN: &str =
     "Attempt was made in a derived class to override a qualifier that cannot be overridden.";
 
-const WBEM_E_UPDATE_PROPAGATED_METHOD: u32 = 0x80041054;
 const WBEM_E_UPDATE_PROPAGATED_METHOD_EN: &str =
     "Method was re-declared with a conflicting signature in a derived class.";
 
-const WBEM_E_METHOD_NOT_IMPLEMENTED: u32 = 0x80041055;
 const WBEM_E_METHOD_NOT_IMPLEMENTED_EN: &str =
     "Attempt was made to execute a method not marked with [implemented] in any relevant class.";
 
-// const WBEM_E_METHOD_DISABLED: u32 = ??
-// const WBEM_E_METHOD_DISABLED_EN: &str =
-//     "Attempt was made to execute a method marked with [disabled].";
+const WBEM_E_METHOD_DISABLED_EN: &str =
+    "Attempt was made to execute a method marked with [disabled].";
 
-const WBEM_E_REFRESHER_BUSY: u32 = 0x80041057;
 const WBEM_E_REFRESHER_BUSY_EN: &str = "Refresher is busy with another operation.";
 
-const WBEM_E_UNPARSABLE_QUERY: u32 = 0x80041058;
 const WBEM_E_UNPARSABLE_QUERY_EN: &str = "Filtering query is syntactically not valid.";
 
-const WBEM_E_NOT_EVENT_CLASS: u32 = 0x80041059;
 const WBEM_E_NOT_EVENT_CLASS_EN: &str =
     "The FROM clause of a filtering query references a class that is not an event class (not \
     derived from __Event).";
 
-const WBEM_E_MISSING_GROUP_WITHIN: u32 = 0x8004105A;
 const WBEM_E_MISSING_GROUP_WITHIN_EN: &str =
     "A GROUP BY clause was used without the corresponding GROUP WITHIN clause.";
 
-const WBEM_E_MISSING_AGGREGATION_LIST: u32 = 0x8004105B;
 const WBEM_E_MISSING_AGGREGATION_LIST_EN: &str =
     "A GROUP BY clause was used. Aggregation on all properties is not supported.";
 
-const WBEM_E_PROPERTY_NOT_AN_OBJECT: u32 = 0x8004105C;
 const WBEM_E_PROPERTY_NOT_AN_OBJECT_EN: &str =
     "Dot notation was used on a property that is not an embedded object.";
 
-const WBEM_E_AGGREGATING_BY_OBJECT: u32 = 0x8004105D;
 const WBEM_E_AGGREGATING_BY_OBJECT_EN: &str =
     "A GROUP BY clause references a property that is an embedded object without using dot notation.";
 
-const WBEM_E_UNINTERPRETABLE_PROVIDER_QUERY: u32 = 0x8004105F;
 const WBEM_E_UNINTERPRETABLE_PROVIDER_QUERY_EN: &str =
     "Event provider registration query (__EventProviderRegistration) did not specify the classes \
     for which events were provided.";
 
-const WBEM_E_BACKUP_RESTORE_WINMGMT_RUNNING: u32 = 0x80041060;
 const WBEM_E_BACKUP_RESTORE_WINMGMT_RUNNING_EN: &str =
     "Request was made to back up or restore the repository while it was in use by WinMgmt.exe, or \
     by the SVCHOST process that contains the WMI service.";
 
-const WBEM_E_QUEUE_OVERFLOW: u32 = 0x80041061;
 const WBEM_E_QUEUE_OVERFLOW_EN: &str =
     "Asynchronous delivery queue overflowed from the event consumer being too slow.";
 
-const WBEM_E_PRIVILEGE_NOT_HELD: u32 = 0x80041062;
 const WBEM_E_PRIVILEGE_NOT_HELD_EN: &str =
     "Operation failed because the client did not have the necessary security privilege.";
 
-const WBEM_E_INVALID_OPERATOR: u32 = 0x80041063;
 const WBEM_E_INVALID_OPERATOR_EN: &str = "Operator is not valid for this property type.";
 
-const WBEM_E_LOCAL_CREDENTIALS: u32 = 0x80041064;
 const WBEM_E_LOCAL_CREDENTIALS_EN: &str =
     "User specified a username/password/authority on a local connection. The user must use a blank \
     username/password and rely on default security.";
 
-const WBEM_E_CANNOT_BE_ABSTRACT: u32 = 0x80041065;
 const WBEM_E_CANNOT_BE_ABSTRACT_EN: &str =
     "Class was made abstract when its parent class is not abstract.";
 
-const WBEM_E_AMENDED_OBJECT: u32 = 0x80041066;
 const WBEM_E_AMENDED_OBJECT_EN: &str =
     "Amended object was written without the WBEM_FLAG_USE_AMENDED_QUALIFIERS flag being specified.";
 
-const WBEM_E_CLIENT_TOO_SLOW: u32 = 0x80041067;
 const WBEM_E_CLIENT_TOO_SLOW_EN: &str =
     "Client did not retrieve objects quickly enough from an enumeration. This constant is returned \
     when a client creates an enumeration object, but does not retrieve objects from the enumerator \
     in a timely fashion, causing the enumerator's object caches to back up.";
 
-const WBEM_E_NULL_SECURITY_DESCRIPTOR: u32 = 0x80041068;
 const WBEM_E_NULL_SECURITY_DESCRIPTOR_EN: &str = "Null security descriptor was used.";
 
-const WBEM_E_TIMED_OUT: u32 = 0x80041069;
 const WBEM_E_TIMED_OUT_EN: &str = "Operation timed out.";
 
-const WBEM_E_INVALID_ASSOCIATION: u32 = 2147749994;
 const WBEM_E_INVALID_ASSOCIATION_EN: &str = "Association is not valid.";
 
-const WBEM_E_AMBIGUOUS_OPERATION: u32 = 0x8004106B;
 const WBEM_E_AMBIGUOUS_OPERATION_EN: &str = "Operation was ambiguous.";
 
-const WBEM_E_QUOTA_VIOLATION: u32 = 0x8004106C;
 const WBEM_E_QUOTA_VIOLATION_EN: &str =
     "WMI is taking up too much memory. This can be caused by low memory availability or excessive \
     memory consumption by WMI.";
 
-const WBEM_E_TRANSACTION_CONFLICT: u32 = 0x8004106D;
+const WBEM_E_TRANSACTION_CONFLICT: WBEMSTATUS = WBEMSTATUS(0x8004106D_u32 as i32);
 const WBEM_E_TRANSACTION_CONFLICT_EN: &str = "Operation resulted in a transaction conflict.";
 
-const WBEM_E_FORCED_ROLLBACK: u32 = 0x8004106E;
+const WBEM_E_FORCED_ROLLBACK: WBEMSTATUS = WBEMSTATUS(0x8004106E_u32 as i32);
 const WBEM_E_FORCED_ROLLBACK_EN: &str = "Transaction forced a rollback.";
 
-const WBEM_E_UNSUPPORTED_LOCALE: u32 = 0x8004106F;
 const WBEM_E_UNSUPPORTED_LOCALE_EN: &str = "Locale used in the call is not supported.";
 
-const WBEM_E_HANDLE_OUT_OF_DATE: u32 = 0x80041070;
 const WBEM_E_HANDLE_OUT_OF_DATE_EN: &str = "Object handle is out-of-date.";
 
-const WBEM_E_CONNECTION_FAILED: u32 = 0x80041071;
 const WBEM_E_CONNECTION_FAILED_EN: &str = "Connection to the SQL database failed.";
 
-const WBEM_E_INVALID_HANDLE_REQUEST: u32 = 0x80041072;
 const WBEM_E_INVALID_HANDLE_REQUEST_EN: &str = "Handle request was not valid.";
 
-const WBEM_E_PROPERTY_NAME_TOO_WIDE: u32 = 0x80041073;
 const WBEM_E_PROPERTY_NAME_TOO_WIDE_EN: &str = "Property name contains more than 255 characters.";
 
-const WBEM_E_CLASS_NAME_TOO_WIDE: u32 = 0x80041074;
 const WBEM_E_CLASS_NAME_TOO_WIDE_EN: &str = "Class name contains more than 255 characters.";
 
-const WBEM_E_METHOD_NAME_TOO_WIDE: u32 = 0x80041075;
 const WBEM_E_METHOD_NAME_TOO_WIDE_EN: &str = "Method name contains more than 255 characters.";
 
-const WBEM_E_QUALIFIER_NAME_TOO_WIDE: u32 = 0x80041076;
 const WBEM_E_QUALIFIER_NAME_TOO_WIDE_EN: &str = "Qualifier name contains more than 255 characters.";
 
-const WBEM_E_RERUN_COMMAND: u32 = 0x80041077;
 const WBEM_E_RERUN_COMMAND_EN: &str =
     "The SQL command must be rerun because there is a deadlock in SQL. This can be returned only \
     when data is being stored in an SQL database.";
 
-const WBEM_E_DATABASE_VER_MISMATCH: u32 = 0x80041078;
 const WBEM_E_DATABASE_VER_MISMATCH_EN: &str =
     "The database version does not match the version that the repository driver processes.";
 
-const WBEM_E_VETO_DELETE: u32 = 0x80041079;
 const WBEM_E_VETO_DELETE_EN: &str =
     "WMI cannot execute the delete operation because the provider does not allow it.";
 
-const WBEM_E_VETO_PUT: u32 = 0x8004107A;
 const WBEM_E_VETO_PUT_EN: &str =
     "WMI cannot execute the put operation because the provider does not allow it.";
 
-const WBEM_E_INVALID_LOCALE: u32 = 0x80041080;
 const WBEM_E_INVALID_LOCALE_EN: &str =
     "Specified locale identifier was not valid for the operation.";
 
-const WBEM_E_PROVIDER_SUSPENDED: u32 = 0x80041081;
 const WBEM_E_PROVIDER_SUSPENDED_EN: &str = "Provider is suspended.";
 
-const WBEM_E_SYNCHRONIZATION_REQUIRED: u32 = 0x80041082;
 const WBEM_E_SYNCHRONIZATION_REQUIRED_EN: &str =
     "Object must be written to the WMI repository and retrieved again before the requested \
     operation can succeed. This constant is returned when an object must be committed and \
     retrieved to see the property value.";
 
-const WBEM_E_NO_SCHEMA: u32 = 0x80041083;
 const WBEM_E_NO_SCHEMA_EN: &str = "Operation cannot be completed; no schema is available.";
 
-const WBEM_E_PROVIDER_ALREADY_REGISTERED: u32 = 0x119FD010;
 const WBEM_E_PROVIDER_ALREADY_REGISTERED_EN: &str =
     "Provider cannot be registered because it is already registered.";
 
-const WBEM_E_PROVIDER_NOT_REGISTERED: u32 = 0x80041085;
 const WBEM_E_PROVIDER_NOT_REGISTERED_EN: &str = "Provider was not registered.";
 
-const WBEM_E_FATAL_TRANSPORT_ERROR: u32 = 0x80041086;
 const WBEM_E_FATAL_TRANSPORT_ERROR_EN: &str = "A fatal transport error occurred.";
 
-const WBEM_E_ENCRYPTED_CONNECTION_REQUIRED: u32 = 0x80041087;
 const WBEM_E_ENCRYPTED_CONNECTION_REQUIRED_EN: &str =
     "User attempted to set a computer name or domain without an encrypted connection.";
 
-const WBEM_E_PROVIDER_TIMED_OUT: u32 = 0x80041088;
 const WBEM_E_PROVIDER_TIMED_OUT_EN: &str =
     "A provider failed to report results within the specified timeout.";
 
-const WBEM_E_NO_KEY: u32 = 0x80041089;
 const WBEM_E_NO_KEY_EN: &str = "User attempted to put an instance with no defined key.";
 
-const WBEM_E_PROVIDER_DISABLED: u32 = 0x8004108A;
 const WBEM_E_PROVIDER_DISABLED_EN: &str =
     "User attempted to register a provider instance but the COM server for the provider instance \
     was unloaded.";
 
-const WBEMESS_E_REGISTRATION_TOO_BROAD: u32 = 0x80042001;
 const WBEMESS_E_REGISTRATION_TOO_BROAD_EN: &str =
     "Provider registration overlaps with the system event domain.";
 
-const WBEMESS_E_REGISTRATION_TOO_PRECISE: u32 = 0x80042002;
 const WBEMESS_E_REGISTRATION_TOO_PRECISE_EN: &str = "A WITHIN clause was not used in this query.";
 
-const WBEMESS_E_AUTHZ_NOT_PRIVILEGED: u32 = 0x80042003;
 const WBEMESS_E_AUTHZ_NOT_PRIVILEGED_EN: &str =
     "This computer does not have the necessary domain permissions to support the security \
     functions that relate to the created subscription instance. Contact the Domain Administrator \
     to get this computer added to the Windows Authorization Access Group.";
 
-const WBEM_E_RETRY_LATER: u32 = 0x80043001;
 const WBEM_E_RETRY_LATER_EN: &str = "Reserved for future use.";
 
-const WBEM_E_RESOURCE_CONTENTION: u32 = 0x80043002;
 const WBEM_E_RESOURCE_CONTENTION_EN: &str = "Reserved for future use.";
 
-const WBEMMOF_E_EXPECTED_QUALIFIER_NAME: u32 = 0x80044001;
 const WBEMMOF_E_EXPECTED_QUALIFIER_NAME_EN: &str = "Expected a qualifier name.";
 
-const WBEMMOF_E_EXPECTED_SEMI: u32 = 0x80044002;
 const WBEMMOF_E_EXPECTED_SEMI_EN: &str = "Expected semicolon or '='.";
 
-const WBEMMOF_E_EXPECTED_OPEN_BRACE: u32 = 0x80044003;
 const WBEMMOF_E_EXPECTED_OPEN_BRACE_EN: &str = "Expected an opening brace.";
 
-const WBEMMOF_E_EXPECTED_CLOSE_BRACE: u32 = 0x80044004;
 const WBEMMOF_E_EXPECTED_CLOSE_BRACE_EN: &str =
     "Missing closing brace or an illegal array element.";
 
-const WBEMMOF_E_EXPECTED_CLOSE_BRACKET: u32 = 0x80044005;
 const WBEMMOF_E_EXPECTED_CLOSE_BRACKET_EN: &str = "Expected a closing bracket.";
 
-const WBEMMOF_E_EXPECTED_CLOSE_PAREN: u32 = 0x80044006;
 const WBEMMOF_E_EXPECTED_CLOSE_PAREN_EN: &str = "Expected closing parenthesis.";
 
-const WBEMMOF_E_ILLEGAL_CONSTANT_VALUE: u32 = 0x80044007;
 const WBEMMOF_E_ILLEGAL_CONSTANT_VALUE_EN: &str =
     "Numeric value out of range or strings without quotes.";
 
-const WBEMMOF_E_EXPECTED_TYPE_IDENTIFIER: u32 = 0x80044008;
 const WBEMMOF_E_EXPECTED_TYPE_IDENTIFIER_EN: &str = "Expected a type identifier.";
 
-const WBEMMOF_E_EXPECTED_OPEN_PAREN: u32 = 0x80044009;
 const WBEMMOF_E_EXPECTED_OPEN_PAREN_EN: &str = "Expected an open parenthesis.";
 
-const WBEMMOF_E_UNRECOGNIZED_TOKEN: u32 = 0x8004400A;
 const WBEMMOF_E_UNRECOGNIZED_TOKEN_EN: &str = "Unexpected token in the file.";
 
-const WBEMMOF_E_UNRECOGNIZED_TYPE: u32 = 0x8004400B;
 const WBEMMOF_E_UNRECOGNIZED_TYPE_EN: &str = "Unrecognized or unsupported type identifier.";
 
-// const WBEMMOF_E_EXPECTED_PROPERTY_NAME: u32 = 0x8004400B;
-// const WBEMMOF_E_EXPECTED_PROPERTY_NAME_EN: &str = "Expected property or method name.";
+const WBEMMOF_E_EXPECTED_PROPERTY_NAME_EN: &str = "Expected property or method name.";
 
-const WBEMMOF_E_TYPEDEF_NOT_SUPPORTED: u32 = 0x8004400D;
 const WBEMMOF_E_TYPEDEF_NOT_SUPPORTED_EN: &str = "Typedefs and enumerated types are not supported.";
 
-const WBEMMOF_E_UNEXPECTED_ALIAS: u32 = 0x8004400E;
 const WBEMMOF_E_UNEXPECTED_ALIAS_EN: &str =
     "Only a reference to a class object can have an alias value.";
 
-const WBEMMOF_E_UNEXPECTED_ARRAY_INIT: u32 = 0x8004400F;
 const WBEMMOF_E_UNEXPECTED_ARRAY_INIT_EN: &str =
     "Unexpected array initialization. Arrays must be declared with [].";
 
-const WBEMMOF_E_INVALID_AMENDMENT_SYNTAX: u32 = 0x80044010;
 const WBEMMOF_E_INVALID_AMENDMENT_SYNTAX_EN: &str = "Namespace path syntax is not valid.";
 
-const WBEMMOF_E_INVALID_DUPLICATE_AMENDMENT: u32 = 0x80044011;
 const WBEMMOF_E_INVALID_DUPLICATE_AMENDMENT_EN: &str = "Duplicate amendment specifiers.";
 
-const WBEMMOF_E_INVALID_PRAGMA: u32 = 0x80044012;
 const WBEMMOF_E_INVALID_PRAGMA_EN: &str = "#pragma must be followed by a valid keyword.";
 
-const WBEMMOF_E_INVALID_NAMESPACE_SYNTAX: u32 = 0x80044013;
 const WBEMMOF_E_INVALID_NAMESPACE_SYNTAX_EN: &str = "Namespace path syntax is not valid.";
 
-const WBEMMOF_E_EXPECTED_CLASS_NAME: u32 = 0x80044014;
 const WBEMMOF_E_EXPECTED_CLASS_NAME_EN: &str =
     "Unexpected character in class name must be an identifier.";
 
-const WBEMMOF_E_TYPE_MISMATCH: u32 = 0x80044015;
 const WBEMMOF_E_TYPE_MISMATCH_EN: &str =
     "The value specified cannot be made into the appropriate type.";
 
-const WBEMMOF_E_EXPECTED_ALIAS_NAME: u32 = 0x80044016;
 const WBEMMOF_E_EXPECTED_ALIAS_NAME_EN: &str =
     "Dollar sign must be followed by an alias name as an identifier.";
 
-const WBEMMOF_E_INVALID_CLASS_DECLARATION: u32 = 0x80044017;
 const WBEMMOF_E_INVALID_CLASS_DECLARATION_EN: &str = "Class declaration is not valid.";
 
-const WBEMMOF_E_INVALID_INSTANCE_DECLARATION: u32 = 0x80044018;
 const WBEMMOF_E_INVALID_INSTANCE_DECLARATION_EN: &str =
     "The instance declaration is not valid. It must start with \"instance of\"";
 
-const WBEMMOF_E_EXPECTED_DOLLAR: u32 = 0x80044019;
 const WBEMMOF_E_EXPECTED_DOLLAR_EN: &str =
     "Expected dollar sign. An alias in the form \"$name\" must follow the \"as\" keyword.";
 
-const WBEMMOF_E_CIMTYPE_QUALIFIER: u32 = 0x8004401A;
 const WBEMMOF_E_CIMTYPE_QUALIFIER_EN: &str =
     "\"CIMTYPE\" qualifier cannot be specified directly in a MOF file. Use standard type notation.";
 
-const WBEMMOF_E_DUPLICATE_PROPERTY: u32 = 0x8004401B;
 const WBEMMOF_E_DUPLICATE_PROPERTY_EN: &str = "Duplicate property name was found in the MOF.";
 
-const WBEMMOF_E_INVALID_NAMESPACE_SPECIFICATION: u32 = 0x8004401C;
 const WBEMMOF_E_INVALID_NAMESPACE_SPECIFICATION_EN: &str =
     "Namespace syntax is not valid. References to other servers are not allowed.";
 
-const WBEMMOF_E_OUT_OF_RANGE: u32 = 0x8004401D;
 const WBEMMOF_E_OUT_OF_RANGE_EN: &str = "Value out of range.";
 
-const WBEMMOF_E_INVALID_FILE: u32 = 0x8004401E;
 const WBEMMOF_E_INVALID_FILE_EN: &str = "The file is not a valid text MOF file or binary MOF file.";
 
-const WBEMMOF_E_ALIASES_IN_EMBEDDED: u32 = 0x8004401F;
 const WBEMMOF_E_ALIASES_IN_EMBEDDED_EN: &str = "Embedded objects cannot be aliases.";
 
-const WBEMMOF_E_NULL_ARRAY_ELEM: u32 = 0x80044020;
 const WBEMMOF_E_NULL_ARRAY_ELEM_EN: &str = "NULL elements in an array are not supported.";
 
-const WBEMMOF_E_DUPLICATE_QUALIFIER: u32 = 0x80044021;
 const WBEMMOF_E_DUPLICATE_QUALIFIER_EN: &str = "Qualifier was used more than once on the object.";
 
-const WBEMMOF_E_EXPECTED_FLAVOR_TYPE: u32 = 0x80044022;
 const WBEMMOF_E_EXPECTED_FLAVOR_TYPE_EN: &str =
     "Expected a flavor type such as ToInstance, ToSubClass, EnableOverride, or DisableOverride.";
 
-const WBEMMOF_E_INCOMPATIBLE_FLAVOR_TYPES: u32 = 0x80044023;
 const WBEMMOF_E_INCOMPATIBLE_FLAVOR_TYPES_EN: &str =
     "Combining EnableOverride and DisableOverride on same qualifier is not legal.";
 
-const WBEMMOF_E_MULTIPLE_ALIASES: u32 = 0x80044024;
 const WBEMMOF_E_MULTIPLE_ALIASES_EN: &str = "An alias cannot be used twice.";
 
-const WBEMMOF_E_INCOMPATIBLE_FLAVOR_TYPES2: u32 = 0x80044025;
 const WBEMMOF_E_INCOMPATIBLE_FLAVOR_TYPES2_EN: &str =
     "Combining Restricted, and ToInstance or ToSubClass is not legal.";
 
-const WBEMMOF_E_NO_ARRAYS_RETURNED: u32 = 0x80044026;
 const WBEMMOF_E_NO_ARRAYS_RETURNED_EN: &str = "Methods cannot return array values.";
 
-const WBEMMOF_E_MUST_BE_IN_OR_OUT: u32 = 0x80044027;
 const WBEMMOF_E_MUST_BE_IN_OR_OUT_EN: &str = "Arguments must have an In or Out qualifier.";
 
-const WBEMMOF_E_INVALID_FLAGS_SYNTAX: u32 = 0x80044028;
 const WBEMMOF_E_INVALID_FLAGS_SYNTAX_EN: &str = "Flags syntax is not valid.";
 
-const WBEMMOF_E_EXPECTED_BRACE_OR_BAD_TYPE: u32 = 0x80044029;
 const WBEMMOF_E_EXPECTED_BRACE_OR_BAD_TYPE_EN: &str =
     "The final brace and semi-colon for a class are missing.";
 
-const WBEMMOF_E_UNSUPPORTED_CIMV22_QUAL_VALUE: u32 = 0x8004402A;
 const WBEMMOF_E_UNSUPPORTED_CIMV22_QUAL_VALUE_EN: &str =
     "A CIM version 2.2 feature is not supported for a qualifier value.";
 
-const WBEMMOF_E_UNSUPPORTED_CIMV22_DATA_TYPE: u32 = 0x8004402B;
 const WBEMMOF_E_UNSUPPORTED_CIMV22_DATA_TYPE_EN: &str =
     "The CIM version 2.2 data type is not supported.";
 
-const WBEMMOF_E_INVALID_DELETEINSTANCE_SYNTAX: u32 = 0x8004402C;
 const WBEMMOF_E_INVALID_DELETEINSTANCE_SYNTAX_EN: &str =
     "The delete instance syntax is not valid. It should be #pragma \
     DeleteInstance(\"instancepath\", FAIL|NOFAIL)";
 
-const WBEMMOF_E_INVALID_QUALIFIER_SYNTAX: u32 = 0x8004402D;
 const WBEMMOF_E_INVALID_QUALIFIER_SYNTAX_EN: &str =
     "The qualifier syntax is not valid. It should be \
     qualifiername:type=value,scope(class|instance), flavorname .";
 
-const WBEMMOF_E_QUALIFIER_USED_OUTSIDE_SCOPE: u32 = 0x8004402E;
 const WBEMMOF_E_QUALIFIER_USED_OUTSIDE_SCOPE_EN: &str =
     "The qualifier is used outside of its scope.";
 
-const WBEMMOF_E_ERROR_CREATING_TEMP_FILE: u32 = 0x8004402F;
 const WBEMMOF_E_ERROR_CREATING_TEMP_FILE_EN: &str =
     "Error creating temporary file. The temporary file is an intermediate stage in the MOF \
     compilation.";
 
-const WBEMMOF_E_ERROR_INVALID_INCLUDE_FILE: u32 = 0x80044030;
 const WBEMMOF_E_ERROR_INVALID_INCLUDE_FILE_EN: &str =
     "A file included in the MOF by the preprocessor command #include is not valid.";
 
-const WBEMMOF_E_INVALID_DELETECLASS_SYNTAX: u32 = 0x80044031;
 const WBEMMOF_E_INVALID_DELETECLASS_SYNTAX_EN: &str =
     "The syntax for the preprocessor commands #pragma deleteinstance or #pragma deleteclass is not \
     valid.";
