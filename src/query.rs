@@ -608,9 +608,11 @@ mod tests {
     fn it_works() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con
+        let mut enumerator = wmi_con
             .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
-            .unwrap();
+            .unwrap()
+            .peekable();
+        assert!(enumerator.peek().is_some());
 
         for res in enumerator {
             let w = res.unwrap();
@@ -633,9 +635,11 @@ mod tests {
     fn it_fails_gracefully() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con
+        let mut enumerator = wmi_con
             .exec_query_native_wrapper("SELECT NoSuchField FROM Win32_OperatingSystem")
-            .unwrap();
+            .unwrap()
+            .peekable();
+        assert!(enumerator.peek().is_some());
 
         for res in enumerator {
             assert!(res.is_err())
@@ -646,7 +650,8 @@ mod tests {
     fn it_fails_gracefully_with_invalid_sql() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con.exec_query_native_wrapper("42").unwrap();
+        let mut enumerator = wmi_con.exec_query_native_wrapper("42").unwrap().peekable();
+        assert!(enumerator.peek().is_some());
 
         // Show how to detect and display which error had occurred.
         for res in enumerator {
