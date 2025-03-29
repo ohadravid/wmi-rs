@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{de, Serialize};
-use windows::core::{BSTR, HSTRING};
-use windows::Win32::System::Variant::VARIANT;
+use windows::core::BSTR;
 
 use crate::{
     de::meta::struct_name_and_fields, result_enumerator::IWbemClassWrapper,
@@ -74,23 +73,15 @@ impl WMIConnection {
         // The method may have no input parameters, such as in this case: https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/reboot-method-in-class-win32-operatingsystem
         let in_params = match input_signature {
             Some(input) => {
-                let inst;
-                unsafe {
-                    inst = input.SpawnInstance(Default::default())?;
-                };
-                // Set every field of the input object to the corresponding input parameter passed to this function
-                for (wszname, value) in in_params {
-                    let wszname = HSTRING::from(wszname);
-                    let value = TryInto::<VARIANT>::try_into(value)?;
+                let inst = unsafe { input.SpawnInstance(Default::default())? };
+                let inst = IWbemClassWrapper::new(inst);
 
-                    // See https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put
-                    // Note that the example shows the variant is expected to be cleared (dropped) after the call to Put,
-                    // so passing &value is acceptable here
-                    unsafe {
-                        inst.Put(&wszname, Default::default(), &value, 0)?;
-                    }
+                // Set every field of the input object to the corresponding input parameter passed to this function
+                for (name, value) in in_params {
+                    inst.put_property(&name, value)?;
                 }
-                Some(inst)
+
+                Some(inst.inner)
             }
             None => None,
         };
