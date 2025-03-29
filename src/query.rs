@@ -604,28 +604,41 @@ mod tests {
     use crate::{Variant, WMIError};
 
     #[test]
-    fn it_works() {
+    fn it_works_native_wrapper() {
         let wmi_con = wmi_con();
 
         let enumerator = wmi_con
             .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
-        for res in enumerator {
-            let w = res.unwrap();
-            let mut props = w.list_properties().unwrap();
+        let res = enumerator.into_iter().next().unwrap();
+        let w = res.unwrap();
+        let mut props = w.list_properties().unwrap();
 
-            props.sort();
+        props.sort();
 
-            assert_eq!(props.len(), 64);
-            assert_eq!(props[..2], ["BootDevice", "BuildNumber"]);
-            assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"]);
+        assert_eq!(props.len(), 64);
+        assert_eq!(props[..2], ["BootDevice", "BuildNumber"]);
+        assert_eq!(props[props.len() - 2..], ["Version", "WindowsDirectory"]);
 
-            let result = serde_json::to_string_pretty(&w);
+        let result = serde_json::to_string_pretty(&w);
 
-            assert!(result.is_ok());
-            assert!(result.unwrap().len() > 2)
-        }
+        assert!(result.is_ok());
+        assert!(result.unwrap().len() > 2);
+
+        let desc_prop_name = "Description";
+        let description = w.get_property(desc_prop_name).unwrap();
+
+        let _original_desc = match description {
+            Variant::String(s) => s,
+            _ => panic!("Unexpected variant returned {:?}", description),
+        };
+
+        w.put_property(desc_prop_name, "test").unwrap();
+
+        let new_desc = w.get_property(desc_prop_name).unwrap();
+
+        assert_eq!(new_desc, Variant::String("test".to_string()));
     }
 
     #[test]

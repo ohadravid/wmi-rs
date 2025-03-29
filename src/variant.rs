@@ -367,6 +367,12 @@ impl From<()> for Variant {
     }
 }
 
+impl From<&str> for Variant {
+    fn from(value: &str) -> Self {
+        Variant::String(value.to_string())
+    }
+}
+
 impl TryFrom<Variant> for () {
     type Error = WMIError;
 
