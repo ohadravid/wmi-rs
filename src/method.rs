@@ -300,4 +300,34 @@ mod tests {
 
         assert!(wmi_con.raw_query::<Win32_Process>(&query).unwrap().len() == 0);
     }
+
+    #[test]
+    fn it_exec_with_u8_arrays() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize)]
+        struct StdRegProv;
+
+        #[derive(Serialize)]
+        struct GetBinaryValueParams {
+            sSubKeyName: String,
+            sValueName: String,
+        }
+
+        #[derive(Deserialize)]
+        struct GetBinaryValueOut {
+            uValue: Vec<u8>,
+        }
+
+        let in_params = GetBinaryValueParams {
+            sSubKeyName: r#"SYSTEM\CurrentControlSet\Control\Windows"#.to_string(),
+            sValueName: "FullProcessInformationSID".to_string(),
+        };
+
+        let value: GetBinaryValueOut = wmi_con
+            .exec_class_method::<StdRegProv, _, _>("GetBinaryValue", in_params)
+            .unwrap();
+
+        assert!(value.uValue.len() > 0, "Expected to get a non-empty value");
+    }
 }
