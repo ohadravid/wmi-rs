@@ -75,6 +75,24 @@ impl IWbemClassWrapper {
         }
     }
 
+    pub fn put_property(&self, property_name: &str, value: impl Into<Variant>) -> WMIResult<()> {
+        let name_prop = HSTRING::from(property_name);
+
+        let value = value.into();
+        let vt_prop: VARIANT = value.try_into()?;
+
+        // "In every other case, vtType must be 0 (zero)"
+        // See more at https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put
+        let cim_type = 0;
+
+        unsafe {
+            self.inner
+                .Put(PCWSTR::from_raw(name_prop.as_ptr()), 0, &vt_prop, cim_type)?;
+        }
+
+        Ok(())
+    }
+
     pub fn path(&self) -> WMIResult<String> {
         self.get_property("__Path").and_then(Variant::try_into)
     }
