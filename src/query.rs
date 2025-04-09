@@ -599,6 +599,7 @@ mod tests {
     use serde::Deserialize;
     use std::collections::HashMap;
     use windows::Win32::System::Wmi::WBEM_E_INVALID_QUERY;
+    use lazy_regex::regex_is_match;
 
     use crate::tests::fixtures::*;
     use crate::{Variant, WMIError};
@@ -607,9 +608,11 @@ mod tests {
     fn it_works_native_wrapper() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con
+        let mut enumerator = wmi_con
             .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
-            .unwrap();
+            .unwrap()
+            .peekable();
+        assert!(enumerator.peek().is_some());
 
         let res = enumerator.into_iter().next().unwrap();
         let w = res.unwrap();
@@ -645,9 +648,11 @@ mod tests {
     fn it_fails_gracefully() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con
+        let mut enumerator = wmi_con
             .exec_query_native_wrapper("SELECT NoSuchField FROM Win32_OperatingSystem")
-            .unwrap();
+            .unwrap()
+            .peekable();
+        assert!(enumerator.peek().is_some());
 
         for res in enumerator {
             assert!(res.is_err())
@@ -658,15 +663,26 @@ mod tests {
     fn it_fails_gracefully_with_invalid_sql() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con.exec_query_native_wrapper("42").unwrap();
+        let mut enumerator = wmi_con.exec_query_native_wrapper("42").unwrap().peekable();
+        assert!(enumerator.peek().is_some());
 
-        // Show how to detect which error had occurred.
+        // Show how to detect and display which error had occurred.
         for res in enumerator {
             match res {
                 Ok(_) => assert!(false),
                 Err(wmi_err) => match wmi_err {
                     WMIError::HResultError { hres } => {
                         assert_eq!(hres, WBEM_E_INVALID_QUERY.0);
+                        let display = format!("{}", wmi_err);
+                        assert!(
+                            regex_is_match!(
+                                "^HRESULT Call failed with: 0x80041017 \\(WBEM_E_INVALID_QUERY\\)\
+                                \\n\\S[\\s\\S]+", 
+                                &display
+                            ), 
+                            "{}", 
+                            display
+                        );
                     }
                     _ => assert!(false),
                 },

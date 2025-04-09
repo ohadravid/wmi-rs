@@ -14,7 +14,7 @@ fn main() -> WMIResult<()> {
 
     let results: Vec<HashMap<String, Variant>> = match wmi_con.raw_query(query) {
         Err(e) => {
-            println!("Couldn't run query {} because of {:?}", query, e);
+            println!("Couldn't run query {} because of {:?}\n{}", query, e, e);
             return Ok(());
         }
         Ok(results) => results,
