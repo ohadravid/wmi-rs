@@ -27,6 +27,7 @@ impl From<ContextValueType> for VARIANT {
     }
 }
 
+/// Provides access to WMI's context, available via [`WMIConnection::ctx`].
 #[derive(Clone, Debug)]
 pub struct WMIContext(pub(crate) IWbemContext);
 
@@ -44,7 +45,7 @@ impl WMIContext {
 
     /// Sets the specified named context value for use in providing additional context information to queries.
     ///
-    /// Note the context values will persist across subsequent queries until [`WMIConnection::delete_all`] is called.
+    /// Note the context values will persist across subsequent queries until [`WMIContext::delete_all`] is called.
     pub fn set_value(&mut self, key: &str, value: impl Into<ContextValueType>) -> WMIResult<()> {
         let value = value.into();
         unsafe { self.0.SetValue(&BSTR::from(key), 0, &value.into())? };

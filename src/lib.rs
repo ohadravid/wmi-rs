@@ -1,13 +1,12 @@
 //! # WMI-rs
 //!
 //! [WMI] is a management API for Windows-based operating systems.
-//! This crate provides a high level Rust API focused around data retrieval (vs. making changes to
-//! the system and watching for event which are also supported by WMI).
+//! This crate provides both a high-level Rust API (focused on data retrieval, event queries and method execution),
+//! as well as a mid-level API for easy access to native WMI methods.
 //!
-//! This crate also uses `serde` to transform pointers to WMI class objects into plain Rust structs.
+//! This crate also uses `serde` for transforming between native WMI class objects and plain Rust structs.
 //!
-//! All data is copied to Owning data structures, so the final structs are not tied in any way to
-//! the original WMI object (refer to MSDN's [Creating a WMI Application Using C++] to learn more about how data is handled by WMI).
+//! # Quickstart
 //!
 //! Before using WMI, a connection must be created.
 //!
@@ -22,12 +21,12 @@
 //!
 //! There are multiple ways to get data from the OS using this crate.
 //!
-//! # Operating on untyped Variants
+//! ## Operating on untyped `Variant`s
 //!
 //! WMI data model is based on COM's [`VARIANT`] Type, which is a struct capable of holding
 //! many types of data.
 //!
-//! This crate provides the analogous [`Variant`][Variant] enum.
+//! This crate provides the analogous [`crate::Variant`] enum.
 //!
 //! Using this enum, we can execute a simple WMI query and inspect the results.
 //!
@@ -46,7 +45,7 @@
 //! # }
 //! ```
 //!
-//! # Using strongly typed data structures
+//! ## Using strongly typed data structures
 //!
 //! Using `serde`, it is possible to return a struct representing the the data.
 //!
@@ -85,6 +84,26 @@
 //! [Creating a WMI Application Using C++]: https://docs.microsoft.com/en-us/windows/desktop/wmisdk/creating-a-wmi-application-using-c-
 //! [`VARIANT`]: https://docs.microsoft.com/en-us/windows/desktop/api/oaidl/ns-oaidl-tagvariant
 //! [WMI class]: https://docs.microsoft.com/en-us/windows/desktop/cimwin32prov/win32-operatingsystem
+//!
+//! # High-level API functions
+//!
+//! Queries and data retrieval - [`WMIConnection::query`], [`WMIConnection::filtered_query`], [`WMIConnection::get`], [`WMIConnection::get_by_path`] and [`WMIConnection::associators`].
+//!
+//! Event listening - [`WMIConnection::notification`] and [`WMIConnection::filtered_notification`].
+//!
+//! Method calling - [`WMIConnection::with_class`], [`WMIConnection::with_class_by_name`], [`WMIClass::exec_class_method`] and [`WMIClass::exec_instance_method`].
+//!
+//! Most of these have `async` versions as well.
+//!
+//! # Mid-level API functions
+//!
+//! Queries and data retrieval - [`WMIConnection::get_object`], [`WMIConnection::exec_query`] and [`WMIConnection::exec_query_async`].
+//!
+//! Event listening - [`WMIConnection::exec_notification_query`] and [`WMIConnection::exec_notification_query_async`].
+//!
+//! Method calling - [`WMIConnection::exec_method`] and [`IWbemClassWrapper`].
+//!
+//! These try to keep the names of the underlying WMI machinery.
 //!
 //! # Subscribing to event notifications
 //!
@@ -198,17 +217,17 @@
 //!
 //! The crate also offers support for executing WMI methods on classes and instances.
 //!
-//! See [`WMIConnection::exec_class_method`], [`WMIConnection::exec_instance_method`] and [`WMIConnection::exec_method_native_wrapper`]
+//! See [`WMIClass::exec_class_method`], [`WMIClass::exec_instance_method`] and [`WMIConnection::exec_method`]
 //! for detailed examples.
 //!
 //! # Internals
 //!
-//! [`WMIConnection`](WMIConnection) is used to create and execute a WMI query, returning
-//! [`IWbemClassWrapper`](result_enumerator::IWbemClassWrapper) which is a wrapper for a WMI object pointer.
+//! [`WMIConnection`] is used to create and execute a WMI query, returning
+//! [`IWbemClassWrapper`] which is a wrapper for a WMI object pointer.
 //!
-//! Then, [`from_wbem_class_obj`](de::wbem_class_de::from_wbem_class_obj) is used to create a Rust struct with the equivalent data.
+//! Then, `from_wbem_class_obj` is used to create a Rust struct with the equivalent data.
 //!
-//! Deserializing data from WMI and into Rust is done via `serde` and is implemented in the [`de`][de] module.
+//! Deserializing data from WMI and into Rust is done via `serde`.
 //! More info can be found in `serde`'s documentation about [writing a data format].
 //! The deserializer will either use the field names defined on the output struct,
 //! or retrieve all field names from WMI if the output is a `HashMap`.
@@ -216,28 +235,13 @@
 //! [writing a data format]: https://serde.rs/data-format.html
 //!
 //! There are two main data structures (other than pointers to object) which convert native data to Rust data structures:
-//! [`Variant`](Variant) and [`SafeArrayAccessor`](safearray::SafeArrayAccessor).
+//! [`crate::Variant`] and [`SafeArrayAccessor`](safearray::SafeArrayAccessor).
 //!
 //! Most native objects has an equivalent wrapper struct which implements `Drop` for that data.
 //!
 //! # Async Query
 //!
 //! Async queries use WMI's native async support (but a runtime like `tokio`, `async-std` or `futures::executor::block_on` is still required).
-//!
-//! ```edition2018
-//! # use futures::executor::block_on;
-//! # block_on(exec_async_query()).unwrap();
-//! # async fn exec_async_query() -> wmi::WMIResult<()> {
-//! use wmi::*;
-//! use futures::StreamExt;
-//! let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
-//! let results = wmi_con
-//!     .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")?
-//!     .collect::<Vec<_>>().await;
-//! #   Ok(())
-//! # }
-//! ```
-//! It it also possible to return a struct representing the the data.
 //!
 //! ```edition2018
 //! # use futures::executor::block_on;
@@ -264,8 +268,6 @@
 //! # }
 //! ```
 //!
-//!
-//!
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(unused_unsafe)]
@@ -273,30 +275,29 @@
 #![allow(clippy::needless_lifetimes)]
 #![cfg(windows)]
 
-pub mod connection;
+mod connection;
 
 #[cfg(feature = "chrono")]
-pub mod datetime;
+mod datetime;
 
 #[cfg(feature = "time")]
 mod datetime_time;
 
-pub mod context;
-pub mod de;
-pub mod duration;
-pub mod method;
-pub mod query;
-pub mod result_enumerator;
+mod context;
+mod de;
+mod duration;
+mod method;
+mod query;
+mod result_enumerator;
 pub mod safearray;
-pub mod ser;
-pub mod utils;
-pub mod variant;
+mod ser;
+mod utils;
+mod variant;
 
-pub mod async_query;
-// Keep QuerySink implementation private
-pub(crate) mod query_sink;
+mod async_query;
+mod query_sink;
 
-pub mod notification;
+mod notification;
 
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
@@ -309,8 +310,11 @@ pub use datetime::WMIDateTime;
 #[cfg(feature = "time")]
 pub use datetime_time::WMIOffsetDateTime;
 
+pub use context::{ContextValueType, WMIContext};
 pub use duration::WMIDuration;
-pub use query::{build_notification_query, build_query, FilterValue};
+pub use method::WMIClass;
+pub use query::{build_notification_query, build_query, quote_and_escape_wql_str, FilterValue};
+pub use result_enumerator::IWbemClassWrapper;
 pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;
 

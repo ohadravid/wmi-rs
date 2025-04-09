@@ -1,6 +1,6 @@
 use crate::{
-    connection::WMIConnection, de::wbem_class_de::from_wbem_class_obj,
-    safearray::safe_array_to_vec_of_strings, Variant, WMIError, WMIResult,
+    de::wbem_class_de::from_wbem_class_obj, safearray::safe_array_to_vec_of_strings, Variant,
+    WMIError, WMIResult,
 };
 use log::trace;
 use serde::{
@@ -16,14 +16,12 @@ use windows::Win32::System::Wmi::{
     WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE,
 };
 use windows::{
-    core::{HSTRING, PCWSTR},
+    core::{BSTR, HSTRING, PCWSTR},
     Win32::System::Wmi::WBEM_CONDITION_FLAG_TYPE,
 };
 
-/// A wrapper around a raw pointer to IWbemClassObject, which also takes care of releasing
-/// the object when dropped.
+/// A wrapper around a [IWbemClassObject](https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nn-wbemcli-iwbemclassobject).
 ///
-#[repr(transparent)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IWbemClassWrapper {
     pub inner: IWbemClassObject,
@@ -34,8 +32,8 @@ impl IWbemClassWrapper {
         Self { inner }
     }
 
-    /// Return the names of all the properties of the given object.
-    ///
+    /// Return the names of all the properties of the object.
+    /// See more at <https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-getnames>.
     pub fn list_properties(&self) -> WMIResult<Vec<String>> {
         let p_names = unsafe {
             self.inner.GetNames(
@@ -52,6 +50,8 @@ impl IWbemClassWrapper {
         res
     }
 
+    /// Get the value of a property.
+    /// See more at <https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-get>.
     pub fn get_property(&self, property_name: &str) -> WMIResult<Variant> {
         let name_prop = HSTRING::from(property_name);
 
@@ -75,6 +75,8 @@ impl IWbemClassWrapper {
         }
     }
 
+    /// Set the value of a property.
+    /// See more at <https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put>.
     pub fn put_property(&self, property_name: &str, value: impl Into<Variant>) -> WMIResult<()> {
         let name_prop = HSTRING::from(property_name);
 
@@ -82,7 +84,7 @@ impl IWbemClassWrapper {
         let vt_prop: VARIANT = value.try_into()?;
 
         // "In every other case, vtType must be 0 (zero)"
-        // See more at https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put
+        // See more at <https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put>.
         let cim_type = 0;
 
         unsafe {
@@ -91,6 +93,40 @@ impl IWbemClassWrapper {
         }
 
         Ok(())
+    }
+
+    /// Get a method of this object. See [`crate::WMIConnection::exec_method`] for a usage example.
+    /// Note: GetMethod can only be called on a class definition.
+    /// See more at <https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-getmethod>.
+    ///
+    /// The method may have no input parameters, such as in this case: <https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/reboot-method-in-class-win32-operatingsystem>.
+    /// In such cases, `None` is returned.
+    pub fn get_method(&self, name: impl AsRef<str>) -> WMIResult<Option<IWbemClassWrapper>> {
+        let method = BSTR::from(name.as_ref());
+
+        // Retrieve the input signature of the WMI method.
+        // The fields of the resulting IWbemClassObject will have the names and types of the WMI method's input parameters
+        let mut input_signature = None;
+
+        unsafe {
+            self.inner.GetMethod(
+                &method,
+                Default::default(),
+                &mut input_signature,
+                std::ptr::null_mut(),
+            )?;
+        }
+
+        Ok(input_signature.map(IWbemClassWrapper::new))
+    }
+
+    /// Create a new instance a class. See [`crate::WMIConnection::exec_method`] for a usage example.
+    /// See more at <https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-spawninstance>.
+    pub fn spawn_instance(&self) -> WMIResult<IWbemClassWrapper> {
+        let inst = unsafe { self.inner.SpawnInstance(Default::default())? };
+        let inst = IWbemClassWrapper::new(inst);
+
+        Ok(inst)
     }
 
     pub fn path(&self) -> WMIResult<String> {
@@ -124,21 +160,17 @@ impl Serialize for IWbemClassWrapper {
     }
 }
 
-pub struct QueryResultEnumerator<'a> {
-    _wmi_con: &'a WMIConnection,
+pub(crate) struct QueryResultEnumerator {
     p_enumerator: IEnumWbemClassObject,
 }
 
-impl<'a> QueryResultEnumerator<'a> {
-    pub fn new(wmi_con: &'a WMIConnection, p_enumerator: IEnumWbemClassObject) -> Self {
-        Self {
-            _wmi_con: wmi_con,
-            p_enumerator,
-        }
+impl QueryResultEnumerator {
+    pub(crate) fn new(p_enumerator: IEnumWbemClassObject) -> Self {
+        Self { p_enumerator }
     }
 }
 
-impl<'a> Iterator for QueryResultEnumerator<'a> {
+impl Iterator for QueryResultEnumerator {
     type Item = WMIResult<IWbemClassWrapper>;
 
     fn next(&mut self) -> Option<Self::Item> {

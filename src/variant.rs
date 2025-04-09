@@ -292,6 +292,7 @@ impl TryFrom<Variant> for VARIANT {
             Variant::UI2(uint16) => Ok(VARIANT::from(uint16)),
             Variant::UI4(uint32) => Ok(VARIANT::from(uint32)),
             Variant::UI8(uint64) => Ok(VARIANT::from(uint64)),
+            Variant::Object(instance) => Ok(VARIANT::from(IUnknown::from(instance.inner))),
 
             // windows-rs' VARIANT does not support creating these types of VARIANT at present
             Variant::Null => Err(WMIError::ConvertVariantError(
@@ -302,9 +303,6 @@ impl TryFrom<Variant> for VARIANT {
             )),
             Variant::Unknown(_) => Err(WMIError::ConvertVariantError(
                 "Cannot convert Variant::Unknown to a Windows VARIANT".to_string(),
-            )),
-            Variant::Object(_) => Err(WMIError::ConvertVariantError(
-                "Cannot convert Variant::Object to a Windows VARIANT".to_string(),
             )),
         }
     }
