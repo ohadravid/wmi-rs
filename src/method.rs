@@ -65,7 +65,7 @@ impl WMIConnection {
 
     /// Specify a class using a type, for executing methods.
     /// See [`WMIClass::exec_class_method`] and [`WMIClass::exec_instance_method`] for an example.
-    pub fn with_class<Class>(&self) -> WMIResult<WMIClass>
+    pub fn with_class<'a, Class>(&'a self) -> WMIResult<WMIClass<'a>>
     where
         Class: de::DeserializeOwned,
     {
@@ -76,23 +76,18 @@ impl WMIConnection {
 
     /// Specify a class by name, for executing methods.
     /// See [`WMIClass::exec_class_method`] and [`WMIClass::exec_instance_method`] for an example.
-    pub fn with_class_by_name(&self, class: impl Into<String>) -> WMIResult<WMIClass> {
-        let class = class.into();
-
-        Ok(WMIClass {
-            wmi: self.clone(),
-            class: class.to_string(),
-        })
+    pub fn with_class_by_name<'a>(&'a self, class: &'a str) -> WMIResult<WMIClass<'a>> {
+        Ok(WMIClass { wmi: self, class })
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct WMIClass {
-    wmi: WMIConnection,
-    class: String,
+pub struct WMIClass<'a> {
+    wmi: &'a WMIConnection,
+    class: &'a str,
 }
 
-impl WMIClass {
+impl<'a> WMIClass<'a> {
     /// Executes a method of a WMI class not tied to any specific instance. Examples include
     /// [Create](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/create-method-in-class-win32-process) of `Win32_Process`
     /// and [AddPrinterConnection](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/addprinterconnection-method-in-class-win32-printer) of `Win32_Printer`.
@@ -149,7 +144,7 @@ impl WMIClass {
         In: Serialize + de::DeserializeOwned,
         Out: de::DeserializeOwned,
     {
-        self.exec_instance_method(&self.class, in_params)
+        self.exec_instance_method(self.class, in_params)
     }
 
     /// Executes a WMI method on a specific instance of a class. Examples include
@@ -218,15 +213,13 @@ impl WMIClass {
     {
         let (method, _) = struct_name_and_fields::<In>()?;
         let serializer = VariantSerializer {
-            wmi: self.wmi.clone(),
-            class: Some(self.class.clone()),
+            wmi: self.wmi,
+            class: Some(self.class),
         };
 
-        let output = match in_params.serialize(serializer) {
-            Ok(Variant::Object(instance)) => {
-                self.wmi.exec_method(object_path, method, Some(&instance))?
-            }
-            Ok(Variant::Empty) => self.wmi.exec_method(object_path, method, None)?,
+        let instance = match in_params.serialize(serializer) {
+            Ok(Variant::Object(instance)) => Some(instance),
+            Ok(Variant::Empty) => None,
             Ok(other) => {
                 return Err(WMIError::ConvertVariantError(format!(
                     "Unexpected serializer output: {:?}",
@@ -235,6 +228,10 @@ impl WMIClass {
             }
             Err(e) => return Err(WMIError::ConvertVariantError(e.to_string())),
         };
+
+        let output = self
+            .wmi
+            .exec_method(object_path, method, instance.as_ref())?;
 
         match output {
             Some(class_wrapper) => Ok(class_wrapper.into_desr()?),
@@ -265,7 +262,6 @@ mod tests {
     struct Terminate {}
 
     #[derive(Deserialize)]
-    #[allow(non_snake_case)]
     struct CreateOutput {
         ReturnValue: u32,
         ProcessId: u32,

@@ -27,12 +27,12 @@ macro_rules! serialize_variant {
     };
 }
 
-pub(crate) struct VariantSerializer {
-    pub(crate) wmi: WMIConnection,
-    pub(crate) class: Option<String>,
+pub(crate) struct VariantSerializer<'a> {
+    pub(crate) wmi: &'a WMIConnection,
+    pub(crate) class: Option<&'a str>,
 }
 
-impl Serializer for VariantSerializer {
+impl<'a> Serializer for VariantSerializer<'a> {
     type Ok = Variant;
     type Error = VariantSerializerError;
 
@@ -41,7 +41,7 @@ impl Serializer for VariantSerializer {
     type SerializeTupleStruct = Impossible<Self::Ok, Self::Error>;
     type SerializeTupleVariant = Impossible<Self::Ok, Self::Error>;
     type SerializeMap = Impossible<Self::Ok, Self::Error>;
-    type SerializeStruct = VariantInstanceSerializer;
+    type SerializeStruct = VariantInstanceSerializer<'a>;
     type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
 
     serialize_variant!(serialize_bool, bool);
@@ -172,7 +172,7 @@ impl Serializer for VariantSerializer {
     ) -> Result<Self::SerializeStruct, Self::Error> {
         // See https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-getmethod
         // GetMethod can only be called on a class definition, so we retrieve that before retrieving a specific object
-        let instance = match self.class.as_deref() {
+        let instance = match self.class {
             Some(class) => self.wmi.get_object(class)?.get_method(name)?,
             None => Some(self.wmi.get_object(name)?),
         };
@@ -219,12 +219,12 @@ impl serde::ser::Error for VariantSerializerError {
     }
 }
 
-pub(crate) struct VariantInstanceSerializer {
+pub(crate) struct VariantInstanceSerializer<'a> {
     instance: Option<IWbemClassWrapper>,
-    wmi: WMIConnection,
+    wmi: &'a WMIConnection,
 }
 
-impl SerializeStruct for VariantInstanceSerializer {
+impl<'a> SerializeStruct for VariantInstanceSerializer<'a> {
     type Ok = Variant;
 
     type Error = VariantSerializerError;
@@ -234,7 +234,7 @@ impl SerializeStruct for VariantInstanceSerializer {
         T: ?Sized + Serialize,
     {
         let variant = value.serialize(VariantSerializer {
-            wmi: self.wmi.clone(),
+            wmi: self.wmi,
             class: None,
         });
 
@@ -287,8 +287,8 @@ mod tests {
 
         let instance_from_ser = in_params
             .serialize(VariantSerializer {
-                wmi: wmi_con.clone(),
-                class: "StdRegProv".to_string().into(),
+                wmi: &wmi_con,
+                class: "StdRegProv".into(),
             })
             .unwrap();
 
@@ -342,7 +342,7 @@ mod tests {
 
         let startup_info_instance = startup_info
             .serialize(VariantSerializer {
-                wmi: wmi_con.clone(),
+                wmi: &wmi_con,
                 class: None,
             })
             .unwrap();
@@ -368,8 +368,8 @@ mod tests {
 
         let instance_from_ser = create_params
             .serialize(VariantSerializer {
-                wmi: wmi_con.clone(),
-                class: "Win32_Process".to_string().into(),
+                wmi: &wmi_con,
+                class: "Win32_Process".into(),
             })
             .unwrap();
 
