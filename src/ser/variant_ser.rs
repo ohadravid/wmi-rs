@@ -66,15 +66,17 @@ impl Serializer for VariantSerializer {
 
     fn serialize_newtype_variant<T>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
-        value: &T,
+        variant: &'static str,
+        _value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + Serialize,
     {
-        value.serialize(self)
+        Err(VariantSerializerError::UnsupportedVariantType(format!(
+            "{variant}::{name}"
+        )))
     }
 
     fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
@@ -243,7 +245,7 @@ impl SerializeStruct for VariantInstanceSerializer {
 
         match variant {
             Ok(value) => {
-                instance.put_property(key, value).unwrap();
+                instance.put_property(key, value)?;
                 Ok(())
             }
             Err(_) => Err(VariantSerializerError::UnsupportedVariantType(
