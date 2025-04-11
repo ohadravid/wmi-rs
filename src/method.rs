@@ -77,7 +77,7 @@ impl WMIConnection {
     /// ```edition2021
     /// # use serde::{Deserialize, Serialize};
     /// # use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
-    /// #[derive(Serialize, Deserialize)]
+    /// #[derive(Serialize)]
     /// # #[allow(non_snake_case)]
     /// struct CreateInput {
     ///     CommandLine: String
