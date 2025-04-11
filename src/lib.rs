@@ -91,7 +91,7 @@
 //!
 //! Event listening - [`WMIConnection::notification`] and [`WMIConnection::filtered_notification`].
 //!
-//! Method calling - [`WMIConnection::with_class`], [`WMIConnection::with_class_by_name`], [`WMIClass::exec_class_method`] and [`WMIClass::exec_instance_method`].
+//! Method calling - [`WMIConnection::exec_class_method`] and [`WMIConnection::exec_instance_method`].
 //!
 //! Most of these have `async` versions as well.
 //!
@@ -217,7 +217,7 @@
 //!
 //! The crate also offers support for executing WMI methods on classes and instances.
 //!
-//! See [`WMIClass::exec_class_method`], [`WMIClass::exec_instance_method`] and [`WMIConnection::exec_method`]
+//! See [`WMIConnection::exec_class_method`], [`WMIConnection::exec_instance_method`] and [`WMIConnection::exec_method`]
 //! for detailed examples.
 //!
 //! # Internals
@@ -312,7 +312,6 @@ pub use datetime_time::WMIOffsetDateTime;
 
 pub use context::{ContextValueType, WMIContext};
 pub use duration::WMIDuration;
-pub use method::WMIClass;
 pub use query::{build_notification_query, build_query, quote_and_escape_wql_str, FilterValue};
 pub use result_enumerator::IWbemClassWrapper;
 pub use utils::{WMIError, WMIResult};

@@ -9,7 +9,7 @@ use crate::{
 impl WMIConnection {
     /// Wrapper for WMI's [ExecMethod](https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemservices-execmethod) function.
     ///
-    /// This function is used internally by [`WMIClass::exec_class_method`] and [`WMIClass::exec_instance_method`],
+    /// This function is used internally by [`WMIConnection::exec_class_method`] and [`WMIConnection::exec_instance_method`],
     /// which are a higher-level abstraction, dealing with Rust data types instead of raw Variants, that should be preferred to use.
     ///
     /// In the case of a class ("static") method, `object_path` should be name of the class.
@@ -63,39 +63,9 @@ impl WMIConnection {
         Ok(output.map(IWbemClassWrapper::new))
     }
 
-    /// Specify a class using a type, for executing methods.
-    /// See [`WMIClass::exec_class_method`] and [`WMIClass::exec_instance_method`] for an example.
-    pub fn with_class<'a, Class>(&'a self) -> WMIResult<WMIClass<'a>>
-    where
-        Class: de::DeserializeOwned,
-    {
-        let (class, _) = struct_name_and_fields::<Class>()?;
-
-        self.with_class_by_name(class)
-    }
-
-    /// Specify a class by name, for executing methods.
-    /// See [`WMIClass::exec_class_method`] and [`WMIClass::exec_instance_method`] for an example.
-    pub fn with_class_by_name<'a>(&'a self, class: &'a str) -> WMIResult<WMIClass<'a>> {
-        Ok(WMIClass { wmi: self, class })
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct WMIClass<'a> {
-    wmi: &'a WMIConnection,
-    class: &'a str,
-}
-
-impl<'a> WMIClass<'a> {
     /// Executes a method of a WMI class not tied to any specific instance. Examples include
     /// [Create](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/create-method-in-class-win32-process) of `Win32_Process`
     /// and [AddPrinterConnection](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/addprinterconnection-method-in-class-win32-printer) of `Win32_Printer`.
-    ///
-    /// `In` and `Out` can custom structs supporting (de)serialization containing the input and output parameters of the function.
-    ///
-    /// Note: The `In` struct's name must deserialize to the invoked method's name,
-    /// since the method signature also defines a type which is used for passing in the parameters of the call.
     ///
     /// A method with a return type other than `void` will always try to populate a generic property named `ReturnValue` in the output object with the return value of the WMI method call.
     /// If the method call has a `void` return type and no out parameters, the only acceptable type for `Out` is `()`.
@@ -109,7 +79,7 @@ impl<'a> WMIClass<'a> {
     /// # use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
     /// #[derive(Serialize, Deserialize)]
     /// # #[allow(non_snake_case)]
-    /// struct Create {
+    /// struct CreateInput {
     ///     CommandLine: String
     /// }
     ///
@@ -127,34 +97,33 @@ impl<'a> WMIClass<'a> {
     /// # fn main() -> WMIResult<()> {
     /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
     /// // Note: The Create call can be unreliable, so consider using another means of starting processes.
-    /// let input = Create {
+    /// let input = CreateInput {
     ///     CommandLine: "explorer.exe".to_string()
     /// };
     /// let output: CreateOutput = wmi_con
-    ///     .with_class::<Win32_Process>()?
-    ///     .exec_class_method(input)?;
+    ///     .exec_class_method::<Win32_Process, _>("Create", input)?;
     ///
     /// println!("The return code of the Create call is {}", output.ReturnValue);
     /// println!("The ID of the created process is: {}", output.ProcessId);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn exec_class_method<In, Out>(&self, in_params: In) -> WMIResult<Out>
+    pub fn exec_class_method<Class, Out>(
+        &self,
+        method: impl AsRef<str>,
+        in_params: impl Serialize,
+    ) -> WMIResult<Out>
     where
-        In: Serialize + de::DeserializeOwned,
+        Class: de::DeserializeOwned,
         Out: de::DeserializeOwned,
     {
-        self.exec_instance_method(self.class, in_params)
+        let (class, _) = struct_name_and_fields::<Class>()?;
+        self.exec_instance_method::<Class, _>(class, method, in_params)
     }
 
     /// Executes a WMI method on a specific instance of a class. Examples include
     /// [GetSupportedSize](https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-Volume-getsupportedsizes) of `MSFT_Volume`
     /// and [Pause](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/pause-method-in-class-win32-printer) of `Win32_Printer`.
-    ///
-    /// `In` and `Out` can be `()` or any custom structs supporting (de)serialization containing the input and output parameters of the function.
-    ///
-    /// Note: The `In` struct's name must deserialize to the invoked method's name,
-    /// since the method signature also defines a type which is used for passing in the parameters of the call.
     ///
     /// `object_path` is the `__Path` variable of the class instance on which the method is being called, which can be obtained from a WMI query.
     ///
@@ -178,60 +147,59 @@ impl<'a> WMIClass<'a> {
     ///     __Path: String
     /// }
     ///
-    /// #[derive(Serialize, Deserialize)]
-    /// # #[allow(non_snake_case)]
-    /// struct Pause;
-    ///
-    /// #[derive(Serialize, Deserialize)]
-    /// # #[allow(non_snake_case)]
-    /// struct Resume;
-    ///
     /// # fn main() -> WMIResult<()> {
     /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
     /// let printers: Vec<Win32_Printer> = wmi_con.query()?;
     ///
-    /// let wmi_printer_cls = wmi_con.with_class::<Win32_Printer>()?;
-    ///
     /// for printer in printers {
-    ///     let output: PrinterOutput = wmi_printer_cls.exec_instance_method(&printer.__Path, Pause)?;
+    ///     let output: PrinterOutput = wmi_con.exec_instance_method::<Win32_Printer, _>(&printer.__Path, "Pause", ())?;
     ///     println!("Pausing the printer returned {}", output.ReturnValue);
     ///
-    ///     let output: PrinterOutput = wmi_printer_cls.exec_instance_method(&printer.__Path, Resume)?;
+    ///     let output: PrinterOutput = wmi_con.exec_instance_method::<Win32_Printer, _>(&printer.__Path, "Resume", ())?;
     ///     println!("Resuming the printer returned {}", output.ReturnValue);
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn exec_instance_method<In, Out>(
+    pub fn exec_instance_method<Class, Out>(
         &self,
         object_path: impl AsRef<str>,
-        in_params: In,
+        method: impl AsRef<str>,
+        in_params: impl Serialize,
     ) -> WMIResult<Out>
     where
-        In: Serialize + de::DeserializeOwned,
+        Class: de::DeserializeOwned,
         Out: de::DeserializeOwned,
     {
-        let (method, _) = struct_name_and_fields::<In>()?;
-        let serializer = VariantSerializer {
-            wmi: self.wmi,
-            class: Some(self.class),
-        };
+        let (class, _) = struct_name_and_fields::<Class>()?;
+        let method = method.as_ref();
 
-        let instance = match in_params.serialize(serializer) {
-            Ok(Variant::Object(instance)) => Some(instance),
-            Ok(Variant::Empty) => None,
-            Ok(other) => {
-                return Err(WMIError::ConvertVariantError(format!(
-                    "Unexpected serializer output: {:?}",
-                    other
-                )))
+        // See https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-getmethod
+        // GetMethod can only be called on a class definition, so we retrieve that before retrieving a specific object.
+        let instance = match self.get_object(class)?.get_method(method)? {
+            None => None,
+            Some(method_class) => {
+                let instance = method_class.spawn_instance()?;
+
+                let serializer = VariantSerializer {
+                    wmi: self,
+                    instance: Some(instance),
+                };
+
+                match in_params.serialize(serializer) {
+                    Ok(Variant::Object(instance)) => Some(instance),
+                    Ok(other) => {
+                        return Err(WMIError::ConvertVariantError(format!(
+                            "Unexpected serializer output: {:?}",
+                            other
+                        )))
+                    }
+                    Err(e) => return Err(WMIError::ConvertVariantError(e.to_string())),
+                }
             }
-            Err(e) => return Err(WMIError::ConvertVariantError(e.to_string())),
         };
 
-        let output = self
-            .wmi
-            .exec_method(object_path, method, instance.as_ref())?;
+        let output = self.exec_method(object_path, method, instance.as_ref())?;
 
         match output {
             Some(class_wrapper) => Ok(class_wrapper.into_desr()?),
@@ -300,9 +268,7 @@ mod tests {
             CommandLine: "explorer.exe".to_string(),
         };
         let out: CreateOutput = wmi_con
-            .with_class::<Win32_Process>()
-            .unwrap()
-            .exec_class_method(in_params)
+            .exec_class_method::<Win32_Process, _>("Create", in_params)
             .unwrap();
 
         assert_eq!(out.ReturnValue, 0);
@@ -315,9 +281,7 @@ mod tests {
         let process = &wmi_con.raw_query::<Win32_Process>(&query).unwrap()[0];
 
         let _: () = wmi_con
-            .with_class::<Win32_Process>()
-            .unwrap()
-            .exec_instance_method(&process.__Path, Terminate {})
+            .exec_instance_method::<Win32_Process, _>(&process.__Path, "Terminate", ())
             .unwrap();
 
         // It can take a moment for the process to terminate, so we retry the query a few times.
@@ -334,6 +298,9 @@ mod tests {
     #[test]
     fn it_exec_with_u8_arrays() {
         let wmi_con = wmi_con();
+
+        #[derive(Deserialize)]
+        struct StdRegProv;
 
         #[derive(Deserialize, Serialize)]
         struct GetBinaryValue {
@@ -352,9 +319,7 @@ mod tests {
         };
 
         let value: GetBinaryValueOut = wmi_con
-            .with_class_by_name("StdRegProv")
-            .unwrap()
-            .exec_class_method(get_binary_value_params)
+            .exec_class_method::<StdRegProv, _>("GetBinaryValue", get_binary_value_params)
             .unwrap();
 
         assert!(value.uValue.len() > 0, "Expected to get a non-empty value");

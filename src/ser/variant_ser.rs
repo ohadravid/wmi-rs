@@ -29,7 +29,7 @@ macro_rules! serialize_variant {
 
 pub(crate) struct VariantSerializer<'a> {
     pub(crate) wmi: &'a WMIConnection,
-    pub(crate) class: Option<&'a str>,
+    pub(crate) instance: Option<IWbemClassWrapper>,
 }
 
 impl<'a> Serializer for VariantSerializer<'a> {
@@ -57,7 +57,8 @@ impl<'a> Serializer for VariantSerializer<'a> {
     serialize_variant!(serialize_f64, f64);
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        Ok(Variant::Empty)
+        // When starting from an instance, deserializing a unit means returning the original instance unmodified.
+        Ok(self.instance.map(Variant::from).unwrap_or(Variant::Empty))
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
@@ -170,16 +171,17 @@ impl<'a> Serializer for VariantSerializer<'a> {
         name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        // See https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-getmethod
-        // GetMethod can only be called on a class definition, so we retrieve that before retrieving a specific object
-        let instance = match self.class {
-            Some(class) => self.wmi.get_object(class)?.get_method(name)?,
-            None => Some(self.wmi.get_object(name)?),
+        // We are only given an initialized instance when called from `exec_method`,
+        // with the instance matching the method signature class.
+        // Otherwise, we use the name of the struct to create. See test for  `Win32_Process` with "Create" and `Win32_ProcessStartup`.
+        let instance = match self.instance {
+            Some(instance) => instance,
+            None => self.wmi.get_object(name)?.spawn_instance()?,
         };
 
         let ser = VariantInstanceSerializer {
             wmi: self.wmi,
-            instance,
+            instance: Some(instance),
         };
 
         Ok(ser)
@@ -235,7 +237,7 @@ impl<'a> SerializeStruct for VariantInstanceSerializer<'a> {
     {
         let variant = value.serialize(VariantSerializer {
             wmi: self.wmi,
-            class: None,
+            instance: None,
         });
 
         let instance = self
@@ -280,15 +282,26 @@ mod tests {
             sSubKeyName: String,
             sValueName: String,
         }
+
         let in_params = GetBinaryValue {
             sSubKeyName: r#"SYSTEM\CurrentControlSet\Control\Windows"#.to_string(),
             sValueName: "FullProcessInformationSID".to_string(),
         };
 
+        // Similar to how `exec_class_method` creates these objects.
+        let method_instance = wmi_con
+            .get_object("StdRegProv")
+            .unwrap()
+            .get_method("GetBinaryValue")
+            .unwrap()
+            .unwrap()
+            .spawn_instance()
+            .unwrap();
+
         let instance_from_ser = in_params
             .serialize(VariantSerializer {
                 wmi: &wmi_con,
-                class: "StdRegProv".into(),
+                instance: Some(method_instance),
             })
             .unwrap();
 
@@ -343,7 +356,7 @@ mod tests {
         let startup_info_instance = startup_info
             .serialize(VariantSerializer {
                 wmi: &wmi_con,
-                class: None,
+                instance: None,
             })
             .unwrap();
 
@@ -366,19 +379,8 @@ mod tests {
             ProcessStartupInformation: startup_info,
         };
 
-        let instance_from_ser = create_params
-            .serialize(VariantSerializer {
-                wmi: &wmi_con,
-                class: "Win32_Process".into(),
-            })
-            .unwrap();
-
-        let instance_from_ser = match instance_from_ser {
-            Variant::Object(instance_from_ser) => instance_from_ser,
-            _ => panic!("Unexpected value {:?}", instance_from_ser),
-        };
-
-        let expected_instance = wmi_con
+        // Similar to how `exec_class_method` creates these objects.
+        let method_instance = wmi_con
             .get_object("Win32_Process")
             .unwrap()
             .get_method("Create")
@@ -387,10 +389,17 @@ mod tests {
             .spawn_instance()
             .unwrap();
 
-        assert_eq!(
-            instance_from_ser.class().unwrap(),
-            expected_instance.class().unwrap()
-        );
+        let instance_from_ser = create_params
+            .serialize(VariantSerializer {
+                wmi: &wmi_con,
+                instance: Some(method_instance),
+            })
+            .unwrap();
+
+        let instance_from_ser = match instance_from_ser {
+            Variant::Object(instance_from_ser) => instance_from_ser,
+            _ => panic!("Unexpected value {:?}", instance_from_ser),
+        };
 
         assert_eq!(
             instance_from_ser.get_property("CommandLine").unwrap(),

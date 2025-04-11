@@ -358,6 +358,7 @@ bidirectional_variant_convert!(u64, UI8);
 bidirectional_variant_convert!(f32, R4);
 bidirectional_variant_convert!(f64, R8);
 bidirectional_variant_convert!(bool, Bool);
+bidirectional_variant_convert!(IWbemClassWrapper, Object);
 
 impl From<()> for Variant {
     fn from(_value: ()) -> Self {
