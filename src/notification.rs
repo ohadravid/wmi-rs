@@ -18,10 +18,10 @@ impl WMIConnection {
     /// Execute the given query to receive events and return an iterator of WMI pointers.
     /// It's better to use the other query methods, since this is relatively low level.
     ///
-    pub fn notification_native_wrapper(
+    pub fn exec_notification_query(
         &self,
         query: impl AsRef<str>,
-    ) -> WMIResult<QueryResultEnumerator> {
+    ) -> WMIResult<impl Iterator<Item = WMIResult<IWbemClassWrapper>> + 'static> {
         let query_language = BSTR::from("WQL");
         let query = BSTR::from(query.as_ref());
 
@@ -33,9 +33,8 @@ impl WMIConnection {
                 None,
             )?
         };
-        log::trace!("Got enumerator {:?}", enumerator);
 
-        Ok(QueryResultEnumerator::new(self, enumerator))
+        Ok(QueryResultEnumerator::new(enumerator))
     }
 
     /// Execute a free-text query and deserialize the incoming events.
@@ -58,14 +57,14 @@ impl WMIConnection {
     /// #   Ok(()) // This query will fail when not run as admin
     /// # }
     /// ```
-    pub fn raw_notification<'a, T>(
-        &'a self,
+    pub fn raw_notification<T>(
+        &self,
         query: impl AsRef<str>,
-    ) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
+    ) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'static>
     where
-        T: serde::de::DeserializeOwned + 'a,
+        T: serde::de::DeserializeOwned,
     {
-        let enumerator = self.notification_native_wrapper(query)?;
+        let enumerator = self.exec_notification_query(query)?;
         let iter = enumerator.map(|item| match item {
             Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
             Err(e) => Err(e),
@@ -98,9 +97,9 @@ impl WMIConnection {
     /// #   Ok(()) // This query will fail when not run as admin
     /// # }
     /// ```
-    pub fn notification<'a, T>(&'a self) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
+    pub fn notification<T>(&self) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'static>
     where
-        T: serde::de::DeserializeOwned + 'a,
+        T: serde::de::DeserializeOwned,
     {
         let query_text = build_notification_query::<T>(None, None)?;
         self.raw_notification(query_text)
@@ -133,13 +132,13 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn filtered_notification<'a, T>(
-        &'a self,
+    pub fn filtered_notification<T>(
+        &self,
         filters: &HashMap<String, FilterValue>,
         within: Option<Duration>,
-    ) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'a>
+    ) -> WMIResult<impl Iterator<Item = WMIResult<T>> + 'static>
     where
-        T: serde::de::DeserializeOwned + 'a,
+        T: serde::de::DeserializeOwned,
     {
         let query_text = build_notification_query::<T>(Some(filters), within)?;
         self.raw_notification(query_text)
@@ -149,7 +148,7 @@ impl WMIConnection {
     /// method. Provides safety checks, and returns results
     /// as a stream instead of the original Sink.
     ///
-    pub fn async_notification_native_wrapper(
+    pub fn exec_notification_query_async(
         &self,
         query: impl AsRef<str>,
     ) -> WMIResult<impl Stream<Item = WMIResult<IWbemClassWrapper>>> {
@@ -214,7 +213,7 @@ impl WMIConnection {
         T: serde::de::DeserializeOwned,
     {
         let stream = self
-            .async_notification_native_wrapper(query)?
+            .exec_notification_query_async(query)?
             .map(|item| match item {
                 Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
                 Err(e) => Err(e),
@@ -354,7 +353,7 @@ mod tests {
     fn it_works() {
         let wmi_con = wmi_con();
 
-        let mut enumerator = wmi_con.notification_native_wrapper(TEST_QUERY).unwrap();
+        let mut enumerator = wmi_con.exec_notification_query(TEST_QUERY).unwrap();
 
         let res = enumerator.next().unwrap();
         let w = res.unwrap();
@@ -371,7 +370,7 @@ mod tests {
     fn it_fails_gracefully() {
         let wmi_con = wmi_con();
 
-        let mut enumerator = wmi_con.notification_native_wrapper("SELECT NoSuchField FROM __InstanceModificationEvent WHERE TargetInstance ISA 'Win32_LocalTime'").unwrap();
+        let mut enumerator = wmi_con.exec_notification_query("SELECT NoSuchField FROM __InstanceModificationEvent WHERE TargetInstance ISA 'Win32_LocalTime'").unwrap();
 
         let res = enumerator.next().unwrap();
         assert!(res.is_ok());
@@ -384,7 +383,7 @@ mod tests {
     fn it_fails_gracefully_with_invalid_sql() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.notification_native_wrapper("42");
+        let result = wmi_con.exec_notification_query("42");
 
         match result {
             Ok(_) => assert!(false),
@@ -476,7 +475,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let result = wmi_con
-            .async_notification_native_wrapper(TEST_QUERY)
+            .exec_notification_query_async(TEST_QUERY)
             .unwrap()
             .next()
             .await
@@ -490,7 +489,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let result = wmi_con
-            .async_notification_native_wrapper(TEST_QUERY)
+            .exec_notification_query_async(TEST_QUERY)
             .unwrap()
             .next()
             .await
@@ -503,7 +502,7 @@ mod tests {
     async fn async_it_handles_invalid_query() {
         let wmi_con = wmi_con();
 
-        let result = wmi_con.async_notification_native_wrapper("Invalid Query");
+        let result = wmi_con.exec_notification_query_async("Invalid Query");
 
         assert!(result.is_err());
         if let WMIError::HResultError { hres } = result.err().unwrap() {

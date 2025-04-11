@@ -19,7 +19,7 @@ impl WMIConnection {
     /// method. Provides safety checks, and returns results
     /// as a Stream instead of the original Sink.
     ///
-    pub fn exec_query_async_native_wrapper(
+    pub fn exec_query_async(
         &self,
         query: impl AsRef<str>,
     ) -> WMIResult<impl Stream<Item = WMIResult<IWbemClassWrapper>>> {
@@ -77,7 +77,7 @@ impl WMIConnection {
     where
         T: de::DeserializeOwned,
     {
-        self.exec_query_async_native_wrapper(query)?
+        self.exec_query_async(query)?
             .map(|item| match item {
                 Ok(wbem_class_obj) => wbem_class_obj.into_desr(),
                 Err(e) => Err(e),
@@ -147,7 +147,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let result = wmi_con
-            .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+            .exec_query_async("SELECT OSArchitecture FROM Win32_OperatingSystem")
             .unwrap()
             .collect::<Vec<_>>()
             .await;
@@ -160,7 +160,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let result = wmi_con
-            .exec_query_async_native_wrapper("SELECT OSArchitecture FROM Win32_OperatingSystem")
+            .exec_query_async("SELECT OSArchitecture FROM Win32_OperatingSystem")
             .unwrap()
             .collect::<Vec<_>>()
             .await;
@@ -173,7 +173,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let result = wmi_con
-            .exec_query_async_native_wrapper("invalid query")
+            .exec_query_async("invalid query")
             .unwrap()
             .collect::<Vec<_>>()
             .await;

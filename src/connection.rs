@@ -43,7 +43,7 @@ pub struct COMLibrary {
 /// Initialize COM.
 ///
 /// `CoUninitialize` will NOT be called when dropped.
-/// See: https://github.com/microsoft/windows-rs/issues/1169#issuecomment-926877227
+/// See: <https://github.com/microsoft/windows-rs/issues/1169#issuecomment-926877227>.
 ///
 impl COMLibrary {
     /// `CoInitialize`s the COM library for use by the calling thread.
@@ -123,6 +123,8 @@ impl COMLibrary {
 /// ```
 fn _test_com_lib_not_send(_s: impl Send) {}
 
+/// A connection to the local WMI provider.
+///
 #[derive(Clone, Debug)]
 pub struct WMIConnection {
     _com_con: COMLibrary,
@@ -130,10 +132,6 @@ pub struct WMIConnection {
     pub(crate) ctx: WMIContext,
 }
 
-/// A connection to the local WMI provider, which provides querying capabilities.
-///
-/// Currently does not support remote providers (e.g connecting to other computers).
-///
 impl WMIConnection {
     /// Creates a connection with a default `CIMV2` namespace path.
     pub fn new(com_lib: COMLibrary) -> WMIResult<Self> {

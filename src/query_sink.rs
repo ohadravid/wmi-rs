@@ -222,10 +222,10 @@ mod tests {
         let mut stream = AsyncQueryResultStream::new(stream, con.clone(), p_sink.clone());
 
         let raw_os = con
-            .get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)
+            .get_object(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)
             .unwrap();
         let raw_os2 = con
-            .get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)
+            .get_object(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)
             .unwrap();
 
         // tests on ref count before Indicate call

@@ -267,7 +267,7 @@ mod tests {
         }
 
         let enumerator = wmi_con
-            .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
+            .exec_query("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
@@ -292,7 +292,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let enumerator = wmi_con
-            .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
+            .exec_query("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
@@ -323,7 +323,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let enumerator = wmi_con
-            .exec_query_native_wrapper("SELECT Caption FROM Win32_OperatingSystem")
+            .exec_query("SELECT Caption FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {

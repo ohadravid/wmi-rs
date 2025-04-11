@@ -5,7 +5,6 @@ use crate::{
     result_enumerator::{IWbemClassWrapper, QueryResultEnumerator},
     WMIError, WMIResult,
 };
-use log::trace;
 use serde::de;
 use std::{collections::HashMap, time::Duration};
 use windows::core::BSTR;
@@ -49,7 +48,7 @@ impl From<bool> for FilterValue {
 }
 
 impl FilterValue {
-    /// Create a [FilterValue::IsA] varinat form a given type
+    /// Create a [FilterValue::IsA] variant form a given type
     ///
     /// ```edition2018
     /// # use std::collections::HashMap;
@@ -245,7 +244,7 @@ where
 /// [DMTF-DSP0004]:     https://www.dmtf.org/sites/default/files/standards/documents/DSP0004V2.3_final.pdf
 ///
 /// ```edition2018
-/// # use wmi::query::quote_and_escape_wql_str;
+/// # use wmi::quote_and_escape_wql_str;
 /// assert_eq!(quote_and_escape_wql_str(r#"C:\Path\With"In Name"#), r#""C:\\Path\\With\"In Name""#);
 /// ```
 pub fn quote_and_escape_wql_str(s: impl AsRef<str>) -> String {
@@ -265,12 +264,12 @@ pub fn quote_and_escape_wql_str(s: impl AsRef<str>) -> String {
 
 impl WMIConnection {
     /// Execute the given query and return an iterator of WMI pointers.
-    /// It's better to use the other query methods, since this is relatively low level.
+    /// It's better to use the other query methods (like [`WMIConnection::query`] and [`WMIConnection::filtered_query`]), since this is a relatively low level API.
     ///
-    pub fn exec_query_native_wrapper(
+    pub fn exec_query(
         &self,
         query: impl AsRef<str>,
-    ) -> WMIResult<QueryResultEnumerator> {
+    ) -> WMIResult<impl Iterator<Item = WMIResult<IWbemClassWrapper>> + 'static> {
         let query_language = BSTR::from("WQL");
         let query = BSTR::from(query.as_ref());
 
@@ -283,13 +282,11 @@ impl WMIConnection {
             )?
         };
 
-        trace!("Got enumerator {:?}", enumerator);
-
-        Ok(QueryResultEnumerator::new(self, enumerator))
+        Ok(QueryResultEnumerator::new(enumerator))
     }
 
     /// Execute a free-text query and deserialize the results.
-    /// Can be used either with a struct (like `query` and `filtered_query`),
+    /// Can be used either with a struct (like [`WMIConnection::query`] and [`WMIConnection::filtered_query`]),
     /// but also with a generic map.
     ///
     /// ```edition2018
@@ -305,7 +302,7 @@ impl WMIConnection {
     where
         T: de::DeserializeOwned,
     {
-        let enumerator = self.exec_query_native_wrapper(query)?;
+        let enumerator = self.exec_query(query)?;
 
         enumerator
             .map(|item| match item {
@@ -402,14 +399,15 @@ impl WMIConnection {
     }
 
     /// Get a WMI object by path, and return a wrapper around a WMI pointer.
-    /// It's better to use the `get_by_path` method, since this function is more low level.
+    /// This function is used internally by [`WMIConnection::get_by_path`], which is a higher-level abstraction.
+    /// It can also be used to get class objects, see [`WMIConnection::exec_method`] for more info.
     ///
     /// ```edition2018
     /// # fn main() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
     /// # let con = WMIConnection::new(COMLibrary::new()?)?;
-    /// let raw_os = con.get_raw_by_path(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
+    /// let raw_os = con.get_object(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
     /// assert_eq!(raw_os.class()?, "Win32_OperatingSystem");
     ///
     /// #[derive(Deserialize)]
@@ -422,7 +420,7 @@ impl WMIConnection {
     /// #   Ok(())
     /// # }
     /// ```
-    pub fn get_raw_by_path(&self, object_path: impl AsRef<str>) -> WMIResult<IWbemClassWrapper> {
+    pub fn get_object(&self, object_path: impl AsRef<str>) -> WMIResult<IWbemClassWrapper> {
         let object_path = BSTR::from(object_path.as_ref());
 
         let mut pcls_obj = None;
@@ -462,7 +460,7 @@ impl WMIConnection {
     /// ```
     ///
     /// It's possible to have a path where the type of the WMI object is not known at compile time.
-    /// Either use `get_raw_by_path` and the `.class()` to find out the real type of the object,
+    /// Either use [`WMIConnection::get_object`] and [`IWbemClassWrapper::class`] to find out the real type of the object,
     /// or if the object is only of a few possible types, deserialize it to an enum:
     ///
     /// ```edition2018
@@ -529,7 +527,7 @@ impl WMIConnection {
     where
         T: de::DeserializeOwned,
     {
-        let wbem_class_obj = self.get_raw_by_path(object_path)?;
+        let wbem_class_obj = self.get_object(object_path)?;
 
         from_wbem_class_obj(wbem_class_obj)
     }
@@ -608,7 +606,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let enumerator = wmi_con
-            .exec_query_native_wrapper("SELECT * FROM Win32_OperatingSystem")
+            .exec_query("SELECT * FROM Win32_OperatingSystem")
             .unwrap();
 
         let res = enumerator.into_iter().next().unwrap();
@@ -646,7 +644,7 @@ mod tests {
         let wmi_con = wmi_con();
 
         let enumerator = wmi_con
-            .exec_query_native_wrapper("SELECT NoSuchField FROM Win32_OperatingSystem")
+            .exec_query("SELECT NoSuchField FROM Win32_OperatingSystem")
             .unwrap();
 
         for res in enumerator {
@@ -658,7 +656,7 @@ mod tests {
     fn it_fails_gracefully_with_invalid_sql() {
         let wmi_con = wmi_con();
 
-        let enumerator = wmi_con.exec_query_native_wrapper("42").unwrap();
+        let enumerator = wmi_con.exec_query("42").unwrap();
 
         // Show how to detect which error had occurred.
         for res in enumerator {
@@ -1248,7 +1246,7 @@ mod tests {
         }
 
         for account in accounts_in_group {
-            let raw_account = wmi_con.get_raw_by_path(&account.__Path).unwrap();
+            let raw_account = wmi_con.get_object(&account.__Path).unwrap();
 
             // Completely dynamic.
             match raw_account.class().unwrap().as_str() {
