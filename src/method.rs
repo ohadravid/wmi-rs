@@ -219,15 +219,20 @@ mod tests {
     #[derive(Deserialize)]
     struct Win32_Process {
         __Path: String,
+        Priority: u32,
     }
 
-    #[derive(Deserialize, Serialize)]
-    struct Create {
+    #[derive(Debug, Serialize, Default)]
+    pub struct Win32_ProcessStartup {
+        // Docs say u32, but only i32 seems to work.
+        PriorityClass: i32,
+    }
+
+    #[derive(Serialize)]
+    struct CreateInput {
         CommandLine: String,
+        ProcessStartupInformation: Win32_ProcessStartup,
     }
-
-    #[derive(Deserialize, Serialize)]
-    struct Terminate {}
 
     #[derive(Deserialize)]
     struct CreateOutput {
@@ -264,8 +269,12 @@ mod tests {
     #[test]
     fn it_exec_methods() {
         let wmi_con = wmi_con();
-        let in_params = Create {
+        let in_params = CreateInput {
             CommandLine: "explorer.exe".to_string(),
+            ProcessStartupInformation: Win32_ProcessStartup {
+                // High priority.
+                PriorityClass: 128,
+            },
         };
         let out: CreateOutput = wmi_con
             .exec_class_method::<Win32_Process, _>("Create", in_params)
@@ -279,6 +288,9 @@ mod tests {
         );
 
         let process = &wmi_con.raw_query::<Win32_Process>(&query).unwrap()[0];
+
+        // A high priority class results in a priority of 13.
+        assert_eq!(process.Priority, 13);
 
         let _: () = wmi_con
             .exec_instance_method::<Win32_Process, _>(&process.__Path, "Terminate", ())

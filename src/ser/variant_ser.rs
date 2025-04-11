@@ -181,7 +181,7 @@ impl<'a> Serializer for VariantSerializer<'a> {
 
         let ser = VariantInstanceSerializer {
             wmi: self.wmi,
-            instance: Some(instance),
+            instance,
         };
 
         Ok(ser)
@@ -204,8 +204,6 @@ impl<'a> Serializer for VariantSerializer<'a> {
 pub enum VariantSerializerError {
     #[error("Unknown error while serializing struct:\n{0}")]
     Unknown(String),
-    #[error("VariantStructSerializer can only be used to serialize structs.")]
-    ExpectedStruct,
     #[error("{0} cannot be serialized to a Variant.")]
     UnsupportedVariantType(String),
     #[error("WMI error while serializing struct: \n {0}")]
@@ -222,7 +220,7 @@ impl serde::ser::Error for VariantSerializerError {
 }
 
 pub(crate) struct VariantInstanceSerializer<'a> {
-    instance: Option<IWbemClassWrapper>,
+    instance: IWbemClassWrapper,
     wmi: &'a WMIConnection,
 }
 
@@ -238,29 +236,15 @@ impl<'a> SerializeStruct for VariantInstanceSerializer<'a> {
         let variant = value.serialize(VariantSerializer {
             wmi: self.wmi,
             instance: None,
-        });
+        })?;
 
-        let instance = self
-            .instance
-            .as_ref()
-            .ok_or(VariantSerializerError::ExpectedStruct)?;
+        self.instance.put_property(key, variant)?;
 
-        match variant {
-            Ok(value) => {
-                instance.put_property(key, value)?;
-                Ok(())
-            }
-            Err(_) => Err(VariantSerializerError::UnsupportedVariantType(
-                type_name::<T>().to_string(),
-            )),
-        }
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        match self.instance {
-            Some(instance) => Ok(Variant::Object(instance)),
-            None => Ok(Variant::Empty),
-        }
+        Ok(Variant::Object(self.instance))
     }
 }
 
@@ -343,7 +327,7 @@ mod tests {
         struct Win32_Process;
 
         #[derive(Serialize)]
-        struct Create {
+        struct CreateInput {
             CommandLine: String,
             ProcessStartupInformation: Win32_ProcessStartup,
         }
@@ -374,7 +358,7 @@ mod tests {
             Variant::String(startup_info.Title.clone())
         );
 
-        let create_params = Create {
+        let create_params = CreateInput {
             CommandLine: r#"ping -n 3 127.0.0.1"#.to_string(),
             ProcessStartupInformation: startup_info,
         };
