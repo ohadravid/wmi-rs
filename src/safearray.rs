@@ -3,10 +3,10 @@ use crate::{
     Variant,
 };
 use std::{iter::Iterator, ptr::null_mut};
-use windows::core::{BOOL, BSTR};
 use windows::Win32::System::Com::SAFEARRAY;
 use windows::Win32::System::Ole::{SafeArrayAccessData, SafeArrayUnaccessData};
 use windows::Win32::System::Variant::*;
+use windows::{core::BSTR, Win32::Foundation::VARIANT_BOOL};
 
 #[derive(Debug)]
 pub struct SafeArrayAccessor<'a, T> {
@@ -119,7 +119,7 @@ pub unsafe fn safe_array_to_vec(arr: &SAFEARRAY, item_type: VARENUM) -> WMIResul
                 .collect()
         }
         VT_BOOL => {
-            let accessor = unsafe { SafeArrayAccessor::<BOOL>::new(arr)? };
+            let accessor = unsafe { SafeArrayAccessor::<VARIANT_BOOL>::new(arr)? };
 
             accessor
                 .iter()

@@ -91,10 +91,6 @@ impl Variant {
 
             let item_type = variant_type & VT_TYPEMASK;
 
-            if item_type == VT_BOOL {
-                todo!("safe_array_to_vec doesn't work consistently, use VariantToBooleanArray",);
-            }
-
             return Ok(Variant::Array(unsafe {
                 safe_array_to_vec(&*array, item_type)?
             }));
@@ -360,7 +356,6 @@ impl TryFrom<Variant> for VARIANT {
                     Some(Variant::Bool(_)) => {
                         let v: Vec<bool> = Variant::Array(array).try_into()?;
                         let v: Vec<_> = v.into_iter().map(BOOL::from).collect();
-                        dbg!(&v);
 
                         let variant = unsafe { InitVariantFromBooleanArray(&v) }?;
                         Ok(variant)
