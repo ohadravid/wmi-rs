@@ -331,9 +331,51 @@ mod tests {
         };
 
         let value: GetBinaryValueOut = wmi_con
-            .exec_class_method::<StdRegProv, _>("GetBinaryValue", get_binary_value_params)
+            .exec_class_method::<StdRegProv, _>("GetBinaryValue", &get_binary_value_params)
             .unwrap();
 
         assert!(value.uValue.len() > 0, "Expected to get a non-empty value");
+
+        #[derive(Deserialize, Serialize)]
+        struct SetBinaryValue {
+            sSubKeyName: String,
+            sValueName: String,
+            uValue: Vec<u8>,
+        }
+
+        #[derive(Deserialize)]
+        struct SetBinaryValueOut {
+            ReturnValue: u32
+        }
+
+        let test_value_name =  format!("{}.test", get_binary_value_params.sValueName);
+        let test_value = vec![0, 1, 2, 3];
+
+        let set_binary_value_params = SetBinaryValue {
+            sSubKeyName: get_binary_value_params.sSubKeyName,
+            sValueName: test_value_name,
+            uValue: test_value,
+        };
+        
+        let value: SetBinaryValueOut = wmi_con
+            .exec_class_method::<StdRegProv, _>("SetBinaryValue", &set_binary_value_params)
+            .unwrap();
+
+        assert_eq!(value.ReturnValue, 0);
+
+        let get_test_binary_value_params = GetBinaryValue {
+            sSubKeyName: set_binary_value_params.sSubKeyName,
+            sValueName: set_binary_value_params.sValueName,
+        };
+
+        let value: GetBinaryValueOut = wmi_con
+            .exec_class_method::<StdRegProv, _>("GetBinaryValue", &get_test_binary_value_params)
+            .unwrap();
+
+        assert_eq!(value.uValue, set_binary_value_params.uValue);
+
+        wmi_con
+            .exec_class_method::<StdRegProv, ()>("DeleteValue", &get_test_binary_value_params)
+            .unwrap();
     }
 }
