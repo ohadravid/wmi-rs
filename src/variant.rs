@@ -3,11 +3,10 @@ use crate::{
 };
 use serde::Serialize;
 use std::convert::TryFrom;
-use windows::core::{IUnknown, Interface};
+use windows::core::{IUnknown, Interface, BOOL, PCWSTR};
 use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
-use windows_core::{BOOL, PCWSTR};
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
 #[serde(untagged)]
@@ -91,6 +90,10 @@ impl Variant {
             };
 
             let item_type = variant_type & VT_TYPEMASK;
+
+            if item_type == VT_BOOL {
+                todo!("safe_array_to_vec doesn't work consistently, use VariantToBooleanArray",);
+            }
 
             return Ok(Variant::Array(unsafe {
                 safe_array_to_vec(&*array, item_type)?
@@ -357,6 +360,7 @@ impl TryFrom<Variant> for VARIANT {
                     Some(Variant::Bool(_)) => {
                         let v: Vec<bool> = Variant::Array(array).try_into()?;
                         let v: Vec<_> = v.into_iter().map(BOOL::from).collect();
+                        dbg!(&v);
 
                         let variant = unsafe { InitVariantFromBooleanArray(&v) }?;
                         Ok(variant)
@@ -811,6 +815,86 @@ mod tests {
 
         assert_eq!(variant, converted_back_variant);
 
-        todo!("Need to test the other array conversions")
+        let variant = Variant::Array(vec![Variant::UI2(1), Variant::UI2(2)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![Variant::UI4(1), Variant::UI4(2)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![Variant::UI8(1), Variant::UI8(2)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![Variant::I2(1), Variant::I2(2)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![Variant::I4(1), Variant::I4(2)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![Variant::I8(1), Variant::I8(2)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![Variant::R8(1.), Variant::R8(2.)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![Variant::Bool(true), Variant::Bool(false)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![
+            Variant::String("a".to_string()),
+            Variant::String("b".to_string()),
+        ]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        // Empty arrays are converted to empty variants.
+        let variant = Variant::Array(vec![]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        assert!(ms_variant.is_empty());
+    }
+
+    #[test]
+    fn it_does_not_convert_array_to_unsupported_ms_variant() {
+        let variant = Variant::Array(vec![Variant::String("a".to_string()), Variant::I8(0)]);
+        assert!(
+            VARIANT::try_from(variant.clone()).is_err(),
+            "Mixed arrays are not supported"
+        );
+
+        let variant = Variant::Array(vec![Variant::I1(0), Variant::I1(1)]);
+        assert!(
+            VARIANT::try_from(variant.clone()).is_err(),
+            "i8 arrays are not supported"
+        );
+        let variant = Variant::Array(vec![Variant::R4(0.), Variant::R4(1.)]);
+        assert!(
+            VARIANT::try_from(variant.clone()).is_err(),
+            "f32 arrays are not supported"
+        );
     }
 }

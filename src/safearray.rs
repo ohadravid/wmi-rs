@@ -3,7 +3,7 @@ use crate::{
     Variant,
 };
 use std::{iter::Iterator, ptr::null_mut};
-use windows::core::BSTR;
+use windows::core::{BOOL, BSTR};
 use windows::Win32::System::Com::SAFEARRAY;
 use windows::Win32::System::Ole::{SafeArrayAccessData, SafeArrayUnaccessData};
 use windows::Win32::System::Variant::*;
@@ -116,6 +116,14 @@ pub unsafe fn safe_array_to_vec(arr: &SAFEARRAY, item_type: VARENUM) -> WMIResul
             accessor
                 .iter()
                 .map(|item| item.try_into().map(Variant::String).map_err(WMIError::from))
+                .collect()
+        }
+        VT_BOOL => {
+            let accessor = unsafe { SafeArrayAccessor::<BOOL>::new(arr)? };
+
+            accessor
+                .iter()
+                .map(|item| Ok(Variant::Bool(item.as_bool())))
                 .collect()
         }
         // TODO: Add support for all other types of arrays.
