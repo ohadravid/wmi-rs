@@ -4,7 +4,7 @@ use std::{any::type_name, fmt::Display};
 
 use crate::{result_enumerator::IWbemClassWrapper, Variant, WMIConnection, WMIError};
 use serde::{
-    ser::{Impossible, SerializeStruct},
+    ser::{Impossible, SerializeSeq, SerializeStruct},
     Serialize, Serializer,
 };
 use thiserror::Error;
@@ -36,7 +36,7 @@ impl<'a> Serializer for VariantSerializer<'a> {
     type Ok = Variant;
     type Error = VariantSerializerError;
 
-    type SerializeSeq = Impossible<Self::Ok, Self::Error>;
+    type SerializeSeq = VariantSeqSerializer<'a>;
     type SerializeTuple = Impossible<Self::Ok, Self::Error>;
     type SerializeTupleStruct = Impossible<Self::Ok, Self::Error>;
     type SerializeTupleVariant = Impossible<Self::Ok, Self::Error>;
@@ -126,10 +126,11 @@ impl<'a> Serializer for VariantSerializer<'a> {
         ))
     }
 
-    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        Err(VariantSerializerError::UnsupportedVariantType(
-            "Sequence".to_string(),
-        ))
+    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+        Ok(VariantSeqSerializer {
+            seq: Vec::with_capacity(len.unwrap_or_default()),
+            wmi: self.wmi,
+        })
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
@@ -245,6 +246,34 @@ impl<'a> SerializeStruct for VariantInstanceSerializer<'a> {
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
         Ok(Variant::Object(self.instance))
+    }
+}
+
+pub(crate) struct VariantSeqSerializer<'a> {
+    seq: Vec<Variant>,
+    wmi: &'a WMIConnection,
+}
+
+impl<'a> SerializeSeq for VariantSeqSerializer<'a> {
+    type Ok = Variant;
+    type Error = VariantSerializerError;
+
+    fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        let variant = value.serialize(VariantSerializer {
+            wmi: self.wmi,
+            instance: None,
+        })?;
+
+        self.seq.push(variant);
+
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(Variant::Array(self.seq))
     }
 }
 
