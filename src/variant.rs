@@ -7,6 +7,7 @@ use windows::core::{IUnknown, Interface};
 use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
+use windows_core::{BOOL, PCWSTR};
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
 #[serde(untagged)]
@@ -299,9 +300,90 @@ impl TryFrom<Variant> for VARIANT {
             Variant::Null => Err(WMIError::ConvertVariantError(
                 "Cannot convert Variant::Null to a Windows VARIANT".to_string(),
             )),
-            Variant::Array(_) => Err(WMIError::ConvertVariantError(
-                "Cannot convert Variant::Array to a Windows VARIANT".to_string(),
-            )),
+            Variant::Array(array) => {
+                // Variant arrays can only contain a single type, and we only support types that have utility functions in the `windows` crate.
+                match array.first() {
+                    None => Ok(VARIANT::default()),
+                    Some(Variant::UI1(_)) => {
+                        let v: Vec<u8> = Variant::Array(array).try_into()?;
+
+                        //  "Creates a VT_ARRAY | VT_UI1 variant".
+                        let variant =
+                            unsafe { InitVariantFromBuffer(v.as_ptr() as _, v.len() as _) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::UI2(_)) => {
+                        let v: Vec<u16> = Variant::Array(array).try_into()?;
+
+                        let variant = unsafe { InitVariantFromUInt16Array(&v) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::UI4(_)) => {
+                        let v: Vec<u32> = Variant::Array(array).try_into()?;
+
+                        let variant = unsafe { InitVariantFromUInt32Array(&v) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::UI8(_)) => {
+                        let v: Vec<u64> = Variant::Array(array).try_into()?;
+
+                        let variant = unsafe { InitVariantFromUInt64Array(&v) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::I2(_)) => {
+                        let v: Vec<i16> = Variant::Array(array).try_into()?;
+
+                        let variant = unsafe { InitVariantFromInt16Array(&v) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::I4(_)) => {
+                        let v: Vec<i32> = Variant::Array(array).try_into()?;
+
+                        let variant = unsafe { InitVariantFromInt32Array(&v) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::I8(_)) => {
+                        let v: Vec<i64> = Variant::Array(array).try_into()?;
+
+                        let variant = unsafe { InitVariantFromInt64Array(&v) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::R8(_)) => {
+                        let v: Vec<f64> = Variant::Array(array).try_into()?;
+
+                        let variant = unsafe { InitVariantFromDoubleArray(&v) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::Bool(_)) => {
+                        let v: Vec<bool> = Variant::Array(array).try_into()?;
+                        let v: Vec<_> = v.into_iter().map(BOOL::from).collect();
+
+                        let variant = unsafe { InitVariantFromBooleanArray(&v) }?;
+                        Ok(variant)
+                    }
+                    Some(Variant::String(_)) => {
+                        let v: Vec<String> = Variant::Array(array).try_into()?;
+
+                        // Convert the strings to null terminated vectors of `u16`s.
+                        let v: Vec<Vec<u16>> = v
+                            .into_iter()
+                            .map(|s| s.encode_utf16().chain([0]).collect())
+                            .collect();
+
+                        // Safety: each pointer points to a null terminated slice of `u16`s.
+                        let v: Vec<_> = v
+                            .iter()
+                            .map(|b| unsafe { PCWSTR::from_raw(b.as_ptr()) })
+                            .collect();
+
+                        let variant = unsafe { InitVariantFromStringArray(&v) }?;
+                        Ok(variant)
+                    }
+                    other => Err(WMIError::ConvertVariantError(format!(
+                        "Cannot convert {other:?} to a Windows VARIANT"
+                    ))),
+                }
+            }
         }
     }
 }
@@ -336,10 +418,40 @@ macro_rules! impl_wrap_type {
     };
 }
 
+macro_rules! impl_try_vec_from_variant {
+    ($target_type:ty, $variant_type:ident) => {
+        impl TryFrom<Variant> for Vec<$target_type> {
+            type Error = WMIError;
+
+            fn try_from(value: Variant) -> Result<Vec<$target_type>, Self::Error> {
+                let array = match value {
+                    Variant::Array(array) => array,
+                    _ => {
+                        return Err(WMIError::ConvertVariantError(format!(
+                            "Cannot convert a non Variant::Array {:?} to Vec",
+                            value
+                        )));
+                    }
+                };
+
+                let mut output_vec = Vec::with_capacity(array.len());
+
+                for item in array {
+                    let item = item.try_into()?;
+                    output_vec.push(item);
+                }
+
+                Ok(output_vec)
+            }
+        }
+    };
+}
+
 /// Add conversions from a Rust type to its Variant form and vice versa
 macro_rules! bidirectional_variant_convert {
     ($target_type:ty, $variant_type:ident) => {
         impl_try_from_variant!($target_type, $variant_type);
+        impl_try_vec_from_variant!($target_type, $variant_type);
         impl_wrap_type!($target_type, $variant_type);
     };
 }
@@ -661,5 +773,44 @@ mod tests {
         let ms_variant = VARIANT::try_from(variant).unwrap();
         let variant = Variant::from(num);
         assert_eq!(Variant::from_variant(&ms_variant).unwrap(), variant);
+    }
+
+    #[test]
+    fn it_convert_array_to_vec() {
+        let v: Vec<u8> = Variant::Array(vec![Variant::UI1(1), Variant::UI1(2)])
+            .try_into()
+            .unwrap();
+
+        assert_eq!(v, vec![1, 2]);
+
+        let _v: Vec<u16> = Variant::Array(vec![Variant::UI2(1)]).try_into().unwrap();
+        let _v: Vec<u32> = Variant::Array(vec![Variant::UI4(1)]).try_into().unwrap();
+        let _v: Vec<u64> = Variant::Array(vec![Variant::UI8(1)]).try_into().unwrap();
+
+        let _v: Vec<i8> = Variant::Array(vec![Variant::I1(1)]).try_into().unwrap();
+        let _v: Vec<i16> = Variant::Array(vec![Variant::I2(1)]).try_into().unwrap();
+        let _v: Vec<i32> = Variant::Array(vec![Variant::I4(1)]).try_into().unwrap();
+        let _v: Vec<i64> = Variant::Array(vec![Variant::I8(1)]).try_into().unwrap();
+
+        let _v: Vec<f32> = Variant::Array(vec![Variant::R4(1.)]).try_into().unwrap();
+        let _v: Vec<f64> = Variant::Array(vec![Variant::R8(1.)]).try_into().unwrap();
+
+        let _v: Vec<String> = Variant::Array(vec![Variant::String("s".to_string())])
+            .try_into()
+            .unwrap();
+        let _v: Vec<bool> = Variant::Array(vec![Variant::Bool(true)])
+            .try_into()
+            .unwrap();
+    }
+
+    #[test]
+    fn it_convert_array_to_ms_variant() {
+        let variant = Variant::Array(vec![Variant::UI1(1), Variant::UI1(2)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(variant, converted_back_variant);
+
+        todo!("Need to test the other array conversions")
     }
 }

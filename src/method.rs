@@ -345,10 +345,10 @@ mod tests {
 
         #[derive(Deserialize)]
         struct SetBinaryValueOut {
-            ReturnValue: u32
+            ReturnValue: u32,
         }
 
-        let test_value_name =  format!("{}.test", get_binary_value_params.sValueName);
+        let test_value_name = format!("{}.test", get_binary_value_params.sValueName);
         let test_value = vec![0, 1, 2, 3];
 
         let set_binary_value_params = SetBinaryValue {
@@ -356,7 +356,7 @@ mod tests {
             sValueName: test_value_name,
             uValue: test_value,
         };
-        
+
         let value: SetBinaryValueOut = wmi_con
             .exec_class_method::<StdRegProv, _>("SetBinaryValue", &set_binary_value_params)
             .unwrap();
