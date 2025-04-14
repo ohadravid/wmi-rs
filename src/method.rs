@@ -215,24 +215,16 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use std::thread::sleep;
     use std::time::Duration;
-    use windows::Win32::{
-        Foundation::CloseHandle,
-        System::Threading::{
-            GetPriorityClass, OpenProcess, IDLE_PRIORITY_CLASS, PROCESS_ALL_ACCESS,
-        },
-    };
 
     #[derive(Deserialize)]
     struct Win32_Process {
         __Path: String,
-        #[allow(unused)]
-        Priority: u32,
+        HandleCount: u32,
     }
 
     #[derive(Debug, Serialize, Default)]
     pub struct Win32_ProcessStartup {
-        // Docs say u32, but only i32 seems to work.
-        PriorityClass: i32,
+        CreateFlags: i32,
     }
 
     #[derive(Serialize)]
@@ -276,10 +268,12 @@ mod tests {
     #[test]
     fn it_exec_methods() {
         let wmi_con = wmi_con();
+        const CREATE_SUSPENDED: i32 = 4;
+
         let in_params = CreateInput {
             CommandLine: "explorer.exe".to_string(),
             ProcessStartupInformation: Win32_ProcessStartup {
-                PriorityClass: IDLE_PRIORITY_CLASS.0 as _,
+                CreateFlags: CREATE_SUSPENDED,
             },
         };
         let out: CreateOutput = wmi_con
@@ -295,13 +289,8 @@ mod tests {
 
         let process = &wmi_con.raw_query::<Win32_Process>(&query).unwrap()[0];
 
-        let process_handle =
-            unsafe { OpenProcess(PROCESS_ALL_ACCESS, false, out.ProcessId as _) }.unwrap();
-        assert_eq!(
-            unsafe { GetPriorityClass(process_handle) },
-            IDLE_PRIORITY_CLASS.0
-        );
-        unsafe { CloseHandle(process_handle) }.unwrap();
+        // Since we started the process as suspended, it will not have any open handles.
+        assert_eq!(process.HandleCount, 0);
 
         let _: () = wmi_con
             .exec_instance_method::<Win32_Process, _>(&process.__Path, "Terminate", ())
