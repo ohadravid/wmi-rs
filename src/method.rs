@@ -217,7 +217,9 @@ mod tests {
     use std::time::Duration;
     use windows::Win32::{
         Foundation::CloseHandle,
-        System::Threading::{GetPriorityClass, OpenProcess, PROCESS_ALL_ACCESS},
+        System::Threading::{
+            GetPriorityClass, OpenProcess, IDLE_PRIORITY_CLASS, PROCESS_ALL_ACCESS,
+        },
     };
 
     #[derive(Deserialize)]
@@ -277,8 +279,7 @@ mod tests {
         let in_params = CreateInput {
             CommandLine: "explorer.exe".to_string(),
             ProcessStartupInformation: Win32_ProcessStartup {
-                // High priority.
-                PriorityClass: 128,
+                PriorityClass: IDLE_PRIORITY_CLASS.0 as _,
             },
         };
         let out: CreateOutput = wmi_con
@@ -297,8 +298,8 @@ mod tests {
         let process_handle =
             unsafe { OpenProcess(PROCESS_ALL_ACCESS, false, out.ProcessId as _) }.unwrap();
         assert_eq!(
-            unsafe { GetPriorityClass(process_handle) } as i32,
-            in_params.ProcessStartupInformation.PriorityClass
+            unsafe { GetPriorityClass(process_handle) },
+            IDLE_PRIORITY_CLASS.0
         );
         unsafe { CloseHandle(process_handle) }.unwrap();
 
