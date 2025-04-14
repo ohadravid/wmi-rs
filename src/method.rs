@@ -219,13 +219,12 @@ mod tests {
     #[derive(Deserialize)]
     struct Win32_Process {
         __Path: String,
-        Priority: u32,
+        HandleCount: u32,
     }
 
     #[derive(Debug, Serialize, Default)]
     pub struct Win32_ProcessStartup {
-        // Docs say u32, but only i32 seems to work.
-        PriorityClass: i32,
+        CreateFlags: i32,
     }
 
     #[derive(Serialize)]
@@ -269,15 +268,16 @@ mod tests {
     #[test]
     fn it_exec_methods() {
         let wmi_con = wmi_con();
+        const CREATE_SUSPENDED: i32 = 4;
+
         let in_params = CreateInput {
             CommandLine: "explorer.exe".to_string(),
             ProcessStartupInformation: Win32_ProcessStartup {
-                // High priority.
-                PriorityClass: 128,
+                CreateFlags: CREATE_SUSPENDED,
             },
         };
         let out: CreateOutput = wmi_con
-            .exec_class_method::<Win32_Process, _>("Create", in_params)
+            .exec_class_method::<Win32_Process, _>("Create", &in_params)
             .unwrap();
 
         assert_eq!(out.ReturnValue, 0);
@@ -289,8 +289,8 @@ mod tests {
 
         let process = &wmi_con.raw_query::<Win32_Process>(&query).unwrap()[0];
 
-        // A high priority class results in a priority of 13.
-        assert_eq!(process.Priority, 13);
+        // Since we started the process as suspended, it will not have any open handles.
+        assert_eq!(process.HandleCount, 0);
 
         let _: () = wmi_con
             .exec_instance_method::<Win32_Process, _>(&process.__Path, "Terminate", ())
@@ -331,9 +331,51 @@ mod tests {
         };
 
         let value: GetBinaryValueOut = wmi_con
-            .exec_class_method::<StdRegProv, _>("GetBinaryValue", get_binary_value_params)
+            .exec_class_method::<StdRegProv, _>("GetBinaryValue", &get_binary_value_params)
             .unwrap();
 
         assert!(value.uValue.len() > 0, "Expected to get a non-empty value");
+
+        #[derive(Deserialize, Serialize)]
+        struct SetBinaryValue {
+            sSubKeyName: String,
+            sValueName: String,
+            uValue: Vec<u8>,
+        }
+
+        #[derive(Deserialize)]
+        struct SetBinaryValueOut {
+            ReturnValue: u32,
+        }
+
+        let test_value_name = format!("{}.test", get_binary_value_params.sValueName);
+        let test_value = vec![0, 1, 2, 3];
+
+        let set_binary_value_params = SetBinaryValue {
+            sSubKeyName: get_binary_value_params.sSubKeyName,
+            sValueName: test_value_name,
+            uValue: test_value,
+        };
+
+        let value: SetBinaryValueOut = wmi_con
+            .exec_class_method::<StdRegProv, _>("SetBinaryValue", &set_binary_value_params)
+            .unwrap();
+
+        assert_eq!(value.ReturnValue, 0);
+
+        let get_test_binary_value_params = GetBinaryValue {
+            sSubKeyName: set_binary_value_params.sSubKeyName,
+            sValueName: set_binary_value_params.sValueName,
+        };
+
+        let value: GetBinaryValueOut = wmi_con
+            .exec_class_method::<StdRegProv, _>("GetBinaryValue", &get_test_binary_value_params)
+            .unwrap();
+
+        assert_eq!(value.uValue, set_binary_value_params.uValue);
+
+        wmi_con
+            .exec_class_method::<StdRegProv, ()>("DeleteValue", &get_test_binary_value_params)
+            .unwrap();
     }
 }
