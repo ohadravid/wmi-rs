@@ -26,8 +26,8 @@ default = ["chrono"]
 test = []
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-core = { version = "0.60" }
-windows = { version = "0.60", features = [
+windows-core = { version = "0.61" }
+windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_System_Com",
@@ -44,12 +44,12 @@ thiserror = "^2"
 log = "0.4"
 
 [dev-dependencies]
-async-std = { version = "1.10",  features = ["attributes"] }
-tokio = { version = "1.20.0", features = ["rt", "macros"] }
+async-std = { version = "1",  features = ["attributes"] }
+tokio = { version = "1", features = ["rt", "macros"] }
 serde_json = { version = "1.0" }
 criterion = "0.5"
 tempdir = "0.3"
-windows = { version = "*", features = [
+windows = { version = "0.61", features = [
     "Win32_System_Threading",
 ] }
 
