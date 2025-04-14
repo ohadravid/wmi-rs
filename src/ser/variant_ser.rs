@@ -111,19 +111,17 @@ impl<'a> Serializer for VariantSerializer<'a> {
     serialize_variant_err_stub!(serialize_char, char);
     serialize_variant_err_stub!(serialize_bytes, &[u8]);
 
+
+
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Err(VariantSerializerError::UnsupportedVariantType(
-            "None".to_string(),
-        ))
+        Ok(Variant::Null)
     }
 
-    fn serialize_some<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
+    fn serialize_some<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + Serialize,
     {
-        Err(VariantSerializerError::UnsupportedVariantType(
-            type_name::<T>().to_string(),
-        ))
+        value.serialize(self)
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
