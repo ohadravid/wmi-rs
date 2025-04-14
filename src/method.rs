@@ -215,10 +215,15 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use std::thread::sleep;
     use std::time::Duration;
+    use windows::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{GetPriorityClass, OpenProcess, PROCESS_ALL_ACCESS},
+    };
 
     #[derive(Deserialize)]
     struct Win32_Process {
         __Path: String,
+        #[allow(unused)]
         Priority: u32,
     }
 
@@ -277,7 +282,7 @@ mod tests {
             },
         };
         let out: CreateOutput = wmi_con
-            .exec_class_method::<Win32_Process, _>("Create", in_params)
+            .exec_class_method::<Win32_Process, _>("Create", &in_params)
             .unwrap();
 
         assert_eq!(out.ReturnValue, 0);
@@ -289,8 +294,13 @@ mod tests {
 
         let process = &wmi_con.raw_query::<Win32_Process>(&query).unwrap()[0];
 
-        // A high priority class results in a priority of 13.
-        assert_eq!(process.Priority, 13);
+        let process_handle =
+            unsafe { OpenProcess(PROCESS_ALL_ACCESS, false, out.ProcessId as _) }.unwrap();
+        assert_eq!(
+            unsafe { GetPriorityClass(process_handle) } as i32,
+            in_params.ProcessStartupInformation.PriorityClass
+        );
+        unsafe { CloseHandle(process_handle) }.unwrap();
 
         let _: () = wmi_con
             .exec_instance_method::<Win32_Process, _>(&process.__Path, "Terminate", ())

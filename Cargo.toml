@@ -49,6 +49,9 @@ tokio = { version = "1.20.0", features = ["rt", "macros"] }
 serde_json = { version = "1.0" }
 criterion = "0.5"
 tempdir = "0.3"
+windows = { version = "*", features = [
+    "Win32_System_Threading",
+] }
 
 [[bin]]
 name = "wmiq"
