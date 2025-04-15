@@ -6,8 +6,8 @@ use std::convert::TryFrom;
 use windows::core::{IUnknown, Interface, BOOL, PCWSTR};
 use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Variant::*;
+use windows::Win32::System::Variant::{VARIANT, VT_NULL};
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
-use windows::Win32::System::Variant::{VARIANT,   VT_NULL};
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
 #[serde(untagged)]
@@ -274,7 +274,7 @@ impl Variant {
 
 impl TryFrom<Variant> for VARIANT {
     type Error = WMIError;
-    
+
     fn try_from(value: Variant) -> WMIResult<VARIANT> {
         match value {
             Variant::Empty => Ok(VARIANT::default()),
@@ -298,12 +298,12 @@ impl TryFrom<Variant> for VARIANT {
             Variant::Unknown(unknown) => Ok(VARIANT::from(unknown.inner)),
 
             Variant::Null => {
-                let mut variant = unsafe { VariantInit() }; 
+                let mut variant = unsafe { VariantInit() };
                 unsafe {
                     std::ptr::write(&mut (*variant.Anonymous.Anonymous).vt, VT_NULL);
                 }
                 Ok(variant)
-            },
+            }
             Variant::Array(array) => {
                 // Variant arrays can only contain a single type, and we only support types that have utility functions in the `windows` crate.
                 match array.first() {

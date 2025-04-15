@@ -111,9 +111,9 @@ impl<'a> Serializer for VariantSerializer<'a> {
     serialize_variant_err_stub!(serialize_char, char);
     serialize_variant_err_stub!(serialize_bytes, &[u8]);
 
-
-
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
+        // we serialize to VT_NULL (explicit NULL semantic)  rather than VT_EMPTY
+        // (default state or uninitialized semantic)
         Ok(Variant::Null)
     }
 
@@ -348,6 +348,8 @@ mod tests {
         #[derive(Debug, Serialize, Default)]
         pub struct Win32_ProcessStartup {
             pub Title: String,
+            pub ShowWindow: Option<i16>,
+            pub CreateFlags: Option<i32>,
         }
 
         #[derive(Deserialize)]
@@ -362,6 +364,8 @@ mod tests {
         // Verify that `Win32_ProcessStartup` can be serialized.
         let startup_info = Win32_ProcessStartup {
             Title: "Pong".to_string(),
+            ShowWindow: Some(3),
+            CreateFlags: None,
         };
 
         let startup_info_instance = startup_info
@@ -383,6 +387,15 @@ mod tests {
         assert_eq!(
             startup_info_instance.get_property("Title").unwrap(),
             Variant::String(startup_info.Title.clone())
+        );
+
+        assert_eq!(
+            startup_info_instance.get_property("ShowWindow").unwrap(),
+            Variant::UI2(3)
+        );
+        assert_eq!(
+            startup_info_instance.get_property("CreateFlags").unwrap(),
+            Variant::Null
         );
 
         let create_params = CreateInput {
