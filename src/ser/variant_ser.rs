@@ -112,18 +112,16 @@ impl<'a> Serializer for VariantSerializer<'a> {
     serialize_variant_err_stub!(serialize_bytes, &[u8]);
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Err(VariantSerializerError::UnsupportedVariantType(
-            "None".to_string(),
-        ))
+        // we serialize to VT_NULL (explicit NULL semantic)  rather than VT_EMPTY
+        // (default state or uninitialized semantic)
+        Ok(Variant::Null)
     }
 
-    fn serialize_some<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
+    fn serialize_some<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + Serialize,
     {
-        Err(VariantSerializerError::UnsupportedVariantType(
-            type_name::<T>().to_string(),
-        ))
+        value.serialize(self)
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
@@ -350,6 +348,8 @@ mod tests {
         #[derive(Debug, Serialize, Default)]
         pub struct Win32_ProcessStartup {
             pub Title: String,
+            pub ShowWindow: Option<i16>,
+            pub CreateFlags: Option<i32>,
         }
 
         #[derive(Deserialize)]
@@ -364,6 +364,8 @@ mod tests {
         // Verify that `Win32_ProcessStartup` can be serialized.
         let startup_info = Win32_ProcessStartup {
             Title: "Pong".to_string(),
+            ShowWindow: Some(3),
+            CreateFlags: None,
         };
 
         let startup_info_instance = startup_info
@@ -385,6 +387,15 @@ mod tests {
         assert_eq!(
             startup_info_instance.get_property("Title").unwrap(),
             Variant::String(startup_info.Title.clone())
+        );
+
+        assert_eq!(
+            startup_info_instance.get_property("ShowWindow").unwrap(),
+            Variant::UI2(3)
+        );
+        assert_eq!(
+            startup_info_instance.get_property("CreateFlags").unwrap(),
+            Variant::Null
         );
 
         let create_params = CreateInput {
