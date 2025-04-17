@@ -1,3 +1,4 @@
+use crate::safearray::SafeArrayMutAccessor;
 use crate::{
     result_enumerator::IWbemClassWrapper, safearray::safe_array_to_vec, WMIError, WMIResult,
 };
@@ -5,9 +6,35 @@ use serde::Serialize;
 use std::convert::TryFrom;
 use windows::core::{IUnknown, Interface, BOOL, PCWSTR};
 use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
+use windows::Win32::System::Ole::SafeArrayCreateVector;
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Variant::{VARIANT, VT_NULL};
 use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
+
+fn variant_from_string_array(array: &[String]) -> WMIResult<VARIANT> {
+    // Convert the strings to null terminated vectors of `u16`s.
+    let v: Vec<Vec<u16>> = array
+        .iter()
+        .map(|s| s.encode_utf16().chain([0]).collect())
+        .collect();
+
+    // Safety: each pointer points to a null terminated slice of `u16`s.
+    let v: Vec<_> = v
+        .iter()
+        .map(|b| unsafe { PCWSTR::from_raw(b.as_ptr()) })
+        .collect();
+
+    let variant = unsafe { InitVariantFromStringArray(&v) }?;
+
+    Ok(variant)
+}
+
+fn set_variant_type(variant: &mut VARIANT, new_type: VARENUM) {
+    // Safety: it's always valid to access the `vt` field.
+    unsafe {
+        (&mut variant.Anonymous.Anonymous).vt = new_type;
+    }
+}
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
 #[serde(untagged)]
@@ -85,10 +112,7 @@ impl Variant {
         // 1. A simple type like `VT_BSTR` .
         // 2. An array of certain type like `VT_ARRAY | VT_BSTR`.
         if variant_type & VT_ARRAY == VT_ARRAY {
-            let array = unsafe {
-                vt.Anonymous.Anonymous.Anonymous.parray
-                    as *const windows::Win32::System::Com::SAFEARRAY
-            };
+            let array = unsafe { vt.Anonymous.Anonymous.Anonymous.parray };
 
             let item_type = variant_type & VT_TYPEMASK;
 
@@ -276,14 +300,21 @@ impl TryFrom<Variant> for VARIANT {
     type Error = WMIError;
 
     fn try_from(value: Variant) -> WMIResult<VARIANT> {
+        // Some rules are special cased by https://learn.microsoft.com/en-us/windows/win32/wmisdk/numbers.
+        // For int64, we also must use decimal and not hexadecimal:
+        // https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-put#examples.
         match value {
             Variant::Empty => Ok(VARIANT::default()),
 
             Variant::String(string) => Ok(VARIANT::from(string.as_str())),
-            Variant::I1(int8) => Ok(VARIANT::from(int8)),
+
+            // sint8 uses VT_I2.
+            Variant::I1(int8) => Ok(VARIANT::from(int8 as i16)),
             Variant::I2(int16) => Ok(VARIANT::from(int16)),
             Variant::I4(int32) => Ok(VARIANT::from(int32)),
-            Variant::I8(int64) => Ok(VARIANT::from(int64)),
+
+            // Signed 64-bit integer in string form
+            Variant::I8(int64) => Ok(VARIANT::from(int64.to_string().as_str())),
 
             Variant::R4(float32) => Ok(VARIANT::from(float32)),
             Variant::R8(float64) => Ok(VARIANT::from(float64)),
@@ -291,23 +322,28 @@ impl TryFrom<Variant> for VARIANT {
             Variant::Bool(b) => Ok(VARIANT::from(b)),
 
             Variant::UI1(uint8) => Ok(VARIANT::from(uint8)),
-            Variant::UI2(uint16) => Ok(VARIANT::from(uint16)),
-            Variant::UI4(uint32) => Ok(VARIANT::from(uint32)),
-            Variant::UI8(uint64) => Ok(VARIANT::from(uint64)),
+
+            // uint16 uses VT_I4.
+            Variant::UI2(uint16) => Ok(VARIANT::from(uint16 as i32)),
+            // uint32 uses VT_I4.
+            Variant::UI4(uint32) => Ok(VARIANT::from(uint32 as i32)),
+
+            // Signed 64-bit integer in string form.
+            Variant::UI8(uint64) => Ok(VARIANT::from(uint64.to_string().as_str())),
+
             Variant::Object(instance) => Ok(VARIANT::from(IUnknown::from(instance.inner))),
             Variant::Unknown(unknown) => Ok(VARIANT::from(unknown.inner)),
 
             Variant::Null => {
-                let mut variant = unsafe { VariantInit() };
-                unsafe {
-                    std::ptr::write(&mut (*variant.Anonymous.Anonymous).vt, VT_NULL);
-                }
+                let mut variant = VARIANT::default();
+                set_variant_type(&mut variant, VT_NULL);
                 Ok(variant)
             }
             Variant::Array(array) => {
                 // Variant arrays can only contain a single type, and we only support types that have utility functions in the `windows` crate.
                 match array.first() {
-                    None => Ok(VARIANT::default()),
+                    // The "Empty" (default) variant is not a valid array.
+                    None => Ok(Variant::Null.try_into()?),
                     Some(Variant::UI1(_)) => {
                         let v: Vec<u8> = Variant::Array(array).try_into()?;
 
@@ -319,19 +355,36 @@ impl TryFrom<Variant> for VARIANT {
                     Some(Variant::UI2(_)) => {
                         let v: Vec<u16> = Variant::Array(array).try_into()?;
 
-                        let variant = unsafe { InitVariantFromUInt16Array(&v) }?;
+                        // uint16 uses VT_I4.
+                        let v: Vec<i32> = v.into_iter().map(i32::from).collect();
+
+                        let variant = unsafe { InitVariantFromInt32Array(&v) }?;
                         Ok(variant)
                     }
                     Some(Variant::UI4(_)) => {
                         let v: Vec<u32> = Variant::Array(array).try_into()?;
 
-                        let variant = unsafe { InitVariantFromUInt32Array(&v) }?;
+                        // uint32 uses VT_I4.
+                        let v: Vec<i32> = v.into_iter().map(|i| i as _).collect();
+
+                        let variant = unsafe { InitVariantFromInt32Array(&v) }?;
                         Ok(variant)
                     }
                     Some(Variant::UI8(_)) => {
                         let v: Vec<u64> = Variant::Array(array).try_into()?;
 
-                        let variant = unsafe { InitVariantFromUInt64Array(&v) }?;
+                        // Unsigned 64-bit integer in string form.
+                        let v: Vec<String> = v.into_iter().map(|i| i.to_string()).collect();
+
+                        Ok(variant_from_string_array(&v)?)
+                    }
+                    Some(Variant::I1(_)) => {
+                        let v: Vec<i8> = Variant::Array(array).try_into()?;
+
+                        // sint8 uses VT_I2.
+                        let v: Vec<i16> = v.into_iter().map(i16::from).collect();
+
+                        let variant = unsafe { InitVariantFromInt16Array(&v) }?;
                         Ok(variant)
                     }
                     Some(Variant::I2(_)) => {
@@ -349,7 +402,35 @@ impl TryFrom<Variant> for VARIANT {
                     Some(Variant::I8(_)) => {
                         let v: Vec<i64> = Variant::Array(array).try_into()?;
 
-                        let variant = unsafe { InitVariantFromInt64Array(&v) }?;
+                        // Signed 64-bit integer in string form.
+                        let v: Vec<String> = v.into_iter().map(|i| i.to_string()).collect();
+
+                        Ok(variant_from_string_array(&v)?)
+                    }
+                    Some(Variant::R4(_)) => {
+                        let mut variant = VARIANT::default();
+                        let v: Vec<f32> = Variant::Array(array).try_into()?;
+
+                        let safe_arr = unsafe { SafeArrayCreateVector(VT_R4, 0, v.len() as _) };
+
+                        if safe_arr.is_null() {
+                            return Err(WMIError::NullPointerResult);
+                        }
+
+                        let mut accessor = unsafe { SafeArrayMutAccessor::new(&mut *safe_arr) }?;
+
+                        for (src, dst) in v.into_iter().zip(accessor.iter_mut()) {
+                            *dst = src;
+                        }
+
+                        drop(accessor);
+
+                        set_variant_type(&mut variant, VT_ARRAY | VT_R4);
+
+                        unsafe {
+                            (&mut variant.Anonymous.Anonymous).Anonymous.parray = safe_arr;
+                        }
+
                         Ok(variant)
                     }
                     Some(Variant::R8(_)) => {
@@ -368,20 +449,7 @@ impl TryFrom<Variant> for VARIANT {
                     Some(Variant::String(_)) => {
                         let v: Vec<String> = Variant::Array(array).try_into()?;
 
-                        // Convert the strings to null terminated vectors of `u16`s.
-                        let v: Vec<Vec<u16>> = v
-                            .into_iter()
-                            .map(|s| s.encode_utf16().chain([0]).collect())
-                            .collect();
-
-                        // Safety: each pointer points to a null terminated slice of `u16`s.
-                        let v: Vec<_> = v
-                            .iter()
-                            .map(|b| unsafe { PCWSTR::from_raw(b.as_ptr()) })
-                            .collect();
-
-                        let variant = unsafe { InitVariantFromStringArray(&v) }?;
-                        Ok(variant)
+                        Ok(variant_from_string_array(&v)?)
                     }
                     other => Err(WMIError::ConvertVariantError(format!(
                         "Cannot convert {other:?} to a Windows VARIANT"
@@ -451,12 +519,24 @@ macro_rules! impl_try_vec_from_variant {
     };
 }
 
+/// Infallible conversion from a Rust type into a Variant wrapper for that type
+macro_rules! impl_wrap_vec_type {
+    ($target_type:ty, $variant_type:ident) => {
+        impl From<Vec<$target_type>> for Variant {
+            fn from(value: Vec<$target_type>) -> Self {
+                Variant::Array(value.into_iter().map(Variant::$variant_type).collect())
+            }
+        }
+    };
+}
+
 /// Add conversions from a Rust type to its Variant form and vice versa
 macro_rules! bidirectional_variant_convert {
     ($target_type:ty, $variant_type:ident) => {
         impl_try_from_variant!($target_type, $variant_type);
         impl_try_vec_from_variant!($target_type, $variant_type);
         impl_wrap_type!($target_type, $variant_type);
+        impl_wrap_vec_type!($target_type, $variant_type);
     };
 }
 
@@ -537,6 +617,8 @@ impl Serialize for IUnknownWrapper {
 
 #[cfg(test)]
 mod tests {
+    use windows::Win32::System::Wmi::{CIM_SINT64, CIM_SINT8, CIM_UINT16, CIM_UINT32, CIM_UINT64};
+
     use super::*;
 
     #[test]
@@ -817,19 +899,28 @@ mod tests {
 
         let variant = Variant::Array(vec![Variant::UI2(1), Variant::UI2(2)]);
         let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
-        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant)
+            .unwrap()
+            .convert_into_cim_type(CIM_UINT16)
+            .unwrap();
 
         assert_eq!(variant, converted_back_variant);
 
         let variant = Variant::Array(vec![Variant::UI4(1), Variant::UI4(2)]);
         let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
-        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant)
+            .unwrap()
+            .convert_into_cim_type(CIM_UINT32)
+            .unwrap();
 
         assert_eq!(variant, converted_back_variant);
 
         let variant = Variant::Array(vec![Variant::UI8(1), Variant::UI8(2)]);
         let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
-        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant)
+            .unwrap()
+            .convert_into_cim_type(CIM_UINT64)
+            .unwrap();
 
         assert_eq!(variant, converted_back_variant);
 
@@ -847,7 +938,10 @@ mod tests {
 
         let variant = Variant::Array(vec![Variant::I8(1), Variant::I8(2)]);
         let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
-        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant)
+            .unwrap()
+            .convert_into_cim_type(CIM_SINT64)
+            .unwrap();
 
         assert_eq!(variant, converted_back_variant);
 
@@ -875,7 +969,22 @@ mod tests {
         // Empty arrays are converted to empty variants.
         let variant = Variant::Array(vec![]);
         let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
-        assert!(ms_variant.is_empty());
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+
+        assert_eq!(converted_back_variant, Variant::Null);
+
+        let variant = Variant::Array(vec![Variant::I1(0), Variant::I1(1)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant)
+            .unwrap()
+            .convert_into_cim_type(CIM_SINT8)
+            .unwrap();
+        assert_eq!(variant, converted_back_variant);
+
+        let variant = Variant::Array(vec![Variant::R4(0.), Variant::R4(1.)]);
+        let ms_variant = VARIANT::try_from(variant.clone()).unwrap();
+        let converted_back_variant = Variant::from_variant(&ms_variant).unwrap();
+        assert_eq!(variant, converted_back_variant);
     }
 
     #[test]
@@ -884,17 +993,6 @@ mod tests {
         assert!(
             VARIANT::try_from(variant.clone()).is_err(),
             "Mixed arrays are not supported"
-        );
-
-        let variant = Variant::Array(vec![Variant::I1(0), Variant::I1(1)]);
-        assert!(
-            VARIANT::try_from(variant.clone()).is_err(),
-            "i8 arrays are not supported"
-        );
-        let variant = Variant::Array(vec![Variant::R4(0.), Variant::R4(1.)]);
-        assert!(
-            VARIANT::try_from(variant.clone()).is_err(),
-            "f32 arrays are not supported"
         );
     }
 }
