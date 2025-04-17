@@ -277,11 +277,10 @@ impl<'a> SerializeSeq for VariantSeqSerializer<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::{ptr, u32, u64, u8};
-
     use super::*;
     use crate::tests::fixtures::wmi_con;
     use serde::{Deserialize, Serialize};
+    use std::ptr;
     use windows::core::HSTRING;
     use windows::Win32::System::Wmi::{CIM_FLAG_ARRAY, CIM_SINT64, CIM_UINT64};
 

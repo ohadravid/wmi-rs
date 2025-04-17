@@ -1,9 +1,10 @@
-use crate::safearray::SafeArrayMutAccessor;
+use crate::safearray::SafeArrayAccessor;
 use crate::{
     result_enumerator::IWbemClassWrapper, safearray::safe_array_to_vec, WMIError, WMIResult,
 };
 use serde::Serialize;
 use std::convert::TryFrom;
+use std::ptr::NonNull;
 use windows::core::{IUnknown, Interface, BOOL, PCWSTR};
 use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Ole::SafeArrayCreateVector;
@@ -24,6 +25,8 @@ fn variant_from_string_array(array: &[String]) -> WMIResult<VARIANT> {
         .map(|b| unsafe { PCWSTR::from_raw(b.as_ptr()) })
         .collect();
 
+    // The new variant will allocate new `BSTR`s for the array,
+    // so it is safe to free `v` after this call.
     let variant = unsafe { InitVariantFromStringArray(&v) }?;
 
     Ok(variant)
@@ -112,12 +115,13 @@ impl Variant {
         // 1. A simple type like `VT_BSTR` .
         // 2. An array of certain type like `VT_ARRAY | VT_BSTR`.
         if variant_type & VT_ARRAY == VT_ARRAY {
-            let array = unsafe { vt.Anonymous.Anonymous.Anonymous.parray };
+            let array = NonNull::new(unsafe { vt.Anonymous.Anonymous.Anonymous.parray })
+                .ok_or(WMIError::NullPointerResult)?;
 
             let item_type = variant_type & VT_TYPEMASK;
 
             return Ok(Variant::Array(unsafe {
-                safe_array_to_vec(&*array, item_type)?
+                safe_array_to_vec(array, item_type)?
             }));
         }
 
@@ -408,16 +412,13 @@ impl TryFrom<Variant> for VARIANT {
                         Ok(variant_from_string_array(&v)?)
                     }
                     Some(Variant::R4(_)) => {
-                        let mut variant = VARIANT::default();
                         let v: Vec<f32> = Variant::Array(array).try_into()?;
 
-                        let safe_arr = unsafe { SafeArrayCreateVector(VT_R4, 0, v.len() as _) };
+                        let safe_arr =
+                            NonNull::new(unsafe { SafeArrayCreateVector(VT_R4, 0, v.len() as _) })
+                                .ok_or(WMIError::NullPointerResult)?;
 
-                        if safe_arr.is_null() {
-                            return Err(WMIError::NullPointerResult);
-                        }
-
-                        let mut accessor = unsafe { SafeArrayMutAccessor::new(&mut *safe_arr) }?;
+                        let mut accessor = unsafe { SafeArrayAccessor::new(safe_arr) }?;
 
                         for (src, dst) in v.into_iter().zip(accessor.iter_mut()) {
                             *dst = src;
@@ -425,10 +426,14 @@ impl TryFrom<Variant> for VARIANT {
 
                         drop(accessor);
 
+                        let mut variant = VARIANT::default();
                         set_variant_type(&mut variant, VT_ARRAY | VT_R4);
 
+                        //  According to https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-variantclear:
+                        // "If the vt field has the VT_ARRAY bit set, the array is freed."
+                        // Therefore, we must not destroy the array ourselves, as the ownership is transferred to the variant.
                         unsafe {
-                            (&mut variant.Anonymous.Anonymous).Anonymous.parray = safe_arr;
+                            (&mut variant.Anonymous.Anonymous).Anonymous.parray = safe_arr.as_ptr();
                         }
 
                         Ok(variant)

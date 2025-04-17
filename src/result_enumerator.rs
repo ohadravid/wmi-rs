@@ -8,7 +8,7 @@ use serde::{
     ser::{Error, SerializeMap},
     Serialize,
 };
-use std::ptr;
+use std::ptr::{self, NonNull};
 use windows::Win32::System::Ole::SafeArrayDestroy;
 use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::System::Wmi::{
@@ -43,9 +43,11 @@ impl IWbemClassWrapper {
             )
         }?;
 
-        let res = unsafe { safe_array_to_vec_of_strings(unsafe { &*p_names }) };
+        let p_names = NonNull::new(p_names).ok_or(WMIError::NullPointerResult)?;
 
-        unsafe { SafeArrayDestroy(p_names) }?;
+        let res = unsafe { safe_array_to_vec_of_strings(p_names) };
+
+        unsafe { SafeArrayDestroy(p_names.as_ptr()) }?;
 
         res
     }
