@@ -534,8 +534,8 @@ mod tests {
         #[derive(Debug, Serialize, Default)]
         pub struct Win32_ProcessStartup {
             pub Title: String,
-            pub ShowWindow: Option<i16>,
-            pub CreateFlags: Option<i32>,
+            pub ShowWindow: Option<u16>,
+            pub CreateFlags: Option<u32>,
         }
 
         #[derive(Deserialize)]
