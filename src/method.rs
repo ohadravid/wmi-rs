@@ -224,7 +224,7 @@ mod tests {
 
     #[derive(Debug, Serialize, Default)]
     pub struct Win32_ProcessStartup {
-        CreateFlags: i32,
+        CreateFlags: u32,
     }
 
     #[derive(Serialize)]
@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn it_exec_methods() {
         let wmi_con = wmi_con();
-        const CREATE_SUSPENDED: i32 = 4;
+        const CREATE_SUSPENDED: u32 = 4;
 
         let in_params = CreateInput {
             CommandLine: "explorer.exe".to_string(),

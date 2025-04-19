@@ -280,6 +280,9 @@ mod tests {
     use super::*;
     use crate::tests::fixtures::wmi_con;
     use serde::{Deserialize, Serialize};
+    use std::ptr;
+    use windows::core::HSTRING;
+    use windows::Win32::System::Wmi::{CIM_FLAG_ARRAY, CIM_SINT64, CIM_UINT64};
 
     #[test]
     fn it_serialize_instance() {
@@ -341,6 +344,188 @@ mod tests {
         );
     }
 
+    fn spawn_instance(name: &str) -> IWbemClassWrapper {
+        let wmi_con = wmi_con();
+        wmi_con.get_object(&name).unwrap().spawn_instance().unwrap()
+    }
+
+    #[test]
+    fn it_can_get_and_put_strings() {
+        let prop = spawn_instance("Win32_PnPDevicePropertyString");
+        let test_value = Variant::String("Some Title".to_string());
+
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value,);
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyStringArray");
+        let test_value = Variant::Array(vec![
+            Variant::String("X".to_string()),
+            Variant::String("a".to_string()),
+        ]);
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value,);
+    }
+
+    #[test]
+    fn it_can_get_and_put_numbers_and_bool() {
+        let prop = spawn_instance("Win32_PnPDevicePropertyBoolean");
+        prop.put_property("Data", true).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::Bool(true));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyUint8");
+        prop.put_property("Data", u8::MAX).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::UI1(u8::MAX));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyUint16");
+        prop.put_property("Data", u16::MAX).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::UI2(u16::MAX));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyUint32");
+        prop.put_property("Data", u32::MAX).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::UI4(u32::MAX));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyUint64");
+        prop.put_property("Data", u64::MAX).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::UI8(u64::MAX));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertySint8");
+        prop.put_property("Data", i8::MAX).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::I1(i8::MAX));
+        prop.put_property("Data", i8::MIN).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::I1(i8::MIN));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertySint16");
+        prop.put_property("Data", i16::MAX).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::I2(i16::MAX));
+        prop.put_property("Data", i16::MIN).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::I2(i16::MIN));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertySint32");
+        prop.put_property("Data", i32::MAX).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::I4(i32::MAX));
+        prop.put_property("Data", i32::MIN).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::I4(i32::MIN));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertySint64");
+        prop.put_property("Data", i64::MAX).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::I8(i64::MAX));
+        prop.put_property("Data", i64::MIN).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::I8(i64::MIN));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyReal32");
+        prop.put_property("Data", 1.0f32).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::R4(1.0));
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyReal64");
+        prop.put_property("Data", 1.0f64).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), Variant::R8(1.0));
+    }
+
+    #[test]
+    fn it_can_get_and_put_arrays() {
+        let prop = spawn_instance("Win32_PnPDevicePropertyBooleanArray");
+        let test_value = vec![true, false, true];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        // Test with an empty array as well.
+        let prop = spawn_instance("Win32_PnPDevicePropertyBooleanArray");
+        let test_value = Variant::Array(vec![]);
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyBinary");
+        let test_value = vec![1u8, 2, u8::MAX];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyUint16Array");
+        let test_value = vec![1u16, 2, u16::MAX];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyUint32Array");
+        let test_value = vec![1u32, 2, u32::MAX];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        let prop = spawn_instance("Win32_PnPDevicePropertySint8Array");
+        let test_value = vec![1i8, i8::MIN, i8::MAX];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        let prop = spawn_instance("Win32_PnPDevicePropertySint16Array");
+        let test_value = vec![1i16, i16::MIN, i16::MAX];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        let prop = spawn_instance("Win32_PnPDevicePropertySint32Array");
+        let test_value = vec![1i32, i32::MIN, i32::MAX];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyReal32Array");
+        let test_value = vec![1.0f32, 2.0, -1.0];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+
+        let prop = spawn_instance("Win32_PnPDevicePropertyReal64Array");
+        let test_value = vec![1.0f64, 2.0, -1.0];
+        prop.put_property("Data", test_value.clone()).unwrap();
+        assert_eq!(prop.get_property("Data").unwrap(), test_value.into());
+    }
+
+    #[test]
+    fn it_can_get_and_put_u64_i64_arrays() {
+        // Since `Win32_PnPDeviceProperty{Uint64,Sint64}Array` are missing (documented, but do not exist in practice),
+        // we create a new class and set custom properties with the needed array types.
+
+        let wmi_con = wmi_con();
+        let new_cls_obj = wmi_con.get_object("").unwrap();
+
+        unsafe {
+            new_cls_obj
+                .inner
+                .Put(
+                    &HSTRING::from("uValue"),
+                    0,
+                    ptr::null(),
+                    CIM_UINT64.0 | CIM_FLAG_ARRAY.0,
+                )
+                .unwrap()
+        };
+
+        let test_value = vec![1u64, 2, u64::MAX];
+        new_cls_obj
+            .put_property("uValue", test_value.clone())
+            .unwrap();
+        assert_eq!(
+            new_cls_obj.get_property("uValue").unwrap(),
+            test_value.into()
+        );
+
+        unsafe {
+            new_cls_obj
+                .inner
+                .Put(
+                    &HSTRING::from("iValue"),
+                    0,
+                    ptr::null(),
+                    CIM_SINT64.0 | CIM_FLAG_ARRAY.0,
+                )
+                .unwrap()
+        };
+
+        let test_value = vec![1i64, i64::MIN, i64::MAX];
+        new_cls_obj
+            .put_property("iValue", test_value.clone())
+            .unwrap();
+        assert_eq!(
+            new_cls_obj.get_property("iValue").unwrap(),
+            test_value.into()
+        );
+    }
+
     #[test]
     fn it_serialize_instance_nested() {
         let wmi_con = wmi_con();
@@ -348,8 +533,8 @@ mod tests {
         #[derive(Debug, Serialize, Default)]
         pub struct Win32_ProcessStartup {
             pub Title: String,
-            pub ShowWindow: Option<i16>,
-            pub CreateFlags: Option<i32>,
+            pub ShowWindow: Option<u16>,
+            pub CreateFlags: Option<u32>,
         }
 
         #[derive(Deserialize)]
@@ -404,19 +589,19 @@ mod tests {
         };
 
         // Similar to how `exec_class_method` creates these objects.
-        let method_instance = wmi_con
+        let (method_in, method_out) = wmi_con
             .get_object("Win32_Process")
             .unwrap()
-            .get_method("Create")
-            .unwrap()
-            .unwrap()
-            .spawn_instance()
+            .get_method_in_out("Create")
             .unwrap();
+
+        let method_in = method_in.unwrap().spawn_instance().unwrap();
+        let method_out = method_out.unwrap().spawn_instance().unwrap();
 
         let instance_from_ser = create_params
             .serialize(VariantSerializer {
                 wmi: &wmi_con,
-                instance: Some(method_instance),
+                instance: Some(method_in),
             })
             .unwrap();
 
@@ -436,5 +621,10 @@ mod tests {
                 .unwrap(),
             Variant::Object(_)
         ));
+
+        assert_eq!(
+            method_out.get_property("ReturnValue").unwrap(),
+            Variant::Null
+        );
     }
 }

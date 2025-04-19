@@ -8,7 +8,7 @@ use serde::{
     ser::{Error, SerializeMap},
     Serialize,
 };
-use std::ptr;
+use std::ptr::{self, NonNull};
 use windows::Win32::System::Ole::SafeArrayDestroy;
 use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::System::Wmi::{
@@ -43,9 +43,11 @@ impl IWbemClassWrapper {
             )
         }?;
 
-        let res = unsafe { safe_array_to_vec_of_strings(unsafe { &*p_names }) };
+        let p_names = NonNull::new(p_names).ok_or(WMIError::NullPointerResult)?;
 
-        unsafe { SafeArrayDestroy(p_names) }?;
+        let res = unsafe { safe_array_to_vec_of_strings(p_names) };
+
+        unsafe { SafeArrayDestroy(p_names.as_ptr()) }?;
 
         res
     }
@@ -95,8 +97,8 @@ impl IWbemClassWrapper {
         Ok(())
     }
 
-    /// Get a method of this object. See [`crate::WMIConnection::exec_method`] for a usage example.
-    /// Note: GetMethod can only be called on a class definition.
+    /// Get the input signature class for the named method.
+    /// See [`crate::WMIConnection::exec_method`] for a usage example.
     /// See more at <https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-getmethod>.
     ///
     /// The method may have no input parameters, such as in this case: <https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/reboot-method-in-class-win32-operatingsystem>.
@@ -118,6 +120,39 @@ impl IWbemClassWrapper {
         }
 
         Ok(input_signature.map(IWbemClassWrapper::new))
+    }
+
+    /// Get the input and output signature classes for the named method.
+    /// See [`crate::WMIConnection::exec_method`] for a usage example.
+    /// Note: GetMethod can only be called on a class definition.
+    /// See more at <https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemclassobject-getmethod>.
+    ///
+    /// The method may have no in or out parameters, such as in this case: <https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/reboot-method-in-class-win32-operatingsystem>.
+    /// In such cases, `None` is returned.
+    pub fn get_method_in_out(
+        &self,
+        name: impl AsRef<str>,
+    ) -> WMIResult<(Option<IWbemClassWrapper>, Option<IWbemClassWrapper>)> {
+        let method = BSTR::from(name.as_ref());
+
+        // Retrieve the input signature of the WMI method.
+        // The fields of the resulting IWbemClassObject will have the names and types of the WMI method's input parameters
+        let mut input_signature = None;
+        let mut output_signature = None;
+
+        unsafe {
+            self.inner.GetMethod(
+                &method,
+                Default::default(),
+                &mut input_signature,
+                &mut output_signature,
+            )?;
+        }
+
+        Ok((
+            input_signature.map(IWbemClassWrapper::new),
+            output_signature.map(IWbemClassWrapper::new),
+        ))
     }
 
     /// Create a new instance a class. See [`crate::WMIConnection::exec_method`] for a usage example.
