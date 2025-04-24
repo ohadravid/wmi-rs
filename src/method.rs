@@ -378,4 +378,50 @@ mod tests {
             .exec_class_method::<StdRegProv, ()>("DeleteValue", &get_test_binary_value_params)
             .unwrap();
     }
+
+    #[test]
+    fn it_exec_with_object_arrays() {
+        let wmi_con = wmi_con();
+
+        #[derive(Deserialize)]
+        struct StdRegProv;
+
+        #[derive(Serialize)]
+        struct GetSecurityDescriptor {
+            sSubKeyName: String,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct __Trustee {
+            Name: String,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct __ACE {
+            Trustee: __Trustee,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct __SecurityDescriptor {
+            DACL: Vec<__ACE>,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct GetSecurityDescriptorOut {
+            Descriptor: Option<__SecurityDescriptor>,
+        }
+
+        let params = GetSecurityDescriptor {
+            sSubKeyName: r#"SECURITY"#.to_string(),
+        };
+
+        let value: GetSecurityDescriptorOut = wmi_con
+            .exec_class_method::<StdRegProv, _>("GetSecurityDescriptor", &params)
+            .unwrap();
+
+        let dacl = value.Descriptor.unwrap().DACL;
+
+        assert!(dacl.len() > 0, "Expected to get a non-empty value");
+        assert!(dacl.iter().find(|ac| ac.Trustee.Name == "SYSTEM").is_some());
+    }
 }
