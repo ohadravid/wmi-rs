@@ -69,12 +69,11 @@ impl IWbemClassWrapper {
                 Some(&mut cim_type),
                 None,
             )?;
-
-            let property_value = Variant::from_variant(&vt_prop)?
-                .convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))?;
-
-            Ok(property_value)
         }
+
+        let property_value = Variant::from_variant(&vt_prop)?;
+
+        property_value.convert_into_cim_type(CIMTYPE_ENUMERATION(cim_type))
     }
 
     /// Set the value of a property.
