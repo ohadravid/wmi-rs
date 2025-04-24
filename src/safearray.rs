@@ -111,12 +111,15 @@ pub unsafe fn safe_array_to_vec(
         variant_builder: F,
     ) -> WMIResult<Vec<Variant>>
     where
-        T: Copy,
+        T: Clone,
         F: Fn(T) -> Variant,
     {
         let accessor = unsafe { SafeArrayAccessor::<T>::new(arr)? };
 
-        Ok(accessor.iter().map(|item| variant_builder(*item)).collect())
+        Ok(accessor
+            .iter()
+            .map(|item| variant_builder(item.clone()))
+            .collect())
     }
 
     match item_type {
@@ -136,6 +139,7 @@ pub unsafe fn safe_array_to_vec(
             Ok(v.into_iter().map(Variant::String).collect())
         }
         VT_BOOL => copy_type_to_vec::<VARIANT_BOOL, _>(arr, |item| Variant::Bool(item.as_bool())),
+        VT_UNKNOWN => copy_type_to_vec(arr, Variant::Unknown),
         // TODO: Add support for all other types of arrays.
         _ => Err(WMIError::UnimplementedArrayItem),
     }
