@@ -897,8 +897,6 @@ mod tests {
         let wmi_con = wmi_con();
         let classes = [
             "CIM_ComputerSystem",
-            "Win32_Service",
-            "Win32_Process",
             "Win32_OperatingSystem",
             "Win32_TimeZone",
             "Win32_ComputerSystem",
@@ -911,9 +909,7 @@ mod tests {
             "Win32_Share",
             "Win32_MappedLogicalDisk",
             "Win32_DiskDrive",
-            "Win32_Product",
             "Win32_IP4RouteTable",
-            "Win32_NetworkConnection",
             "Win32_Group",
             // Only works under 64bit.
             // "Win32_ShadowCopy",

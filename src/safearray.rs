@@ -1,5 +1,6 @@
 use crate::{
     utils::{WMIError, WMIResult},
+    variant::IUnknownWrapper,
     Variant,
 };
 use std::{
@@ -9,7 +10,10 @@ use std::{
 use windows::Win32::System::Com::SAFEARRAY;
 use windows::Win32::System::Ole::{SafeArrayAccessData, SafeArrayUnaccessData};
 use windows::Win32::System::Variant::*;
-use windows::{core::BSTR, Win32::Foundation::VARIANT_BOOL};
+use windows::{
+    core::{IUnknown, Interface, BSTR},
+    Win32::Foundation::VARIANT_BOOL,
+};
 
 #[derive(Debug)]
 pub struct SafeArrayAccessor<T> {
@@ -111,15 +115,12 @@ pub unsafe fn safe_array_to_vec(
         variant_builder: F,
     ) -> WMIResult<Vec<Variant>>
     where
-        T: Clone,
+        T: Copy,
         F: Fn(T) -> Variant,
     {
         let accessor = unsafe { SafeArrayAccessor::<T>::new(arr)? };
 
-        Ok(accessor
-            .iter()
-            .map(|item| variant_builder(item.clone()))
-            .collect())
+        Ok(accessor.iter().map(|item| variant_builder(*item)).collect())
     }
 
     match item_type {
@@ -139,7 +140,22 @@ pub unsafe fn safe_array_to_vec(
             Ok(v.into_iter().map(Variant::String).collect())
         }
         VT_BOOL => copy_type_to_vec::<VARIANT_BOOL, _>(arr, |item| Variant::Bool(item.as_bool())),
-        VT_UNKNOWN => copy_type_to_vec(arr, Variant::Unknown),
+        VT_UNKNOWN => {
+            // An array of `VT_UNKNOWN`s will release the references to the items once it is cleared.
+            // Similar to how the docs of `VariantCopy` remark (https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-variantcopy#remarks),
+            // we need to call `AddRef` to increment the object's reference count so it outlives the array.
+            let accessor = unsafe { SafeArrayAccessor::<*mut _>::new(arr)? };
+
+            accessor
+                .iter()
+                .map(|item| {
+                    IUnknown::from_raw_borrowed(item)
+                        .cloned()
+                        .map(|item| Variant::Unknown(IUnknownWrapper::new(item)))
+                        .ok_or(WMIError::NullPointerResult)
+                })
+                .collect()
+        }
         // TODO: Add support for all other types of arrays.
         _ => Err(WMIError::UnimplementedArrayItem),
     }

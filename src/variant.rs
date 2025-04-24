@@ -587,7 +587,7 @@ impl TryFrom<Variant> for () {
 }
 
 /// A wrapper around the [`IUnknown`] interface. \
-/// Used to retrive [`IWbemClassObject`][winapi::um::Wmi::IWbemClassObject]
+/// Used to retrieve [`IWbemClassObject`][winapi::um::Wmi::IWbemClassObject]
 ///
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -596,7 +596,7 @@ pub struct IUnknownWrapper {
 }
 
 impl IUnknownWrapper {
-    /// Wrapps around a non-null pointer to IUnknown
+    /// Wraps a non-null pointer to IUnknown
     ///
     pub fn new(ptr: IUnknown) -> Self {
         IUnknownWrapper { inner: ptr }
