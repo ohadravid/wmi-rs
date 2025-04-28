@@ -10,13 +10,12 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::System::Com::{
     CoInitializeEx, CoInitializeSecurity, COINIT_MULTITHREADED, EOAC_NONE,
-    RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
+    RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE,
 };
 use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
 use windows::Win32::System::Wmi::{
     IWbemLocator, IWbemServices, WbemLocator, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
 };
-
 /// A marker to indicate that the current thread was `CoInitialize`d.
 ///
 /// # Note
@@ -181,6 +180,111 @@ impl WMIConnection {
 
         Ok(())
     }
+
+    /// Creates a connection to a remote computer with a default `CIMV2` namespace path.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use wmi::*;
+    /// # fn main() -> WMIResult<()> {
+    /// let com_lib = COMLibrary::new()?;
+    /// let wmi_con = WMIConnection::with_credentials(
+    ///     "ServerName",         // Server name or IP address
+    ///     "username",           // Username
+    ///     "password",           // Password
+    ///     "domain",             // Domain
+    ///     com_lib
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_credentials(
+        server: &str,
+        username: &str,
+        password: &str,
+        domain: &str,
+        com_lib: COMLibrary,
+    ) -> WMIResult<Self> {
+        Self::with_credentials_and_namespace(
+            server,
+            "ROOT\\CIMV2",
+            username,
+            password,
+            domain,
+            com_lib,
+        )
+    }
+
+    /// Creates a connection to a remote computer with the given namespace path and credentials.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use wmi::*;
+    /// # fn main() -> WMIResult<()> {
+    /// let com_lib = COMLibrary::new()?;
+    /// let wmi_con = WMIConnection::with_credentials_and_namespace(
+    ///     "ServerName",         // Server name or IP address
+    ///     "ROOT\\CIMV2",        // Namespace path
+    ///     "username",           // Username
+    ///     "password",           // Password
+    ///     "domain",             // Domain
+    ///     com_lib
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_credentials_and_namespace(
+        server: &str,
+        namespace_path: &str,
+        username: &str,
+        password: &str,
+        domain: &str,
+        com_lib: COMLibrary,
+    ) -> WMIResult<Self> {
+        let loc = create_locator()?;
+
+        // Build the full namespace path for remote connection
+        let full_namespace = format!(r"\\{}\{}", server.to_string(), namespace_path);
+
+        let svc = create_services_with_credentials(
+            &loc,
+            full_namespace.as_str(),
+            username,
+            password,
+            domain,
+        )?;
+
+        let ctx = WMIContext::new()?;
+
+        let this = Self {
+            _com_con: com_lib,
+            svc,
+            ctx,
+        };
+
+        this.set_proxy_for_remote()?;
+        Ok(this)
+    }
+
+    // Additional authentication for remote WMI connections
+    fn set_proxy_for_remote(&self) -> WMIResult<()> {
+        debug!("Calling CoSetProxyBlanket for remote connection");
+
+        unsafe {
+            CoSetProxyBlanket(
+                &self.svc,
+                RPC_C_AUTHN_WINNT,             // RPC_C_AUTHN_xxx
+                RPC_C_AUTHZ_NONE,              // RPC_C_AUTHZ_xxx
+                None,                          // Server principal name
+                RPC_C_AUTHN_LEVEL_PKT_PRIVACY, // Stronger authentication level for remote
+                RPC_C_IMP_LEVEL_IMPERSONATE,   // Impersonation level
+                None,                          // FIXME Client identity
+                EOAC_NONE,                     // Capability flags
+            )?;
+        }
+
+        Ok(())
+    }
 }
 
 fn create_locator() -> WMIResult<IWbemLocator> {
@@ -211,6 +315,37 @@ fn create_services(loc: &IWbemLocator, path: &str) -> WMIResult<IWbemServices> {
     };
 
     debug!("Got service {:?}", svc);
+
+    Ok(svc)
+}
+
+fn create_services_with_credentials(
+    loc: &IWbemLocator,
+    namespace_path: &str,
+    username: &str,
+    password: &str,
+    _domain: &str,
+) -> WMIResult<IWbemServices> {
+    debug!("Calling ConnectServer with credentials");
+
+    let namespace_bstr = BSTR::from(namespace_path);
+    let user_bstr = BSTR::from(username);
+    let pass_bstr = BSTR::from(password);
+    // let domain_bstr = BSTR::from(password);
+
+    let svc = unsafe {
+        loc.ConnectServer(
+            &namespace_bstr,
+            &user_bstr,
+            &pass_bstr,
+            &BSTR::new(),
+            WBEM_FLAG_CONNECT_USE_MAX_WAIT.0,
+            &BSTR::new(),
+            None,
+        )?
+    };
+
+    debug!("Got service with credentials {:?}", svc);
 
     Ok(svc)
 }
