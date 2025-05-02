@@ -149,7 +149,7 @@ impl WMIConnection {
     /// ```
     pub fn with_namespace_path(namespace_path: &str, com_lib: COMLibrary) -> WMIResult<Self> {
         let loc = create_locator()?;
-        let svc = create_services(&loc, namespace_path)?;
+        let svc = create_services(&loc, namespace_path, None, None, None)?;
         let ctx = WMIContext::new()?;
 
         let this = Self {
@@ -182,6 +182,7 @@ impl WMIConnection {
     }
 
     /// Creates a connection to a remote computer with a default `CIMV2` namespace path.
+    /// https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemlocator-connectserver
     ///
     /// # Example
     /// ```no_run
@@ -190,9 +191,9 @@ impl WMIConnection {
     /// let com_lib = COMLibrary::new()?;
     /// let wmi_con = WMIConnection::with_credentials(
     ///     "ServerName",         // Server name or IP address
-    ///     "username",           // Username
-    ///     "password",           // Password
-    ///     "domain",             // Domain
+    ///     "username",
+    ///     "password",
+    ///     "domain",
     ///     com_lib
     /// )?;
     /// # Ok(())
@@ -225,9 +226,9 @@ impl WMIConnection {
     /// let wmi_con = WMIConnection::with_credentials_and_namespace(
     ///     "ServerName",         // Server name or IP address
     ///     "ROOT\\CIMV2",        // Namespace path
-    ///     "username",           // Username
-    ///     "password",           // Password
-    ///     "domain",             // Domain
+    ///     "username",
+    ///     "password",
+    ///     "domain",
     ///     com_lib
     /// )?;
     /// # Ok(())
@@ -244,16 +245,15 @@ impl WMIConnection {
         let loc = create_locator()?;
 
         // Build the full namespace path for remote connection
-        let full_namespace = format!(r"\\{}\{}", server.to_string(), namespace_path);
+        let full_namespace = &format!(r"\\{}\{}", server, namespace_path);
 
-        let svc = create_services_with_credentials(
+        let svc = create_services(
             &loc,
-            full_namespace.as_str(),
-            username,
-            password,
-            domain,
+            full_namespace,
+            Some(username),
+            Some(password),
+            Some(domain),
         )?;
-
         let ctx = WMIContext::new()?;
 
         let this = Self {
@@ -278,7 +278,7 @@ impl WMIConnection {
                 None,                          // Server principal name
                 RPC_C_AUTHN_LEVEL_PKT_PRIVACY, // Stronger authentication level for remote
                 RPC_C_IMP_LEVEL_IMPERSONATE,   // Impersonation level
-                None,                          // FIXME Client identity
+                None,                          // Client identity
                 EOAC_NONE,                     // Capability flags
             )?;
         }
@@ -297,41 +297,30 @@ fn create_locator() -> WMIResult<IWbemLocator> {
     Ok(loc)
 }
 
-fn create_services(loc: &IWbemLocator, path: &str) -> WMIResult<IWbemServices> {
-    debug!("Calling ConnectServer");
-
-    let object_path_bstr = BSTR::from(path);
-
-    let svc = unsafe {
-        loc.ConnectServer(
-            &object_path_bstr,
-            &BSTR::new(),
-            &BSTR::new(),
-            &BSTR::new(),
-            WBEM_FLAG_CONNECT_USE_MAX_WAIT.0,
-            &BSTR::new(),
-            None,
-        )?
-    };
-
-    debug!("Got service {:?}", svc);
-
-    Ok(svc)
-}
-
-fn create_services_with_credentials(
+fn create_services(
     loc: &IWbemLocator,
     namespace_path: &str,
-    username: &str,
-    password: &str,
-    _domain: &str,
+    username: Option<&str>,
+    password: Option<&str>,
+    authority: Option<&str>,
 ) -> WMIResult<IWbemServices> {
-    debug!("Calling ConnectServer with credentials");
-
     let namespace_bstr = BSTR::from(namespace_path);
-    let user_bstr = BSTR::from(username);
-    let pass_bstr = BSTR::from(password);
-    // let domain_bstr = BSTR::from(password);
+
+    // Create BSTRs for credentials only if they are provided
+    let user_bstr = match username {
+        Some(user) => BSTR::from(user),
+        None => BSTR::new(),
+    };
+
+    let pass_bstr = match password {
+        Some(pass) => BSTR::from(pass),
+        None => BSTR::new(),
+    };
+
+    let authority_bstr = match authority {
+        Some(auth) => BSTR::from(auth),
+        None => BSTR::new(),
+    };
 
     let svc = unsafe {
         loc.ConnectServer(
@@ -340,12 +329,10 @@ fn create_services_with_credentials(
             &pass_bstr,
             &BSTR::new(),
             WBEM_FLAG_CONNECT_USE_MAX_WAIT.0,
-            &BSTR::new(),
+            &authority_bstr,
             None,
         )?
     };
-
-    debug!("Got service with credentials {:?}", svc);
 
     Ok(svc)
 }
@@ -366,5 +353,20 @@ mod tests {
             let com_lib = COMLibrary::new().unwrap();
             let _ = WMIConnection::new(com_lib);
         }
+    }
+
+    #[test]
+    fn it_can_connect_to_localhost_without_credentials() {
+        let com_lib = COMLibrary::new().unwrap();
+
+        // Connect to localhost with empty credentials
+        let result = WMIConnection::with_credentials("localhost", "", "", "", com_lib);
+
+        // The connection should succeed
+        assert!(
+            result.is_ok(),
+            "Failed to connect to localhost without credentials: {:?}",
+            result.err()
+        );
     }
 }
