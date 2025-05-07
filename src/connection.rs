@@ -10,13 +10,12 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::System::Com::{
     CoInitializeEx, CoInitializeSecurity, COINIT_MULTITHREADED, EOAC_NONE,
-    RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
+    RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE,
 };
 use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
 use windows::Win32::System::Wmi::{
-    IWbemLocator, IWbemServices, WbemLocator, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+    IWbemContext, IWbemLocator, IWbemServices, WbemLocator, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
 };
-
 /// A marker to indicate that the current thread was `CoInitialize`d.
 ///
 /// # Note
@@ -150,8 +149,8 @@ impl WMIConnection {
     /// ```
     pub fn with_namespace_path(namespace_path: &str, com_lib: COMLibrary) -> WMIResult<Self> {
         let loc = create_locator()?;
-        let svc = create_services(&loc, namespace_path)?;
         let ctx = WMIContext::new()?;
+        let svc = create_services(&loc, namespace_path, None, None, None, &ctx.0)?;
 
         let this = Self {
             _com_con: com_lib,
@@ -181,6 +180,105 @@ impl WMIConnection {
 
         Ok(())
     }
+
+    /// Creates a connection to a remote computer with a default `CIMV2` namespace path.
+    /// https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemlocator-connectserver
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use wmi::*;
+    /// # fn main() -> WMIResult<()> {
+    /// let com_lib = COMLibrary::new()?;
+    /// let wmi_con = WMIConnection::with_credentials(
+    ///     "ServerName",         // Server name or IP address
+    ///     Some("username"),
+    ///     Some("password"),
+    ///     Some("domain"),
+    ///     com_lib
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_credentials(
+        server: &str,
+        username: Option<&str>,
+        password: Option<&str>,
+        domain: Option<&str>,
+        com_lib: COMLibrary,
+    ) -> WMIResult<Self> {
+        Self::with_credentials_and_namespace(
+            server,
+            "ROOT\\CIMV2",
+            username,
+            password,
+            domain,
+            com_lib,
+        )
+    }
+
+    /// Creates a connection to a remote computer with the given namespace path and credentials.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use wmi::*;
+    /// # fn main() -> WMIResult<()> {
+    /// let com_lib = COMLibrary::new()?;
+    /// let wmi_con = WMIConnection::with_credentials_and_namespace(
+    ///     "ServerName",         // Server name or IP address
+    ///     "ROOT\\CIMV2",        // Namespace path
+    ///     Some("username"),
+    ///     Some("password"),
+    ///     Some("domain"),
+    ///     com_lib
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_credentials_and_namespace(
+        server: &str,
+        namespace_path: &str,
+        username: Option<&str>,
+        password: Option<&str>,
+        domain: Option<&str>,
+        com_lib: COMLibrary,
+    ) -> WMIResult<Self> {
+        let loc = create_locator()?;
+
+        // Build the full namespace path for remote connection
+        let full_namespace = &format!(r"\\{}\{}", server, namespace_path);
+
+        let ctx = WMIContext::new()?;
+        let svc = create_services(&loc, full_namespace, username, password, domain, &ctx.0)?;
+
+        let this = Self {
+            _com_con: com_lib,
+            svc,
+            ctx,
+        };
+
+        this.set_proxy_for_remote()?;
+        Ok(this)
+    }
+
+    // Additional authentication for remote WMI connections
+    fn set_proxy_for_remote(&self) -> WMIResult<()> {
+        debug!("Calling CoSetProxyBlanket for remote connection");
+
+        unsafe {
+            CoSetProxyBlanket(
+                &self.svc,
+                RPC_C_AUTHN_WINNT,             // RPC_C_AUTHN_xxx
+                RPC_C_AUTHZ_NONE,              // RPC_C_AUTHZ_xxx
+                None,                          // Server principal name
+                RPC_C_AUTHN_LEVEL_PKT_PRIVACY, // Stronger authentication level for remote
+                RPC_C_IMP_LEVEL_IMPERSONATE,   // Impersonation level
+                None,                          // Client identity
+                EOAC_NONE,                     // Capability flags
+            )?;
+        }
+
+        Ok(())
+    }
 }
 
 fn create_locator() -> WMIResult<IWbemLocator> {
@@ -193,24 +291,30 @@ fn create_locator() -> WMIResult<IWbemLocator> {
     Ok(loc)
 }
 
-fn create_services(loc: &IWbemLocator, path: &str) -> WMIResult<IWbemServices> {
-    debug!("Calling ConnectServer");
-
-    let object_path_bstr = BSTR::from(path);
+fn create_services(
+    loc: &IWbemLocator,
+    namespace_path: &str,
+    username: Option<&str>,
+    password: Option<&str>,
+    authority: Option<&str>,
+    ctx: &IWbemContext,
+) -> WMIResult<IWbemServices> {
+    let namespace_path = BSTR::from(namespace_path);
+    let user = BSTR::from(username.unwrap_or_default());
+    let password = BSTR::from(password.unwrap_or_default());
+    let authority = BSTR::from(authority.unwrap_or_default());
 
     let svc = unsafe {
         loc.ConnectServer(
-            &object_path_bstr,
-            &BSTR::new(),
-            &BSTR::new(),
+            &namespace_path,
+            &user,
+            &password,
             &BSTR::new(),
             WBEM_FLAG_CONNECT_USE_MAX_WAIT.0,
-            &BSTR::new(),
-            None,
+            &authority,
+            ctx,
         )?
     };
-
-    debug!("Got service {:?}", svc);
 
     Ok(svc)
 }
@@ -231,5 +335,20 @@ mod tests {
             let com_lib = COMLibrary::new().unwrap();
             let _ = WMIConnection::new(com_lib);
         }
+    }
+
+    #[test]
+    fn it_can_connect_to_localhost_without_credentials() {
+        let com_lib = COMLibrary::new().unwrap();
+
+        // Connect to localhost with empty credentials
+        let result = WMIConnection::with_credentials("localhost", None, None, None, com_lib);
+
+        // The connection should succeed
+        assert!(
+            result.is_ok(),
+            "Failed to connect to localhost without credentials: {:?}",
+            result.err()
+        );
     }
 }
