@@ -14,7 +14,7 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
 use windows::Win32::System::Wmi::{
-    IWbemLocator, IWbemServices, WbemLocator, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+    IWbemContext, IWbemLocator, IWbemServices, WbemLocator, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
 };
 /// A marker to indicate that the current thread was `CoInitialize`d.
 ///
@@ -149,8 +149,8 @@ impl WMIConnection {
     /// ```
     pub fn with_namespace_path(namespace_path: &str, com_lib: COMLibrary) -> WMIResult<Self> {
         let loc = create_locator()?;
-        let svc = create_services(&loc, namespace_path, None, None, None)?;
         let ctx = WMIContext::new()?;
+        let svc = create_services(&loc, namespace_path, None, None, None, &ctx.0)?;
 
         let this = Self {
             _com_con: com_lib,
@@ -191,9 +191,9 @@ impl WMIConnection {
     /// let com_lib = COMLibrary::new()?;
     /// let wmi_con = WMIConnection::with_credentials(
     ///     "ServerName",         // Server name or IP address
-    ///     "username",
-    ///     "password",
-    ///     "domain",
+    ///     Some("username"),
+    ///     Some("password"),
+    ///     Some("domain"),
     ///     com_lib
     /// )?;
     /// # Ok(())
@@ -201,9 +201,9 @@ impl WMIConnection {
     /// ```
     pub fn with_credentials(
         server: &str,
-        username: &str,
-        password: &str,
-        domain: &str,
+        username: Option<&str>,
+        password: Option<&str>,
+        domain: Option<&str>,
         com_lib: COMLibrary,
     ) -> WMIResult<Self> {
         Self::with_credentials_and_namespace(
@@ -226,9 +226,9 @@ impl WMIConnection {
     /// let wmi_con = WMIConnection::with_credentials_and_namespace(
     ///     "ServerName",         // Server name or IP address
     ///     "ROOT\\CIMV2",        // Namespace path
-    ///     "username",
-    ///     "password",
-    ///     "domain",
+    ///     Some("username"),
+    ///     Some("password"),
+    ///     Some("domain"),
     ///     com_lib
     /// )?;
     /// # Ok(())
@@ -237,9 +237,9 @@ impl WMIConnection {
     pub fn with_credentials_and_namespace(
         server: &str,
         namespace_path: &str,
-        username: &str,
-        password: &str,
-        domain: &str,
+        username: Option<&str>,
+        password: Option<&str>,
+        domain: Option<&str>,
         com_lib: COMLibrary,
     ) -> WMIResult<Self> {
         let loc = create_locator()?;
@@ -247,14 +247,8 @@ impl WMIConnection {
         // Build the full namespace path for remote connection
         let full_namespace = &format!(r"\\{}\{}", server, namespace_path);
 
-        let svc = create_services(
-            &loc,
-            full_namespace,
-            Some(username),
-            Some(password),
-            Some(domain),
-        )?;
         let ctx = WMIContext::new()?;
+        let svc = create_services(&loc, full_namespace, username, password, domain, &ctx.0)?;
 
         let this = Self {
             _com_con: com_lib,
@@ -303,34 +297,22 @@ fn create_services(
     username: Option<&str>,
     password: Option<&str>,
     authority: Option<&str>,
+    ctx: &IWbemContext,
 ) -> WMIResult<IWbemServices> {
-    let namespace_bstr = BSTR::from(namespace_path);
-
-    // Create BSTRs for credentials only if they are provided
-    let user_bstr = match username {
-        Some(user) => BSTR::from(user),
-        None => BSTR::new(),
-    };
-
-    let pass_bstr = match password {
-        Some(pass) => BSTR::from(pass),
-        None => BSTR::new(),
-    };
-
-    let authority_bstr = match authority {
-        Some(auth) => BSTR::from(auth),
-        None => BSTR::new(),
-    };
+    let namespace_path = BSTR::from(namespace_path);
+    let user = BSTR::from(username.unwrap_or_default());
+    let password = BSTR::from(password.unwrap_or_default());
+    let authority = BSTR::from(authority.unwrap_or_default());
 
     let svc = unsafe {
         loc.ConnectServer(
-            &namespace_bstr,
-            &user_bstr,
-            &pass_bstr,
+            &namespace_path,
+            &user,
+            &password,
             &BSTR::new(),
             WBEM_FLAG_CONNECT_USE_MAX_WAIT.0,
-            &authority_bstr,
-            None,
+            &authority,
+            ctx,
         )?
     };
 
@@ -360,7 +342,7 @@ mod tests {
         let com_lib = COMLibrary::new().unwrap();
 
         // Connect to localhost with empty credentials
-        let result = WMIConnection::with_credentials("localhost", "", "", "", com_lib);
+        let result = WMIConnection::with_credentials("localhost", None, None, None, com_lib);
 
         // The connection should succeed
         assert!(
