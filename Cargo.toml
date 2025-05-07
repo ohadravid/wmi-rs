@@ -1,6 +1,6 @@
 [package]
 name = "wmi"
-version = "0.17.1"
+version = "0.17.2"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
