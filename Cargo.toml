@@ -47,7 +47,7 @@ log = "0.4"
 async-std = { version = "1",  features = ["attributes"] }
 tokio = { version = "1", features = ["rt", "macros"] }
 serde_json = { version = "1.0" }
-criterion = "0.6"
+criterion = "0.7"
 tempdir = "0.3"
 
 [[bin]]
