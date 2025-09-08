@@ -27,7 +27,7 @@ test = []
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-core = { version = "0.61" }
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_System_Com",
