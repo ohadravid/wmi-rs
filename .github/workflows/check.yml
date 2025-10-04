@@ -5,9 +5,9 @@ on: [push, pull_request]
 jobs:
   build:
     name: Build
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -30,9 +30,9 @@ jobs:
 
   test:
     name: Run tests
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -51,9 +51,9 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -65,9 +65,9 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable

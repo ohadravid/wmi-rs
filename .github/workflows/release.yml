@@ -8,19 +8,15 @@ on:
 jobs:
   create-release:
     name: create-release
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5 
       
       - name: Check semver
         uses: obi1kenobi/cargo-semver-checks-action@v2
       - name: Cleanup
         run: rm -r -force semver-checks
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --token ${{ secrets.CRATES_IO_TOKEN }}
+      - uses: 
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
