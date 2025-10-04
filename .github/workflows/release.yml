@@ -17,6 +17,5 @@ jobs:
       - name: Cleanup
         run: rm -r -force semver-checks
 
-      - uses: 
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
