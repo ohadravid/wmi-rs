@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   build:
     name: Build
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
 
@@ -30,7 +30,7 @@ jobs:
 
   test:
     name: Run tests
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
 
@@ -51,7 +51,7 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
 
@@ -65,7 +65,7 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
 
