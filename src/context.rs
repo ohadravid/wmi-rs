@@ -89,14 +89,11 @@ impl_from_type!(bool, Bool);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::COMLibrary;
     use serde::Deserialize;
 
     #[test]
     fn verify_ctx_values_used() {
-        let com_con = COMLibrary::new().unwrap();
-        let mut wmi_con =
-            WMIConnection::with_namespace_path("ROOT\\StandardCimv2", com_con).unwrap();
+        let mut wmi_con = WMIConnection::with_namespace_path("ROOT\\StandardCimv2").unwrap();
 
         #[derive(Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
         struct MSFT_NetAdapter {
@@ -120,9 +117,7 @@ mod tests {
 
     #[tokio::test]
     async fn async_verify_ctx_values_used() {
-        let com_con = COMLibrary::new().unwrap();
-        let mut wmi_con =
-            WMIConnection::with_namespace_path("ROOT\\StandardCimv2", com_con).unwrap();
+        let mut wmi_con = WMIConnection::with_namespace_path("ROOT\\StandardCimv2").unwrap();
 
         #[derive(Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
         struct MSFT_NetAdapter {

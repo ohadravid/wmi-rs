@@ -1,17 +1,10 @@
-use crate::{COMLibrary, WMIConnection, WMIError, WMIResult};
+use crate::{WMIConnection, WMIError, WMIResult};
 
 pub mod fixtures {
     use super::*;
 
-    // This way we only setup COM security once per thread during tests.
-    thread_local! {
-        static COM_LIB: COMLibrary = COMLibrary::without_security().unwrap();
-    }
-
     pub fn wmi_con() -> WMIConnection {
-        let com_lib = COM_LIB.with(|com| *com);
-
-        WMIConnection::new(com_lib).unwrap()
+        WMIConnection::new().unwrap()
     }
 }
 

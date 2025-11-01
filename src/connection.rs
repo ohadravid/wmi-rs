@@ -1,140 +1,72 @@
-use crate::WMIError;
 use crate::context::WMIContext;
 use crate::utils::WMIResult;
 use log::debug;
 use std::marker::PhantomData;
-use windows::Win32::Foundation::RPC_E_TOO_LATE;
+use windows::Win32::Foundation::{CO_E_NOTINITIALIZED, RPC_E_TOO_LATE};
 use windows::Win32::System::Com::{
-    CLSCTX_INPROC_SERVER, CoCreateInstance, CoSetProxyBlanket, RPC_C_AUTHN_LEVEL_CALL,
+    CLSCTX_INPROC_SERVER, CoCreateInstance, CoIncrementMTAUsage, CoSetProxyBlanket,
+    RPC_C_AUTHN_LEVEL_CALL,
 };
 use windows::Win32::System::Com::{
-    COINIT_MULTITHREADED, CoInitializeEx, CoInitializeSecurity, EOAC_NONE,
-    RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE,
+    CoInitializeSecurity, EOAC_NONE, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
+    RPC_C_IMP_LEVEL_IMPERSONATE,
 };
 use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
 use windows::Win32::System::Wmi::{
     IWbemContext, IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT, WbemLocator,
 };
 use windows::core::BSTR;
-/// A marker to indicate that the current thread was `CoInitialize`d.
-///
-/// # Note
-///
-/// `COMLibrary` should be treated as a singleton per thread:
-///
-/// ```edition2018
-/// # use wmi::*;
-/// thread_local! {
-///     static COM_LIB: COMLibrary = COMLibrary::new().unwrap();
-/// }
-///
-/// pub fn wmi_con() -> WMIConnection {
-///     let com_lib = COM_LIB.with(|com| *com);
-///     WMIConnection::new(com_lib).unwrap()
-/// }
-/// ```
-#[derive(Clone, Copy, Debug)]
-pub struct COMLibrary {
-    // Force the type to be `!Send`, as each thread must be initialized separately.
-    _phantom: PhantomData<*mut ()>,
-}
 
-/// Initialize COM.
-///
-/// `CoUninitialize` will NOT be called when dropped.
-/// See: <https://github.com/microsoft/windows-rs/issues/1169#issuecomment-926877227>.
-///
-impl COMLibrary {
-    /// `CoInitialize`s the COM library for use by the calling thread.
-    ///
-    pub fn new() -> WMIResult<Self> {
-        let instance = Self::without_security()?;
+fn init_security() -> windows_core::Result<()> {
+    unsafe {
+        CoInitializeSecurity(
+            None,
+            -1, // let COM choose.
+            None,
+            None,
+            RPC_C_AUTHN_LEVEL_DEFAULT,
+            RPC_C_IMP_LEVEL_IMPERSONATE,
+            None,
+            EOAC_NONE,
+            None,
+        )?;
+    };
 
-        match instance.init_security() {
-            Ok(()) => {}
-            // Security was already initialized, this is fine
-            Err(WMIError::HResultError { hres }) if hres == RPC_E_TOO_LATE.0 => {}
-            Err(err) => return Err(err),
-        }
-
-        Ok(instance)
-    }
-
-    /// `CoInitialize`s the COM library for use by the calling thread, but without setting the security context.
-    ///
-    pub fn without_security() -> WMIResult<Self> {
-        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok()? }
-
-        let instance = Self {
-            _phantom: PhantomData,
-        };
-
-        Ok(instance)
-    }
-
-    /// Assumes that COM was already initialized for this thread.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe as it is the caller's responsibility to ensure that COM is initialized
-    /// and will not be uninitialized while any instance of object is in scope.
-    ///
-    /// ```edition2018
-    /// # fn main() -> wmi::WMIResult<()> {
-    /// # use wmi::*;
-    /// # use serde::Deserialize;
-    /// # let _actual_com = COMLibrary::new()?;
-    /// let initialized_com = unsafe { COMLibrary::assume_initialized() };
-    ///
-    /// // Later, in the same thread.
-    /// let wmi_con = WMIConnection::with_namespace_path("ROOT\\CIMV2", initialized_com)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub unsafe fn assume_initialized() -> Self {
-        Self {
-            _phantom: PhantomData,
-        }
-    }
-
-    fn init_security(&self) -> WMIResult<()> {
-        unsafe {
-            CoInitializeSecurity(
-                None,
-                -1, // let COM choose.
-                None,
-                None,
-                RPC_C_AUTHN_LEVEL_DEFAULT,
-                RPC_C_IMP_LEVEL_IMPERSONATE,
-                None,
-                EOAC_NONE,
-                None,
-            )?;
-        };
-
-        Ok(())
-    }
+    Ok(())
 }
 
 /// ```compile_fail
-/// let com = COMLibrary::new().unwrap();
-/// _test_com_lib_not_send(com);
+/// let wmi = wmi::WMIConnection::new().unwrap();
+/// _test_not_send(wmi);
 /// ```
-fn _test_com_lib_not_send(_s: impl Send) {}
+fn _test_not_send(_s: impl Send) {}
 
 /// A connection to the local WMI provider.
 ///
+/// <div class="warning">
+///
+/// If COM is uninitialized when a new WMI connection is created, it will be initialized (using [`CoIncrementMTAUsage`]),
+/// and the [default security policy] will be set. COM will NOT be uninitialized when the connection is dropped.
+///
+/// If this is not what you want, then you must initialize COM yourself. See [Hosting the Windows Runtime] for more.
+///
+/// </div>
+///
+/// [`CoIncrementMTAUsage`]: https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coincrementmtausage
+/// [default security policy]: https://learn.microsoft.com/en-us/windows/win32/wmisdk/setting-the-default-process-security-level-using-c-
+/// [Hosting the Windows Runtime]: https://kennykerrca.wordpress.com/2018/03/24/cppwinrt-hosting-the-windows-runtime/
 #[derive(Clone, Debug)]
 pub struct WMIConnection {
-    _com_con: COMLibrary,
-    pub svc: IWbemServices,
+    // Force the type to be `!Send`, as each thread must initialize COM and a separate connection.
+    _phantom: PhantomData<*mut ()>,
+    pub(crate) svc: IWbemServices,
     pub(crate) ctx: WMIContext,
 }
 
 impl WMIConnection {
     /// Creates a connection with a default `CIMV2` namespace path.
-    pub fn new(com_lib: COMLibrary) -> WMIResult<Self> {
-        Self::with_namespace_path("ROOT\\CIMV2", com_lib)
+    pub fn new() -> WMIResult<Self> {
+        Self::with_namespace_path("ROOT\\CIMV2")
     }
 
     /// Creates a connection with the given namespace path.
@@ -143,17 +75,18 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// let wmi_con = WMIConnection::with_namespace_path("ROOT\\Microsoft\\Windows\\Storage", COMLibrary::new()?)?;
+    /// let wmi_con = WMIConnection::with_namespace_path("ROOT\\Microsoft\\Windows\\Storage")?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn with_namespace_path(namespace_path: &str, com_lib: COMLibrary) -> WMIResult<Self> {
-        let loc = create_locator()?;
+    pub fn with_namespace_path(namespace_path: &str) -> WMIResult<Self> {
+        let loc = create_locator_or_init()?;
+
         let ctx = WMIContext::new()?;
         let svc = create_services(&loc, namespace_path, None, None, None, &ctx.0)?;
 
         let this = Self {
-            _com_con: com_lib,
+            _phantom: PhantomData,
             svc,
             ctx,
         };
@@ -182,19 +115,17 @@ impl WMIConnection {
     }
 
     /// Creates a connection to a remote computer with a default `CIMV2` namespace path.
-    /// https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemlocator-connectserver
+    /// See [`IWbemLocator::ConnectServer`](https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nf-wbemcli-iwbemlocator-connectserver).
     ///
     /// # Example
     /// ```no_run
     /// # use wmi::*;
     /// # fn main() -> WMIResult<()> {
-    /// let com_lib = COMLibrary::new()?;
     /// let wmi_con = WMIConnection::with_credentials(
     ///     "ServerName",         // Server name or IP address
     ///     Some("username"),
     ///     Some("password"),
     ///     Some("domain"),
-    ///     com_lib
     /// )?;
     /// # Ok(())
     /// # }
@@ -204,16 +135,8 @@ impl WMIConnection {
         username: Option<&str>,
         password: Option<&str>,
         domain: Option<&str>,
-        com_lib: COMLibrary,
     ) -> WMIResult<Self> {
-        Self::with_credentials_and_namespace(
-            server,
-            "ROOT\\CIMV2",
-            username,
-            password,
-            domain,
-            com_lib,
-        )
+        Self::with_credentials_and_namespace(server, "ROOT\\CIMV2", username, password, domain)
     }
 
     /// Creates a connection to a remote computer with the given namespace path and credentials.
@@ -222,14 +145,12 @@ impl WMIConnection {
     /// ```no_run
     /// # use wmi::*;
     /// # fn main() -> WMIResult<()> {
-    /// let com_lib = COMLibrary::new()?;
     /// let wmi_con = WMIConnection::with_credentials_and_namespace(
     ///     "ServerName",         // Server name or IP address
     ///     "ROOT\\CIMV2",        // Namespace path
     ///     Some("username"),
     ///     Some("password"),
     ///     Some("domain"),
-    ///     com_lib
     /// )?;
     /// # Ok(())
     /// # }
@@ -240,9 +161,8 @@ impl WMIConnection {
         username: Option<&str>,
         password: Option<&str>,
         domain: Option<&str>,
-        com_lib: COMLibrary,
     ) -> WMIResult<Self> {
-        let loc = create_locator()?;
+        let loc = create_locator_or_init()?;
 
         // Build the full namespace path for remote connection
         let full_namespace = &format!(r"\\{}\{}", server, namespace_path);
@@ -251,7 +171,7 @@ impl WMIConnection {
         let svc = create_services(&loc, full_namespace, username, password, domain, &ctx.0)?;
 
         let this = Self {
-            _com_con: com_lib,
+            _phantom: PhantomData,
             svc,
             ctx,
         };
@@ -281,7 +201,7 @@ impl WMIConnection {
     }
 }
 
-fn create_locator() -> WMIResult<IWbemLocator> {
+fn create_locator() -> windows_core::Result<IWbemLocator> {
     debug!("Calling CoCreateInstance for CLSID_WbemLocator");
 
     let loc = unsafe { CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER)? };
@@ -289,6 +209,29 @@ fn create_locator() -> WMIResult<IWbemLocator> {
     debug!("Got locator {:?}", loc);
 
     Ok(loc)
+}
+
+fn create_locator_or_init() -> windows_core::Result<IWbemLocator> {
+    let loc_res = create_locator();
+    match loc_res {
+        // If COM is not initialized, initialize it and try again.
+        // Based on [`load_factory`](https://github.com/microsoft/windows-rs/blob/945130accc25ac18a47054115e861ca704a37eb5/crates/libs/core/src/imp/factory_cache.rs#L73)
+        // from the `windows-rs` crate.
+        Err(err) if err.code() == CO_E_NOTINITIALIZED => {
+            let _ = unsafe { CoIncrementMTAUsage() }?;
+            let sec_result = init_security();
+
+            // If security was initialized already, there's no need to return an error.
+            if let Err(err) = &sec_result
+                && err.code() != RPC_E_TOO_LATE
+            {
+                sec_result?;
+            }
+
+            create_locator()
+        }
+        loc_res => loc_res,
+    }
 }
 
 fn create_services(
@@ -323,26 +266,24 @@ fn create_services(
 #[allow(non_camel_case_types)]
 #[cfg(test)]
 mod tests {
+    use rusty_fork::rusty_fork_test;
+
     use super::*;
 
     #[test]
     fn it_can_create_multiple_connections() {
         {
-            let com_lib = COMLibrary::new().unwrap();
-            let _ = WMIConnection::new(com_lib);
+            let _ = WMIConnection::new();
         }
         {
-            let com_lib = COMLibrary::new().unwrap();
-            let _ = WMIConnection::new(com_lib);
+            let _ = WMIConnection::new();
         }
     }
 
     #[test]
     fn it_can_connect_to_localhost_without_credentials() {
-        let com_lib = COMLibrary::new().unwrap();
-
         // Connect to localhost with empty credentials
-        let result = WMIConnection::with_credentials("localhost", None, None, None, com_lib);
+        let result = WMIConnection::with_credentials("localhost", None, None, None);
 
         // The connection should succeed
         assert!(
@@ -350,5 +291,29 @@ mod tests {
             "Failed to connect to localhost without credentials: {:?}",
             result.err()
         );
+    }
+
+    rusty_fork_test! {
+        /// See https://github.com/ohadravid/wmi-rs/issues/136.
+        #[test]
+        fn it_can_run_as_thread_local_in_non_main_thread() {
+            use crate::WMIConnection;
+
+            thread_local! {
+                static WMI: Option<WMIConnection> = {
+                    let wmi = WMIConnection::new().unwrap();
+
+                    Some(wmi)
+                };
+            }
+
+            let thread = std::thread::spawn(|| {
+                WMI.with(|_wmi| {
+                    assert!(true);
+                })
+            });
+
+            thread.join().unwrap();
+        }
     }
 }

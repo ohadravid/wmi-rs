@@ -279,7 +279,7 @@ impl<'a> SerializeSeq for VariantSeqSerializer<'a> {
 mod tests {
     use super::*;
     use crate::tests::fixtures::wmi_con;
-    use serde::{Deserialize, Serialize};
+    use serde::Serialize;
     use std::ptr;
     use windows::Win32::System::Wmi::{CIM_FLAG_ARRAY, CIM_SINT64, CIM_UINT64};
     use windows::core::HSTRING;
@@ -287,9 +287,6 @@ mod tests {
     #[test]
     fn it_serialize_instance() {
         let wmi_con = wmi_con();
-
-        #[derive(Deserialize)]
-        struct StdRegProv;
 
         #[derive(Serialize)]
         struct GetBinaryValue {
@@ -536,9 +533,6 @@ mod tests {
             pub ShowWindow: Option<u16>,
             pub CreateFlags: Option<u32>,
         }
-
-        #[derive(Deserialize)]
-        struct Win32_Process;
 
         #[derive(Serialize)]
         struct CreateInput {

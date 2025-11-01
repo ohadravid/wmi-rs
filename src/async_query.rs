@@ -67,7 +67,7 @@ impl WMIConnection {
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// use futures::stream::TryStreamExt;
     /// let results: Vec<HashMap<String, Variant>> = con.async_raw_query("SELECT Name FROM Win32_OperatingSystem").await?;
     /// #   Ok(())
@@ -98,7 +98,7 @@ impl WMIConnection {
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// use serde::Deserialize;
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_Process {

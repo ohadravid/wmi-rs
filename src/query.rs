@@ -293,7 +293,7 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// # use std::collections::HashMap;
     /// # use wmi::*;
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// let results: Vec<HashMap<String, Variant>> = con.raw_query("SELECT Name FROM Win32_OperatingSystem")?;
     /// #   Ok(())
     /// # }
@@ -319,7 +319,7 @@ impl WMIConnection {
     /// use wmi::*;
     /// use serde::Deserialize;
     ///
-    /// let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// let con = WMIConnection::new()?;
     ///
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_Process {
@@ -345,7 +345,7 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// # use std::collections::HashMap;
     /// # use wmi::*;
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// use serde::Deserialize;
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_Process {
@@ -377,7 +377,7 @@ impl WMIConnection {
     ///
     /// ```edition2018
     /// # fn main() -> wmi::WMIResult<()> {
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// # use wmi::*;
     /// use serde::Deserialize;
     /// #[derive(Deserialize)]
@@ -406,7 +406,7 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// let raw_os = con.get_object(r#"\\.\root\cimv2:Win32_OperatingSystem=@"#)?;
     /// assert_eq!(raw_os.class()?, "Win32_OperatingSystem");
     ///
@@ -449,7 +449,7 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// #[derive(Deserialize)]
     /// struct Win32_OperatingSystem {
     ///     Name: String,
@@ -468,7 +468,7 @@ impl WMIConnection {
     /// # use std::collections::HashMap;
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     ///
     /// #[derive(Deserialize, Debug, PartialEq)]
     /// struct Win32_Group {
@@ -541,7 +541,7 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// # use wmi::*;
     /// # use serde::Deserialize;
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     ///
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_DiskDrive {

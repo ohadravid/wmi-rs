@@ -1,6 +1,6 @@
 [package]
 name = "wmi"
-version = "0.17.3"
+version = "0.18.0"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -49,6 +49,7 @@ tokio = { version = "1", features = ["rt", "macros"] }
 serde_json = { version = "1.0" }
 criterion = "0.7"
 tempdir = "0.3"
+rusty-fork = "0.3.0"
 
 [[bin]]
 name = "wmiq"

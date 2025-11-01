@@ -12,9 +12,8 @@
 //!
 //! ```rust
 //! # fn main() -> wmi::WMIResult<()> {
-//! use wmi::{COMLibrary, WMIConnection};
-//! let com_con = COMLibrary::new()?;
-//! let wmi_con = WMIConnection::new(com_con)?;
+//! use wmi::WMIConnection;
+//! let wmi_con = WMIConnection::new()?;
 //! #   Ok(())
 //! # }
 //! ```
@@ -26,14 +25,14 @@
 //! WMI data model is based on COM's [`VARIANT`] Type, which is a struct capable of holding
 //! many types of data.
 //!
-//! This crate provides the analogous [`crate::Variant`] enum.
+//! This crate provides the analogous [`wmi::Variant`] enum.
 //!
 //! Using this enum, we can execute a simple WMI query and inspect the results.
 //!
 //! ```edition2018
 //! # fn main() -> wmi::WMIResult<()> {
 //! use wmi::*;
-//! let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+//! let wmi_con = WMIConnection::new()?;
 //! use std::collections::HashMap;
 //! use wmi::Variant;
 //! let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem").unwrap();
@@ -52,7 +51,7 @@
 //! ```edition2018
 //! # fn main() -> wmi::WMIResult<()> {
 //! # use wmi::*;
-//! # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+//! # let wmi_con = WMIConnection::new()?;
 //! use serde::Deserialize;
 //! # #[cfg(feature = "chrono")]
 //! use wmi::WMIDateTime;
@@ -132,7 +131,7 @@
 //! # fn main() -> WMIResult<()>{
 //! # use serde::Deserialize;
 //! # use std::{collections::HashMap, time::Duration};
-//! # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+//! # let wmi_con = WMIConnection::new()?;
 //! #[derive(Deserialize, Debug)]
 //! #[serde(rename = "__InstanceCreationEvent")]
 //! #[serde(rename_all = "PascalCase")]
@@ -181,7 +180,7 @@
 //! # fn run() -> WMIResult<()>{
 //! # use serde::Deserialize;
 //! # use std::{collections::HashMap, time::Duration};
-//! # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+//! # let wmi_con = WMIConnection::new()?;
 //! #[derive(Deserialize, Debug)]
 //! #[serde(rename = "Win32_ProcessStartTrace")]
 //! #[serde(rename_all = "PascalCase")]
@@ -248,7 +247,7 @@
 //! # block_on(exec_async_query()).unwrap();
 //! # async fn exec_async_query() -> wmi::WMIResult<()> {
 //! use wmi::*;
-//! let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+//! let wmi_con = WMIConnection::new()?;
 //! use serde::Deserialize;
 //!
 //! #[derive(Deserialize, Debug)]
@@ -302,7 +301,7 @@ mod notification;
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
 
-pub use connection::{COMLibrary, WMIConnection};
+pub use connection::WMIConnection;
 
 #[cfg(feature = "chrono")]
 pub use datetime::WMIDateTime;
