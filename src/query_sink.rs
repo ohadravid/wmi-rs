@@ -1,4 +1,4 @@
-use crate::{result_enumerator::IWbemClassWrapper, WMIConnection, WMIError, WMIResult};
+use crate::{WMIConnection, WMIError, WMIResult, result_enumerator::IWbemClassWrapper};
 use futures::Stream;
 use log::trace;
 use std::{
@@ -6,11 +6,11 @@ use std::{
     sync::{Arc, Mutex},
     task::{Poll, Waker},
 };
-use windows::core::{implement, Ref, Result as WinResult, BSTR, HRESULT};
 use windows::Win32::Foundation::E_POINTER;
 use windows::Win32::System::Wmi::{
     IWbemClassObject, IWbemObjectSink, IWbemObjectSink_Impl, WBEM_STATUS_COMPLETE,
 };
+use windows::core::{BSTR, HRESULT, Ref, Result as WinResult, implement};
 
 #[derive(Default)]
 pub struct AsyncQueryResultStreamImpl {

@@ -1,7 +1,8 @@
-use crate::{de::wbem_class_de::Deserializer, variant::Variant, WMIError};
+use crate::{WMIError, de::wbem_class_de::Deserializer, variant::Variant};
 use serde::{
+    Deserialize,
     de::{self, IntoDeserializer},
-    forward_to_deserialize_any, Deserialize,
+    forward_to_deserialize_any,
 };
 use std::{fmt, vec::IntoIter};
 

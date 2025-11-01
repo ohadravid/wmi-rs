@@ -1,18 +1,18 @@
 use crate::{
+    Variant,
     utils::{WMIError, WMIResult},
     variant::IUnknownWrapper,
-    Variant,
 };
 use std::{
     iter::Iterator,
-    ptr::{null_mut, NonNull},
+    ptr::{NonNull, null_mut},
 };
 use windows::Win32::System::Com::SAFEARRAY;
 use windows::Win32::System::Ole::{SafeArrayAccessData, SafeArrayUnaccessData};
 use windows::Win32::System::Variant::*;
 use windows::{
-    core::{IUnknown, Interface, BSTR},
     Win32::Foundation::VARIANT_BOOL,
+    core::{BSTR, IUnknown, Interface},
 };
 
 #[derive(Debug)]
@@ -44,7 +44,7 @@ impl<T> SafeArrayAccessor<T> {
     pub unsafe fn new(arr: NonNull<SAFEARRAY>) -> WMIResult<Self> {
         let mut p_data = null_mut();
 
-        if (*arr.as_ptr()).cDims != 1 {
+        if unsafe { (*arr.as_ptr()).cDims } != 1 {
             return Err(WMIError::UnimplementedArrayItem);
         }
 
@@ -149,7 +149,7 @@ pub unsafe fn safe_array_to_vec(
             accessor
                 .iter()
                 .map(|item| {
-                    IUnknown::from_raw_borrowed(item)
+                    unsafe { IUnknown::from_raw_borrowed(item) }
                         .cloned()
                         .map(|item| Variant::Unknown(IUnknownWrapper::new(item)))
                         .ok_or(WMIError::NullPointerResult)

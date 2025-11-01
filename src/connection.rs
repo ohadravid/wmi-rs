@@ -1,21 +1,21 @@
+use crate::WMIError;
 use crate::context::WMIContext;
 use crate::utils::WMIResult;
-use crate::WMIError;
 use log::debug;
 use std::marker::PhantomData;
-use windows::core::BSTR;
 use windows::Win32::Foundation::RPC_E_TOO_LATE;
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoSetProxyBlanket, CLSCTX_INPROC_SERVER, RPC_C_AUTHN_LEVEL_CALL,
+    CLSCTX_INPROC_SERVER, CoCreateInstance, CoSetProxyBlanket, RPC_C_AUTHN_LEVEL_CALL,
 };
 use windows::Win32::System::Com::{
-    CoInitializeEx, CoInitializeSecurity, COINIT_MULTITHREADED, EOAC_NONE,
+    COINIT_MULTITHREADED, CoInitializeEx, CoInitializeSecurity, EOAC_NONE,
     RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE,
 };
 use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
 use windows::Win32::System::Wmi::{
-    IWbemContext, IWbemLocator, IWbemServices, WbemLocator, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+    IWbemContext, IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT, WbemLocator,
 };
+use windows::core::BSTR;
 /// A marker to indicate that the current thread was `CoInitialize`d.
 ///
 /// # Note

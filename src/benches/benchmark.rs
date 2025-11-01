@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use criterion::{criterion_group, Criterion};
+use criterion::{Criterion, criterion_group};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use wmi::{COMLibrary, Variant, WMIConnection};

@@ -1,16 +1,16 @@
 use crate::{
+    WMIError, WMIResult,
     connection::WMIConnection,
     de::meta::struct_name_and_fields,
     de::wbem_class_de::from_wbem_class_obj,
     result_enumerator::{IWbemClassWrapper, QueryResultEnumerator},
-    WMIError, WMIResult,
 };
 use serde::de;
 use std::{collections::HashMap, time::Duration};
-use windows::core::BSTR;
 use windows::Win32::System::Wmi::{
     WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_FLAG_RETURN_WBEM_COMPLETE,
 };
+use windows::core::BSTR;
 
 #[non_exhaustive]
 pub enum FilterValue {
@@ -1066,7 +1066,7 @@ mod tests {
             .unwrap();
 
         match results.pop().unwrap().values().next() {
-            Some(Variant::Array(ref v)) => match v.get(0) {
+            Some(Variant::Array(v)) => match v.get(0) {
                 None | Some(Variant::String(_)) => assert!(true),
                 _ => assert!(false),
             },
@@ -1078,7 +1078,7 @@ mod tests {
             .unwrap();
 
         match results.pop().unwrap().get("OEMLogoBitmap") {
-            Some(Variant::Array(ref v)) => {
+            Some(Variant::Array(v)) => {
                 assert!(v.is_empty());
             }
             _ => assert!(false),

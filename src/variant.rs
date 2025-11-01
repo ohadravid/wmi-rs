@@ -1,16 +1,16 @@
 use crate::safearray::SafeArrayAccessor;
 use crate::{
-    result_enumerator::IWbemClassWrapper, safearray::safe_array_to_vec, WMIError, WMIResult,
+    WMIError, WMIResult, result_enumerator::IWbemClassWrapper, safearray::safe_array_to_vec,
 };
 use serde::Serialize;
 use std::convert::TryFrom;
 use std::ptr::NonNull;
-use windows::core::{IUnknown, Interface, BOOL, PCWSTR};
 use windows::Win32::Foundation::{VARIANT_FALSE, VARIANT_TRUE};
 use windows::Win32::System::Ole::SafeArrayCreateVector;
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Variant::{VARIANT, VT_NULL};
-use windows::Win32::System::Wmi::{self, IWbemClassObject, CIMTYPE_ENUMERATION};
+use windows::Win32::System::Wmi::{self, CIMTYPE_ENUMERATION, IWbemClassObject};
+use windows::core::{BOOL, IUnknown, Interface, PCWSTR};
 
 fn variant_from_string_array(array: &[String]) -> WMIResult<VARIANT> {
     // Convert the strings to null terminated vectors of `u16`s.
@@ -622,7 +622,7 @@ impl Serialize for IUnknownWrapper {
 
 #[cfg(test)]
 mod tests {
-    use windows::Win32::System::Wmi::{CIM_SINT64, CIM_SINT8, CIM_UINT16, CIM_UINT32, CIM_UINT64};
+    use windows::Win32::System::Wmi::{CIM_SINT8, CIM_SINT64, CIM_UINT16, CIM_UINT32, CIM_UINT64};
 
     use super::*;
 

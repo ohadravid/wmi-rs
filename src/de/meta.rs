@@ -1,11 +1,11 @@
-use serde::de::{self, value::Error, Deserialize, Deserializer, Visitor};
+use serde::de::{self, Deserialize, Deserializer, Visitor, value::Error};
 use serde::forward_to_deserialize_any;
 
 /// Return the fields of a struct.
 /// Taken directly from <https://github.com/serde-rs/serde/issues/1110>
 ///
-pub fn struct_name_and_fields<'de, T>(
-) -> Result<(&'static str, Option<&'static [&'static str]>), Error>
+pub fn struct_name_and_fields<'de, T>()
+-> Result<(&'static str, Option<&'static [&'static str]>), Error>
 where
     T: Deserialize<'de>,
 {
@@ -77,8 +77,10 @@ where
     });
 
     match name {
-        None =>  Err(de::Error::custom("Expected a named struct. \
-            Hint: You cannot use a HashMap<...> in this context because it requires the struct to have a name")),
+        None => Err(de::Error::custom(
+            "Expected a named struct. \
+            Hint: You cannot use a HashMap<...> in this context because it requires the struct to have a name",
+        )),
         Some(name) => {
             validate_identifier(name)?;
             for field in fields.into_iter().flatten() {

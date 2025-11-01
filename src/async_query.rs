@@ -1,15 +1,15 @@
 use crate::{
+    WMIResult,
     connection::WMIConnection,
-    query::{build_query, FilterValue},
+    query::{FilterValue, build_query},
     query_sink::{AsyncQueryResultStream, AsyncQueryResultStreamInner, QuerySink},
     result_enumerator::IWbemClassWrapper,
-    WMIResult,
 };
 use futures::stream::{Stream, StreamExt, TryStreamExt};
 use serde::de;
 use std::collections::HashMap;
-use windows::core::BSTR;
 use windows::Win32::System::Wmi::{IWbemObjectSink, WBEM_FLAG_BIDIRECTIONAL};
+use windows::core::BSTR;
 
 ///
 /// ### Additional async methods
@@ -137,7 +137,7 @@ impl WMIConnection {
 #[allow(non_camel_case_types)]
 #[cfg(test)]
 mod tests {
-    use crate::{tests::fixtures::*, Variant};
+    use crate::{Variant, tests::fixtures::*};
     use futures::stream::{self, StreamExt};
     use serde::Deserialize;
     use std::collections::HashMap;

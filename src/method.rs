@@ -1,9 +1,9 @@
-use serde::{de, Serialize};
+use serde::{Serialize, de};
 use windows::core::BSTR;
 
 use crate::{
-    de::meta::struct_name_and_fields, result_enumerator::IWbemClassWrapper,
-    ser::variant_ser::VariantSerializer, Variant, WMIConnection, WMIError, WMIResult,
+    Variant, WMIConnection, WMIError, WMIResult, de::meta::struct_name_and_fields,
+    result_enumerator::IWbemClassWrapper, ser::variant_ser::VariantSerializer,
 };
 
 impl WMIConnection {
@@ -192,7 +192,7 @@ impl WMIConnection {
                         return Err(WMIError::ConvertVariantError(format!(
                             "Unexpected serializer output: {:?}",
                             other
-                        )))
+                        )));
                     }
                     Err(e) => return Err(WMIError::ConvertVariantError(e.to_string())),
                 }
@@ -210,8 +210,8 @@ impl WMIConnection {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::fixtures::wmi_con;
     use crate::Variant;
+    use crate::tests::fixtures::wmi_con;
     use serde::{Deserialize, Serialize};
     use std::thread::sleep;
     use std::time::Duration;

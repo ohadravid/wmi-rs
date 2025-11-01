@@ -2,10 +2,10 @@
 //! to serialize a Rust struct into a HashMap mapping field name strings to [`Variant`] values
 use std::{any::type_name, fmt::Display};
 
-use crate::{result_enumerator::IWbemClassWrapper, Variant, WMIConnection, WMIError};
+use crate::{Variant, WMIConnection, WMIError, result_enumerator::IWbemClassWrapper};
 use serde::{
-    ser::{Impossible, SerializeSeq, SerializeStruct},
     Serialize, Serializer,
+    ser::{Impossible, SerializeSeq, SerializeStruct},
 };
 use thiserror::Error;
 
@@ -281,8 +281,8 @@ mod tests {
     use crate::tests::fixtures::wmi_con;
     use serde::{Deserialize, Serialize};
     use std::ptr;
-    use windows::core::HSTRING;
     use windows::Win32::System::Wmi::{CIM_FLAG_ARRAY, CIM_SINT64, CIM_UINT64};
+    use windows::core::HSTRING;
 
     #[test]
     fn it_serialize_instance() {

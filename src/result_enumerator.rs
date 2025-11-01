@@ -1,23 +1,22 @@
 use crate::{
-    de::wbem_class_de::from_wbem_class_obj, safearray::safe_array_to_vec_of_strings, Variant,
-    WMIError, WMIResult,
+    Variant, WMIError, WMIResult, de::wbem_class_de::from_wbem_class_obj,
+    safearray::safe_array_to_vec_of_strings,
 };
 use log::trace;
 use serde::{
-    de,
+    Serialize, de,
     ser::{Error, SerializeMap},
-    Serialize,
 };
 use std::ptr::{self, NonNull};
 use windows::Win32::System::Ole::SafeArrayDestroy;
 use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::System::Wmi::{
-    IEnumWbemClassObject, IWbemClassObject, CIMTYPE_ENUMERATION, WBEM_FLAG_ALWAYS,
+    CIMTYPE_ENUMERATION, IEnumWbemClassObject, IWbemClassObject, WBEM_FLAG_ALWAYS,
     WBEM_FLAG_NONSYSTEM_ONLY, WBEM_INFINITE,
 };
 use windows::{
-    core::{BSTR, HSTRING, PCWSTR},
     Win32::System::Wmi::WBEM_CONDITION_FLAG_TYPE,
+    core::{BSTR, HSTRING, PCWSTR},
 };
 
 /// A wrapper around a [IWbemClassObject](https://learn.microsoft.com/en-us/windows/win32/api/wbemcli/nn-wbemcli-iwbemclassobject).
@@ -226,8 +225,7 @@ impl Iterator for QueryResultEnumerator {
 
         trace!(
             "Got enumerator {:?} and obj {:?}",
-            self.p_enumerator,
-            &objs[0]
+            self.p_enumerator, &objs[0]
         );
 
         let [obj] = objs;

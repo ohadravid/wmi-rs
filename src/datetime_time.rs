@@ -2,8 +2,8 @@ use crate::WMIError;
 use serde::{de, ser};
 use std::{fmt, str::FromStr};
 use time::{
-    format_description::FormatItem, macros::format_description, parsing::Parsed, PrimitiveDateTime,
-    UtcOffset,
+    PrimitiveDateTime, UtcOffset, format_description::FormatItem, macros::format_description,
+    parsing::Parsed,
 };
 
 /// A wrapper type around `time`'s `OffsetDateTime` (if the
@@ -82,7 +82,7 @@ impl<'de> de::Deserialize<'de> for WMIOffsetDateTime {
     }
 }
 
-const RFC3339_WITH_6_DIGITS: &[FormatItem<'_>] =format_description!(
+const RFC3339_WITH_6_DIGITS: &[FormatItem<'_>] = format_description!(
     "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6][offset_hour sign:mandatory]:[offset_minute]"
 );
 

@@ -312,7 +312,7 @@ pub use datetime_time::WMIOffsetDateTime;
 
 pub use context::{ContextValueType, WMIContext};
 pub use duration::WMIDuration;
-pub use query::{build_notification_query, build_query, quote_and_escape_wql_str, FilterValue};
+pub use query::{FilterValue, build_notification_query, build_query, quote_and_escape_wql_str};
 pub use result_enumerator::IWbemClassWrapper;
 pub use utils::{WMIError, WMIResult};
 pub use variant::Variant;

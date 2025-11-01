@@ -1,15 +1,14 @@
 use crate::{
-    build_notification_query,
+    FilterValue, WMIConnection, WMIResult, build_notification_query,
     query_sink::{AsyncQueryResultStream, AsyncQueryResultStreamInner, QuerySink},
     result_enumerator::{IWbemClassWrapper, QueryResultEnumerator},
-    FilterValue, WMIConnection, WMIResult,
 };
 use futures::{Stream, StreamExt};
 use std::{collections::HashMap, time::Duration};
-use windows::core::BSTR;
 use windows::Win32::System::Wmi::{
     IWbemObjectSink, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY,
 };
+use windows::core::BSTR;
 
 ///
 /// ### Additional notification query methods
@@ -314,7 +313,7 @@ impl WMIConnection {
 
 #[cfg(test)]
 mod tests {
-    use crate::{tests::fixtures::*, FilterValue, WMIError};
+    use crate::{FilterValue, WMIError, tests::fixtures::*};
     use futures::StreamExt;
     use serde::Deserialize;
     use std::{collections::HashMap, time::Duration};

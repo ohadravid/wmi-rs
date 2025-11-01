@@ -1,4 +1,4 @@
-use crate::{result_enumerator::IWbemClassWrapper, WMIError, WMIResult};
+use crate::{WMIError, WMIResult, result_enumerator::IWbemClassWrapper};
 use serde::{
     de::{
         self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess,
@@ -233,9 +233,9 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer {
 mod tests {
     use super::*;
 
+    use crate::FilterValue;
     use crate::duration::WMIDuration;
     use crate::variant::Variant;
-    use crate::FilterValue;
     use serde::Deserialize;
     use std::collections::HashMap;
     use std::time::Duration;

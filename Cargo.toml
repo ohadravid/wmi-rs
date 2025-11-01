@@ -2,7 +2,7 @@
 name = "wmi"
 version = "0.17.3"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 documentation = "https://docs.rs/crate/wmi"
