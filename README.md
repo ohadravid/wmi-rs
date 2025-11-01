@@ -9,7 +9,7 @@ WMI (Windows Management Instrumentation) crate for rust.
 ```toml
 # Cargo.toml
 [dependencies]
-wmi = "*"
+wmi = "0.18"
 ```
 
 ## Examples
@@ -21,12 +21,11 @@ Queries can be deserialized into a free-form `HashMap` or a `struct`:
 #![allow(non_snake_case)]
 
 use serde::Deserialize;
-use wmi::{COMLibrary, Variant, WMIConnection, WMIDateTime};
+use wmi::{Variant, WMIConnection, WMIDateTime};
 use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let com_con = COMLibrary::new()?;
-    let wmi_con = WMIConnection::new(com_con.into())?;
+    let wmi_con = WMIConnection::new()?;
 
     let results: Vec<HashMap<String, Variant>> = wmi_con.raw_query("SELECT * FROM Win32_OperatingSystem")?;
 
@@ -76,13 +75,12 @@ like [ExecAsyncQuery](https://docs.microsoft.com/en-us/windows/win32/api/wbemcli
 #![allow(non_snake_case)]
 
 use serde::Deserialize;
-use wmi::{COMLibrary, Variant, WMIConnection, WMIDateTime};
+use wmi::{Variant, WMIConnection, WMIDateTime};
 use std::collections::HashMap;
 use futures::executor::block_on;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let com_con = COMLibrary::new()?;
-    let wmi_con = WMIConnection::new(com_con.into())?;
+    let wmi_con = WMIConnection::new()?;
 
     block_on(exec_async_query(&wmi_con))?;
 

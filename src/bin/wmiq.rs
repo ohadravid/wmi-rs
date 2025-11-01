@@ -1,8 +1,8 @@
 use std::{collections::HashMap, env::args};
-use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
+use wmi::{Variant, WMIConnection, WMIResult};
 
 fn main() -> WMIResult<()> {
-    let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    let wmi_con = WMIConnection::new()?;
     let args: Vec<String> = args().collect();
     let query = match args.get(1) {
         None => {

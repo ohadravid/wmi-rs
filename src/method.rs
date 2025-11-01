@@ -19,9 +19,9 @@ impl WMIConnection {
     ///
     /// ```edition2021
     /// # use std::collections::HashMap;
-    /// # use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
+    /// # use wmi::{Variant, WMIConnection, WMIResult};
     /// # fn main() -> WMIResult<()> {
-    /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let wmi_con = WMIConnection::new()?;
     /// let in_params = wmi_con
     ///     .get_object("Win32_Process")?
     ///     .get_method("Create")?
@@ -76,7 +76,7 @@ impl WMIConnection {
     ///
     /// ```edition2021
     /// # use serde::{Deserialize, Serialize};
-    /// # use wmi::{COMLibrary, Variant, WMIConnection, WMIResult};
+    /// # use wmi::{Variant, WMIConnection, WMIResult};
     /// #[derive(Serialize)]
     /// # #[allow(non_snake_case)]
     /// struct CreateInput {
@@ -95,7 +95,7 @@ impl WMIConnection {
     /// struct Win32_Process;
     ///
     /// # fn main() -> WMIResult<()> {
-    /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let wmi_con = WMIConnection::new()?;
     /// // Note: The Create call can be unreliable, so consider using another means of starting processes.
     /// let input = CreateInput {
     ///     CommandLine: "explorer.exe".to_string()
@@ -134,7 +134,7 @@ impl WMIConnection {
     ///
     /// ```edition2021
     /// # use serde::{Deserialize, Serialize};
-    /// # use wmi::{COMLibrary, FilterValue, Variant, WMIConnection, WMIResult};
+    /// # use wmi::{FilterValue, Variant, WMIConnection, WMIResult};
     /// #[derive(Deserialize)]
     /// # #[allow(non_snake_case)]
     /// struct PrinterOutput {
@@ -148,7 +148,7 @@ impl WMIConnection {
     /// }
     ///
     /// # fn main() -> WMIResult<()> {
-    /// # let wmi_con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let wmi_con = WMIConnection::new()?;
     /// let printers: Vec<Win32_Printer> = wmi_con.query()?;
     ///
     /// for printer in printers {

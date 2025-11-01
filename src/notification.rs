@@ -51,7 +51,7 @@ impl WMIConnection {
     /// # }
     /// # fn run() -> wmi::WMIResult<()> {
     /// # use std::collections::HashMap;
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// let iterator = con.raw_notification::<HashMap<String, Variant>>("SELECT ProcessID, ProcessName FROM Win32_ProcessStartTrace")?;
     /// #   Ok(()) // This query will fail when not run as admin
     /// # }
@@ -84,7 +84,7 @@ impl WMIConnection {
     /// # fn run() -> wmi::WMIResult<()> {
     /// use serde::Deserialize;
     ///
-    /// let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// let con = WMIConnection::new()?;
     ///
     /// #[derive(Deserialize, Debug)]
     /// struct Win32_ProcessStartTrace {
@@ -111,7 +111,7 @@ impl WMIConnection {
     /// # fn main() -> wmi::WMIResult<()> {
     /// # use std::{collections::HashMap, time::Duration};
     /// # use wmi::*;
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// use serde::Deserialize;
     /// #[derive(Deserialize, Debug)]
     /// struct __InstanceCreationEvent {
@@ -198,7 +198,7 @@ impl WMIConnection {
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// let mut stream = con.async_raw_notification::<HashMap<String, Variant>>("SELECT ProcessID, ProcessName FROM Win32_ProcessStartTrace")?;
     /// # let event = stream.next().await.unwrap()?;
     /// #   Ok(()) // This query will fail when not run as admin
@@ -234,7 +234,7 @@ impl WMIConnection {
     /// # }
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// use futures::StreamExt;
     /// use serde::Deserialize;
     ///
@@ -275,7 +275,7 @@ impl WMIConnection {
     /// #
     /// # async fn exec_async_query() -> WMIResult<()> {
     /// # use std::{collections::HashMap, time::Duration};
-    /// # let con = WMIConnection::new(COMLibrary::new()?)?;
+    /// # let con = WMIConnection::new()?;
     /// use futures::StreamExt;
     /// use serde::Deserialize;
     /// #[derive(Deserialize, Debug)]

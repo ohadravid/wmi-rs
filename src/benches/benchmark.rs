@@ -3,7 +3,7 @@
 use criterion::{Criterion, criterion_group};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use wmi::{COMLibrary, Variant, WMIConnection};
+use wmi::{Variant, WMIConnection};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename = "Win32_Account")]
@@ -108,54 +108,52 @@ fn get_services(con: &WMIConnection) {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let com = COMLibrary::new().unwrap();
-
     // baseline: 41ms
     c.bench_function("get_accounts", |b| {
-        let wmi_con = WMIConnection::new(com).unwrap();
+        let wmi_con = WMIConnection::new().unwrap();
         b.iter(|| get_accounts(&wmi_con))
     });
 
     // baseline: 13ms
     c.bench_function("get_user_accounts", |b| {
-        let wmi_con = WMIConnection::new(com).unwrap();
+        let wmi_con = WMIConnection::new().unwrap();
         b.iter(|| get_user_accounts(&wmi_con))
     });
 
     // baseline: 9ms
     c.bench_function("get_user_accounts_hash_map", |b| {
-        let wmi_con = WMIConnection::new(com).unwrap();
+        let wmi_con = WMIConnection::new().unwrap();
         b.iter(|| get_user_accounts_hash_map(&wmi_con))
     });
 
     // baseline: 60ms
     c.bench_function("get_minimal_procs", |b| {
-        let wmi_con = WMIConnection::new(com).unwrap();
+        let wmi_con = WMIConnection::new().unwrap();
         b.iter(|| get_minimal_procs(&wmi_con))
     });
 
     // baseline: 68ms
     c.bench_function("get_procs_hash_map", |b| {
-        let wmi_con = WMIConnection::new(com).unwrap();
+        let wmi_con = WMIConnection::new().unwrap();
         b.iter(|| get_procs_hash_map(&wmi_con))
     });
 
     // baseline: 9s (**seconds**)
     // after adding AssocClass: 73ms
     c.bench_function("get_users_with_groups", |b| {
-        let wmi_con = WMIConnection::new(com).unwrap();
+        let wmi_con = WMIConnection::new().unwrap();
         b.iter(|| get_users_with_groups(&wmi_con))
     });
 
     // baseline: 625ms.
     c.bench_function("get_modules", |b| {
-        let wmi_con = WMIConnection::new(com).unwrap();
+        let wmi_con = WMIConnection::new().unwrap();
         b.iter(|| get_modules(&wmi_con))
     });
 
     // baseline: 300ms.
     c.bench_function("get_services", |b| {
-        let wmi_con = WMIConnection::new(com).unwrap();
+        let wmi_con = WMIConnection::new().unwrap();
         b.iter(|| get_services(&wmi_con))
     });
 }

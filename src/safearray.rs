@@ -149,6 +149,7 @@ pub unsafe fn safe_array_to_vec(
             accessor
                 .iter()
                 .map(|item| {
+                    // Safety: `VT_UNKNOWN` means we know each item is a valid COM interface.
                     unsafe { IUnknown::from_raw_borrowed(item) }
                         .cloned()
                         .map(|item| Variant::Unknown(IUnknownWrapper::new(item)))
