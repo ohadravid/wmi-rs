@@ -1,24 +1,23 @@
-use crate::{IWbemClassWrapper, context::WMIContext, utils::WMIResult};
+use crate::IWbemClassWrapper;
+use crate::context::WMIContext;
+use crate::utils::WMIResult;
 use log::debug;
 use std::marker::PhantomData;
-use windows::{
-    Win32::{
-        Foundation::{CO_E_NOTINITIALIZED, RPC_E_TOO_LATE},
-        System::{
-            Com::{
-                CLSCTX_INPROC_SERVER, CoCreateInstance, CoIncrementMTAUsage, CoInitializeSecurity,
-                CoSetProxyBlanket, EOAC_NONE, RPC_C_AUTHN_LEVEL_CALL, RPC_C_AUTHN_LEVEL_DEFAULT,
-                RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE,
-            },
-            Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE},
-            Wmi::{
-                IWbemContext, IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
-                WBEM_FLAG_RETURN_WBEM_COMPLETE, WbemLocator,
-            },
-        },
-    },
-    core::BSTR,
+use windows::Win32::Foundation::{CO_E_NOTINITIALIZED, RPC_E_TOO_LATE};
+use windows::Win32::System::Com::{
+    CLSCTX_INPROC_SERVER, CoCreateInstance, CoIncrementMTAUsage, CoSetProxyBlanket,
+    RPC_C_AUTHN_LEVEL_CALL,
 };
+use windows::Win32::System::Com::{
+    CoInitializeSecurity, EOAC_NONE, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
+    RPC_C_IMP_LEVEL_IMPERSONATE,
+};
+use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
+use windows::Win32::System::Wmi::{
+    IWbemContext, IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
+    WBEM_FLAG_RETURN_WBEM_COMPLETE, WbemLocator,
+};
+use windows::core::BSTR;
 
 fn init_security() -> windows_core::Result<()> {
     unsafe {
