@@ -321,6 +321,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_put_and_delete_instance() {
+        let wmi_con = WMIConnection::with_namespace_path("root\\standardcimv2").unwrap();
+        let rule_class = wmi_con.get_object("MSFT_NetFirewallHyperVRule").unwrap();
+        let instance = rule_class.spawn_instance().unwrap();
+        instance
+            .put_property("ElementName", "Blocking outbound rule")
+            .unwrap();
+        instance
+            .put_property("InstanceID", "{ed7dee72-7ca3-4728-ad16-e6ee5c465c98}")
+            .unwrap();
+        instance.put_property("Action", 4).unwrap();
+        instance.put_property("Enabled", 1).unwrap();
+        instance.put_property("Direction", 2).unwrap();
+        wmi_con.put_instance(&instance).unwrap();
+
+        let rule_path =
+            r#"MSFT_NetFirewallHyperVRule.InstanceID="{ed7dee72-7ca3-4728-ad16-e6ee5c465c98}""#;
+        wmi_con.delete_instance(rule_path).unwrap();
+    }
+
+    #[test]
     fn it_can_create_multiple_connections() {
         {
             let _ = WMIConnection::new();
