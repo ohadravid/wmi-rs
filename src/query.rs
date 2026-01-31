@@ -442,6 +442,53 @@ impl WMIConnection {
         Ok(pcls_wrapper)
     }
 
+    /// Create an instance of existing class
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use wmi::*;
+    /// # fn main() -> WMIResult<()> {
+    /// let wmi_con = WMIConnection::with_namespace_path("root\\standardcimv2")?;
+    /// let rule_class = wmi_con.get_object("MSFT_NetFirewallHyperVRule")?;
+    /// let instance = rule_class.spawn_instance()?;
+    /// instance.put_property("ElementName", "Blocking outbound rule")?;
+    /// instance.put_property("InstanceID", "{ed7dee72-7ca3-4728-ad16-e6ee5c465c98}")?;
+    /// instance.put_property("Action", 4)?;
+    /// instance.put_property("Enabled", 1)?;
+    /// instance.put_property("Direction", 2)?;
+    /// wmi_con.put_instance(&instance)?;
+    /// # Ok(())
+    /// # }
+    /// ````
+    pub fn put_instance(&self, instance: &IWbemClassWrapper) -> WMIResult<()> {
+        unsafe {
+            self.svc
+                .PutInstance(&instance.inner, WBEM_FLAG_RETURN_WBEM_COMPLETE, None, None)?;
+        }
+        Ok(())
+    }
+
+    /// Delete an instance at path
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use wmi::*;
+    /// # fn main() -> WMIResult<()> {
+    /// let wmi_con = WMIConnection::with_namespace_path("root\\standardcimv2")?;
+    /// let rule_path = r#"MSFT_NetFirewallHyperVRule.InstanceID="{ed7dee72-7ca3-4728-ad16-e6ee5c465c98}""#;
+    /// wmi_con.delete_instance(rule_path)?;
+    /// # Ok(())
+    /// # }
+    /// ````
+    pub fn delete_instance(&self, path: &str) -> WMIResult<()> {
+        let path = BSTR::from(path);
+        unsafe {
+            self.svc
+                .DeleteInstance(&path, WBEM_FLAG_RETURN_WBEM_COMPLETE, None, None)?
+        };
+        Ok(())
+    }
+
     /// Get a WMI object by path, and return a deserialized object.
     /// This is useful when the type of the object at the path in known at compile time.
     ///
@@ -1257,5 +1304,26 @@ mod tests {
             // Enum based desr.
             let _raw_account: User = wmi_con.get_by_path(&account.__Path).unwrap();
         }
+    }
+
+    #[test]
+    fn test_put_and_delete_instance() {
+        let wmi_con = WMIConnection::with_namespace_path("root\\standardcimv2").unwrap();
+        let rule_class = wmi_con.get_object("MSFT_NetFirewallHyperVRule").unwrap();
+        let instance = rule_class.spawn_instance().unwrap();
+        instance
+            .put_property("ElementName", "Blocking outbound rule")
+            .unwrap();
+        instance
+            .put_property("InstanceID", "{ed7dee72-7ca3-4728-ad16-e6ee5c465c98}")
+            .unwrap();
+        instance.put_property("Action", 4).unwrap();
+        instance.put_property("Enabled", 0).unwrap();
+        instance.put_property("Direction", 2).unwrap();
+        wmi_con.put_instance(&instance).unwrap();
+
+        let rule_path =
+            r#"MSFT_NetFirewallHyperVRule.InstanceID="{ed7dee72-7ca3-4728-ad16-e6ee5c465c98}""#;
+        wmi_con.delete_instance(rule_path).unwrap();
     }
 }
