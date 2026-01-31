@@ -462,8 +462,12 @@ impl WMIConnection {
     /// ````
     pub fn put_instance(&self, instance: &IWbemClassWrapper) -> WMIResult<()> {
         unsafe {
-            self.svc
-                .PutInstance(&instance.inner, WBEM_FLAG_RETURN_WBEM_COMPLETE, None, None)?;
+            self.svc.PutInstance(
+                &instance.inner,
+                WBEM_FLAG_RETURN_WBEM_COMPLETE,
+                &self.ctx.0,
+                None,
+            )?;
         }
         Ok(())
     }
@@ -484,7 +488,7 @@ impl WMIConnection {
         let path = BSTR::from(path);
         unsafe {
             self.svc
-                .DeleteInstance(&path, WBEM_FLAG_RETURN_WBEM_COMPLETE, None, None)?
+                .DeleteInstance(&path, WBEM_FLAG_RETURN_WBEM_COMPLETE, &self.ctx.0, None)?
         };
         Ok(())
     }
