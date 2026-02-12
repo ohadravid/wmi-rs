@@ -10,7 +10,7 @@ use windows::Win32::System::Ole::SafeArrayCreateVector;
 use windows::Win32::System::Variant::*;
 use windows::Win32::System::Variant::{VARIANT, VT_NULL};
 use windows::Win32::System::Wmi::{self, CIMTYPE_ENUMERATION, IWbemClassObject};
-use windows::core::{BOOL, IUnknown, Interface, PCWSTR};
+use windows::core::{IUnknown, Interface, PCWSTR};
 
 fn variant_from_string_array(array: &[String]) -> WMIResult<VARIANT> {
     // Convert the strings to null terminated vectors of `u16`s.
@@ -446,7 +446,7 @@ impl TryFrom<Variant> for VARIANT {
                     }
                     Some(Variant::Bool(_)) => {
                         let v: Vec<bool> = Variant::Array(array).try_into()?;
-                        let v: Vec<_> = v.into_iter().map(BOOL::from).collect();
+                        let v: Vec<_> = v.into_iter().map(Into::into).collect();
 
                         let variant = unsafe { InitVariantFromBooleanArray(&v) }?;
                         Ok(variant)
