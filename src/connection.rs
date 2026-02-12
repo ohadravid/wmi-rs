@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use windows::Win32::Foundation::{CO_E_NOTINITIALIZED, RPC_E_TOO_LATE};
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, CoCreateInstance, CoIncrementMTAUsage, CoSetProxyBlanket,
-    RPC_C_AUTHN_LEVEL_CALL,
+    RPC_C_AUTHN_LEVEL, RPC_C_AUTHN_LEVEL_CALL,
 };
 use windows::Win32::System::Com::{
     CoInitializeSecurity, EOAC_NONE, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
@@ -61,6 +61,7 @@ pub struct WMIConnection {
     _phantom: PhantomData<*mut ()>,
     pub(crate) svc: IWbemServices,
     pub(crate) ctx: WMIContext,
+    custom_auth_level: Option<RPC_C_AUTHN_LEVEL>,
 }
 
 impl WMIConnection {
@@ -89,29 +90,65 @@ impl WMIConnection {
             _phantom: PhantomData,
             svc,
             ctx,
+            custom_auth_level: None,
         };
 
         this.set_proxy()?;
         Ok(this)
     }
 
-    fn set_proxy(&self) -> WMIResult<()> {
-        debug!("Calling CoSetProxyBlanket");
+    /// Sets a custom authentication level for this connection.
+    ///
+    /// Some WMI operations require specific authentication levels. For example,
+    /// querying BitLocker status via `Win32_EncryptableVolume` requires
+    /// `RPC_C_AUTHN_LEVEL_PKT_PRIVACY`.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use wmi::*;
+    /// # use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
+    /// # fn main() -> WMIResult<()> {
+    /// let wmi_con = WMIConnection::with_namespace_path(
+    ///     "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
+    /// )?.with_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_auth_level(mut self, auth_level: RPC_C_AUTHN_LEVEL) -> WMIResult<Self> {
+        debug!("Setting custom authentication level: {}", auth_level.0);
+        self.custom_auth_level = Some(auth_level);
+
+        // Reconfigure proxy with new auth level
+        self.apply_proxy_blanket(auth_level)?;
+
+        Ok(self)
+    }
+
+    // Internal helper that respects custom_auth_level
+    fn apply_proxy_blanket(&self, default_auth_level: RPC_C_AUTHN_LEVEL) -> WMIResult<()> {
+        let auth_level = self.custom_auth_level.unwrap_or(default_auth_level);
+
+        debug!("Calling CoSetProxyBlanket with auth_level={}", auth_level.0);
 
         unsafe {
             CoSetProxyBlanket(
                 &self.svc,
-                RPC_C_AUTHN_WINNT, // RPC_C_AUTHN_xxx
-                RPC_C_AUTHZ_NONE,  // RPC_C_AUTHZ_xxx
+                RPC_C_AUTHN_WINNT,
+                RPC_C_AUTHZ_NONE,
                 None,
-                RPC_C_AUTHN_LEVEL_CALL,      // RPC_C_AUTHN_LEVEL_xxx
-                RPC_C_IMP_LEVEL_IMPERSONATE, // RPC_C_IMP_LEVEL_xxx
-                None,                        // client identity
-                EOAC_NONE,                   // proxy capabilities
+                auth_level,
+                RPC_C_IMP_LEVEL_IMPERSONATE,
+                None,
+                EOAC_NONE,
             )?;
         }
 
         Ok(())
+    }
+
+    fn set_proxy(&self) -> WMIResult<()> {
+        self.apply_proxy_blanket(RPC_C_AUTHN_LEVEL_CALL)
     }
 
     /// Creates a connection to a remote computer with a default `CIMV2` namespace path.
@@ -174,6 +211,7 @@ impl WMIConnection {
             _phantom: PhantomData,
             svc,
             ctx,
+            custom_auth_level: None,
         };
 
         this.set_proxy_for_remote()?;
@@ -182,22 +220,7 @@ impl WMIConnection {
 
     // Additional authentication for remote WMI connections
     fn set_proxy_for_remote(&self) -> WMIResult<()> {
-        debug!("Calling CoSetProxyBlanket for remote connection");
-
-        unsafe {
-            CoSetProxyBlanket(
-                &self.svc,
-                RPC_C_AUTHN_WINNT,             // RPC_C_AUTHN_xxx
-                RPC_C_AUTHZ_NONE,              // RPC_C_AUTHZ_xxx
-                None,                          // Server principal name
-                RPC_C_AUTHN_LEVEL_PKT_PRIVACY, // Stronger authentication level for remote
-                RPC_C_IMP_LEVEL_IMPERSONATE,   // Impersonation level
-                None,                          // Client identity
-                EOAC_NONE,                     // Capability flags
-            )?;
-        }
-
-        Ok(())
+        self.apply_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
     }
 }
 
@@ -314,6 +337,53 @@ mod tests {
             });
 
             thread.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn it_can_set_custom_auth_level() {
+        use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
+
+        let wmi_con = WMIConnection::new()
+            .expect("Failed to create connection")
+            .with_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            .expect("Failed to set auth level");
+
+        // Verify the custom auth level was set
+        assert_eq!(
+            wmi_con.custom_auth_level,
+            Some(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+        );
+    }
+
+    #[test]
+    fn it_can_chain_auth_level_after_namespace() {
+        use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
+
+        let wmi_con = WMIConnection::with_namespace_path("ROOT\\CIMV2")
+            .expect("Failed to create connection")
+            .with_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            .expect("Failed to set auth level");
+
+        assert_eq!(
+            wmi_con.custom_auth_level,
+            Some(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+        );
+    }
+
+    #[test]
+    fn it_can_set_auth_level_for_remote_connection() {
+        use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_CALL;
+
+        // Use localhost as a "remote" connection
+        let result = WMIConnection::with_credentials("localhost", None, None, None);
+
+        if let Ok(wmi_con) = result {
+            let wmi_con = wmi_con
+                .with_auth_level(RPC_C_AUTHN_LEVEL_CALL)
+                .expect("Failed to set auth level");
+
+            assert_eq!(wmi_con.custom_auth_level, Some(RPC_C_AUTHN_LEVEL_CALL));
         }
     }
 }

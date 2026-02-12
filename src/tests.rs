@@ -1,5 +1,7 @@
 use crate::{WMIConnection, WMIError, WMIResult};
 
+mod bitlocker;
+
 pub mod fixtures {
     use super::*;
 

@@ -116,6 +116,44 @@ async fn exec_async_query(wmi_con: &WMIConnection) -> Result<(), Box<dyn std::er
 }
 ```
 
+## Custom Authentication Levels
+
+Some WMI operations require specific authentication levels. For example, querying BitLocker status via `Win32_EncryptableVolume` requires `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` (packet-level privacy).
+
+You can set a custom authentication level using the `with_auth_level()` method:
+
+```rust
+use wmi::WMIConnection;
+use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
+use serde::Deserialize;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Connect to BitLocker namespace with packet privacy authentication
+    let wmi_con = WMIConnection::with_namespace_path(
+        "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
+    )?.with_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+
+    #[derive(Deserialize, Debug)]
+    #[serde(rename = "Win32_EncryptableVolume")]
+    #[serde(rename_all = "PascalCase")]
+    struct EncryptableVolume {
+        device_id: String,
+        drive_letter: Option<String>,
+        protection_status: Option<u32>,
+    }
+
+    let volumes: Vec<EncryptableVolume> = wmi_con.query()?;
+
+    for volume in volumes {
+        println!("Drive: {:?}, Protection: {:?}", volume.drive_letter, volume.protection_status);
+    }
+
+    Ok(())
+}
+```
+
+**Note**: Querying BitLocker information typically requires administrator privileges.
+
 ## License
 
 The `wmi` crate is licensed under either of
