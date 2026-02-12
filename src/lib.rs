@@ -221,11 +221,23 @@
 //!
 //! # Custom Authentication Levels
 //!
-//! Some WMI operations require specific authentication levels to succeed.
-//! For example, querying BitLocker status through the `Win32_EncryptableVolume` class
-//! requires `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` for packet-level privacy.
+//! Some WMI namespaces require specific authentication levels when accessing
+//! sensitive system information that needs encrypted communication.
 //!
-//! Use the [`WMIConnection::with_auth_level`] method to set a custom authentication level:
+//! ## Why Authentication Levels Matter
+//!
+//! **Security-Sensitive Data**: Classes like `Win32_EncryptableVolume` (BitLocker)
+//! provide access to encryption status and cryptographic information. Without
+//! packet-level encryption (`RPC_C_AUTHN_LEVEL_PKT_PRIVACY`), this data could be
+//! intercepted during transmission.
+//!
+//! **Default Behavior**:
+//! - Local connections: Use `RPC_C_AUTHN_LEVEL_CALL` (message authentication)
+//! - Remote connections: Use `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` (packet encryption)
+//!
+//! ## Setting Custom Levels
+//!
+//! Use [`WMIConnection::with_auth_level`] to override defaults:
 //!
 //! ```no_run
 //! # use wmi::*;
@@ -233,7 +245,6 @@
 //! use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
 //! use serde::Deserialize;
 //!
-//! // Connect to BitLocker namespace with packet privacy authentication
 //! let wmi_con = WMIConnection::with_namespace_path(
 //!     "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
 //! )?.with_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
@@ -243,7 +254,7 @@
 //! #[serde(rename_all = "PascalCase")]
 //! struct EncryptableVolume {
 //!     device_id: String,
-//!     protection_status: Option<u32>,
+//!     protection_status: Option<u32>,  // 0=Unprotected, 1=Protected, 2=Unknown
 //! }
 //!
 //! let volumes: Vec<EncryptableVolume> = wmi_con.query()?;
@@ -251,7 +262,7 @@
 //! # }
 //! ```
 //!
-//! **Note**: Querying BitLocker information typically requires administrator privileges.
+//! **Note**: Admin privileges typically required for BitLocker queries.
 //!
 //! # Internals
 //!

@@ -118,9 +118,12 @@ async fn exec_async_query(wmi_con: &WMIConnection) -> Result<(), Box<dyn std::er
 
 ## Custom Authentication Levels
 
-Some WMI operations require specific authentication levels. For example, querying BitLocker status via `Win32_EncryptableVolume` requires `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` (packet-level privacy).
+Some WMI namespaces require specific authentication levels when accessing
+security-sensitive information. For example, BitLocker encryption status requires
+packet-level encryption (`RPC_C_AUTHN_LEVEL_PKT_PRIVACY`) to protect cryptographic
+data during transmission.
 
-You can set a custom authentication level using the `with_auth_level()` method:
+Use `with_auth_level()` to set authentication requirements:
 
 ```rust
 use wmi::WMIConnection;
@@ -139,7 +142,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     struct EncryptableVolume {
         device_id: String,
         drive_letter: Option<String>,
-        protection_status: Option<u32>,
+        protection_status: Option<u32>,  // 0=Unprotected, 1=Protected, 2=Unknown
     }
 
     let volumes: Vec<EncryptableVolume> = wmi_con.query()?;
@@ -152,7 +155,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-**Note**: Querying BitLocker information typically requires administrator privileges.
+**Note**: Querying BitLocker requires administrator privileges. The authentication
+level ensures the query data is encrypted during transmission.
 
 ## License
 

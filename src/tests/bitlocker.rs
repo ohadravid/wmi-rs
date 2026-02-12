@@ -1,7 +1,12 @@
-//! Tests for BitLocker queries requiring custom authentication levels
+//! BitLocker-specific tests for custom authentication levels
 //!
-//! These tests verify that Win32_EncryptableVolume can be queried with
-//! RPC_C_AUTHN_LEVEL_PKT_PRIVACY authentication.
+//! These tests verify that `Win32_EncryptableVolume` queries work with
+//! `RPC_C_AUTHN_LEVEL_PKT_PRIVACY`. Tests gracefully skip on systems where:
+//! - BitLocker is not available
+//! - User lacks admin privileges
+//! - BitLocker namespace is inaccessible
+//!
+//! This is expected behavior and not considered a test failure.
 
 use crate::{WMIConnection, WMIResult};
 use serde::Deserialize;
@@ -77,9 +82,12 @@ fn it_can_query_bitlocker_with_custom_auth() {
     }
 }
 
-/// Test that querying without custom auth level may fail or return empty results
+/// Demonstrates that BitLocker queries may fail without elevated auth
+/// (Informational test - behavior varies by system configuration)
 #[test]
-fn it_shows_difference_without_custom_auth() {
+fn test_bitlocker_behavior_without_elevated_auth() {
+    // This test documents expected behavior rather than enforcing it
+    // Results vary based on: BitLocker availability, admin privileges, system config
     let wmi_con = match WMIConnection::with_namespace_path(BITLOCKER_NAMESPACE) {
         Ok(conn) => conn,
         Err(e) => {

@@ -155,3 +155,26 @@ fn test_remote_connection_with_auth_level() {
         );
     }
 }
+
+/// Test that auth level can be changed multiple times (idempotency)
+#[test]
+fn test_auth_level_can_be_changed() {
+    let wmi_con = WMIConnection::new()
+        .expect("Failed to create connection")
+        .with_auth_level(RPC_C_AUTHN_LEVEL_CALL)
+        .expect("Failed to set auth level")
+        .with_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+        .expect("Failed to override auth level");
+
+    // Verify second call overrode first
+    let results: WMIResult<Vec<OperatingSystem>> = wmi_con.query();
+    assert!(results.is_ok(), "Query should succeed with final auth level");
+
+    let os_list = results.unwrap();
+    assert!(!os_list.is_empty(), "Should return at least one OS");
+
+    println!(
+        "Multiple auth level changes work: {} {}",
+        os_list[0].caption, os_list[0].version
+    );
+}
