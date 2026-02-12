@@ -1,6 +1,6 @@
 [package]
 name = "wmi"
-version = "0.18.1"
+version = "0.18.2"
 authors = ["Ohad Ravid <ohad.rv@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -26,8 +26,8 @@ default = ["chrono"]
 test = []
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-core = { version = "0.62" }
-windows = { version = "0.62", features = [
+windows-core = { version = ">=0.59, <0.63" }
+windows = { version = ">=0.59, <0.63", features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_System_Com",
