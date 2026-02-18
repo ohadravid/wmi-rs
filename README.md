@@ -123,9 +123,9 @@ security-sensitive information. For example, BitLocker encryption status require
 packet-level encryption (`RPC_C_AUTHN_LEVEL_PKT_PRIVACY`) to protect cryptographic
 data during transmission.
 
-Use `with_auth_level()` to set authentication requirements:
+Use `set_proxy_blanket()` to set authentication requirements:
 
-```rust
+```rust,no_run
 use wmi::WMIConnection;
 use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
 use serde::Deserialize;
@@ -134,7 +134,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Connect to BitLocker namespace with packet privacy authentication
     let wmi_con = WMIConnection::with_namespace_path(
         "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
-    )?.with_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+    )?;
+    wmi_con.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
 
     #[derive(Deserialize, Debug)]
     #[serde(rename = "Win32_EncryptableVolume")]
