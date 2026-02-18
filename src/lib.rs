@@ -222,22 +222,12 @@
 //! # Custom Authentication Levels
 //!
 //! Some WMI namespaces require specific authentication levels when accessing
-//! sensitive system information that needs encrypted communication.
-//!
-//! ## Why Authentication Levels Matter
-//!
-//! **Security-Sensitive Data**: Classes like `Win32_EncryptableVolume` (BitLocker)
-//! provide access to encryption status and cryptographic information. Without
-//! packet-level encryption (`RPC_C_AUTHN_LEVEL_PKT_PRIVACY`), this data could be
-//! intercepted during transmission.
+//! sensitive system information. Use [`WMIConnection::set_proxy_blanket`] to configure this,
+//! which maps directly to the Windows [`CoSetProxyBlanket`] function.
 //!
 //! **Default Behavior**:
-//! - Local connections: Use `RPC_C_AUTHN_LEVEL_CALL` (message authentication)
-//! - Remote connections: Use `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` (packet encryption)
-//!
-//! ## Setting Custom Levels
-//!
-//! Use [`WMIConnection::with_auth_level`] to override defaults:
+//! - Local connections: `RPC_C_AUTHN_LEVEL_CALL` (message authentication)
+//! - Remote connections: `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` (packet encryption)
 //!
 //! ```no_run
 //! # use wmi::*;
@@ -245,9 +235,12 @@
 //! use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
 //! use serde::Deserialize;
 //!
+//! // Access BitLocker data, which requires packet-level encryption.
+//! // Note: admin privileges are required for BitLocker queries.
 //! let wmi_con = WMIConnection::with_namespace_path(
 //!     "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
-//! )?.with_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+//! )?;
+//! wmi_con.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
 //!
 //! #[derive(Deserialize, Debug)]
 //! #[serde(rename = "Win32_EncryptableVolume")]
@@ -262,7 +255,7 @@
 //! # }
 //! ```
 //!
-//! **Note**: Admin privileges typically required for BitLocker queries.
+//! [`CoSetProxyBlanket`]: https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cosetproxyblanket
 //!
 //! # Internals
 //!
