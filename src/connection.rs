@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use windows::Win32::Foundation::{CO_E_NOTINITIALIZED, RPC_E_TOO_LATE};
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, CoCreateInstance, CoIncrementMTAUsage, CoSetProxyBlanket,
-    RPC_C_AUTHN_LEVEL_CALL,
+    RPC_C_AUTHN_LEVEL, RPC_C_AUTHN_LEVEL_CALL,
 };
 use windows::Win32::System::Com::{
     CoInitializeSecurity, EOAC_NONE, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
@@ -91,23 +91,47 @@ impl WMIConnection {
             ctx,
         };
 
-        this.set_proxy()?;
+        this.set_proxy_blanket(RPC_C_AUTHN_LEVEL_CALL)?;
         Ok(this)
     }
 
-    fn set_proxy(&self) -> WMIResult<()> {
-        debug!("Calling CoSetProxyBlanket");
+    /// Sets the authentication level for this connection by calling [`CoSetProxyBlanket`].
+    ///
+    /// This directly maps to the Windows [`CoSetProxyBlanket`] function, which configures
+    /// the proxy security settings on the WMI service interface.
+    ///
+    /// Some WMI namespaces require elevated authentication levels to access sensitive data.
+    /// For example, `Win32_EncryptableVolume` (BitLocker) requires `RPC_C_AUTHN_LEVEL_PKT_PRIVACY`
+    /// to ensure packet-level encryption during communication.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use wmi::*;
+    /// # use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
+    /// # fn main() -> WMIResult<()> {
+    /// let wmi_con = WMIConnection::with_namespace_path(
+    ///     "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
+    /// )?;
+    /// wmi_con.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`CoSetProxyBlanket`]: https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cosetproxyblanket
+    pub fn set_proxy_blanket(&self, auth_level: RPC_C_AUTHN_LEVEL) -> WMIResult<()> {
+        debug!("Calling CoSetProxyBlanket with auth_level={}", auth_level.0);
 
         unsafe {
             CoSetProxyBlanket(
                 &self.svc,
-                RPC_C_AUTHN_WINNT, // RPC_C_AUTHN_xxx
-                RPC_C_AUTHZ_NONE,  // RPC_C_AUTHZ_xxx
+                RPC_C_AUTHN_WINNT,
+                RPC_C_AUTHZ_NONE,
                 None,
-                RPC_C_AUTHN_LEVEL_CALL,      // RPC_C_AUTHN_LEVEL_xxx
-                RPC_C_IMP_LEVEL_IMPERSONATE, // RPC_C_IMP_LEVEL_xxx
-                None,                        // client identity
-                EOAC_NONE,                   // proxy capabilities
+                auth_level,
+                RPC_C_IMP_LEVEL_IMPERSONATE,
+                None,
+                EOAC_NONE,
             )?;
         }
 
@@ -176,28 +200,8 @@ impl WMIConnection {
             ctx,
         };
 
-        this.set_proxy_for_remote()?;
+        this.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
         Ok(this)
-    }
-
-    // Additional authentication for remote WMI connections
-    fn set_proxy_for_remote(&self) -> WMIResult<()> {
-        debug!("Calling CoSetProxyBlanket for remote connection");
-
-        unsafe {
-            CoSetProxyBlanket(
-                &self.svc,
-                RPC_C_AUTHN_WINNT,             // RPC_C_AUTHN_xxx
-                RPC_C_AUTHZ_NONE,              // RPC_C_AUTHZ_xxx
-                None,                          // Server principal name
-                RPC_C_AUTHN_LEVEL_PKT_PRIVACY, // Stronger authentication level for remote
-                RPC_C_IMP_LEVEL_IMPERSONATE,   // Impersonation level
-                None,                          // Client identity
-                EOAC_NONE,                     // Capability flags
-            )?;
-        }
-
-        Ok(())
     }
 }
 
@@ -269,6 +273,18 @@ mod tests {
     use rusty_fork::rusty_fork_test;
 
     use super::*;
+
+    #[test]
+    fn it_can_set_proxy_blanket() {
+        use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
+
+        let wmi_con = WMIConnection::new().expect("Failed to create WMI connection");
+
+        // CoSetProxyBlanket doesn't require admin; calling it should always succeed.
+        wmi_con
+            .set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            .expect("set_proxy_blanket should succeed");
+    }
 
     #[test]
     fn it_can_create_multiple_connections() {

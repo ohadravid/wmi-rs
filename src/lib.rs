@@ -219,6 +219,44 @@
 //! See [`WMIConnection::exec_class_method`], [`WMIConnection::exec_instance_method`] and [`WMIConnection::exec_method`]
 //! for detailed examples.
 //!
+//! # Custom Authentication Levels
+//!
+//! Some WMI namespaces require specific authentication levels when accessing
+//! sensitive system information. Use [`WMIConnection::set_proxy_blanket`] to configure this,
+//! which maps directly to the Windows [`CoSetProxyBlanket`] function.
+//!
+//! **Default Behavior**:
+//! - Local connections: `RPC_C_AUTHN_LEVEL_CALL` (message authentication)
+//! - Remote connections: `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` (packet encryption)
+//!
+//! ```no_run
+//! # use wmi::*;
+//! # fn main() -> WMIResult<()> {
+//! use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
+//! use serde::Deserialize;
+//!
+//! // Access BitLocker data, which requires packet-level encryption.
+//! // Note: admin privileges are required for BitLocker queries.
+//! let wmi_con = WMIConnection::with_namespace_path(
+//!     "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
+//! )?;
+//! wmi_con.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+//!
+//! #[derive(Deserialize, Debug)]
+//! #[serde(rename = "Win32_EncryptableVolume")]
+//! #[serde(rename_all = "PascalCase")]
+//! struct EncryptableVolume {
+//!     device_id: String,
+//!     protection_status: Option<u32>,  // 0=Unprotected, 1=Protected, 2=Unknown
+//! }
+//!
+//! let volumes: Vec<EncryptableVolume> = wmi_con.query()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! [`CoSetProxyBlanket`]: https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cosetproxyblanket
+//!
 //! # Internals
 //!
 //! [`WMIConnection`] is used to create and execute a WMI query, returning
