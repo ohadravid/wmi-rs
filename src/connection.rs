@@ -4,8 +4,8 @@ use log::debug;
 use std::marker::PhantomData;
 use windows::Win32::Foundation::{CO_E_NOTINITIALIZED, RPC_E_TOO_LATE};
 use windows::Win32::System::Com::{
-    CLSCTX_INPROC_SERVER, CoCreateInstance, CoIncrementMTAUsage, CoSetProxyBlanket,
-    CoInitializeSecurity, EOAC_NONE, RPC_C_AUTHN_LEVEL, RPC_C_AUTHN_LEVEL_CALL,
+    CLSCTX_INPROC_SERVER, CoCreateInstance, CoIncrementMTAUsage, CoInitializeSecurity,
+    CoSetProxyBlanket, EOAC_NONE, RPC_C_AUTHN_LEVEL, RPC_C_AUTHN_LEVEL_CALL,
     RPC_C_AUTHN_LEVEL_CONNECT, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_NONE,
     RPC_C_AUTHN_LEVEL_PKT, RPC_C_AUTHN_LEVEL_PKT_INTEGRITY, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
     RPC_C_IMP_LEVEL_IMPERSONATE,
