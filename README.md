@@ -126,8 +126,7 @@ data during transmission.
 Use `set_proxy_blanket()` to set authentication requirements:
 
 ```rust,no_run
-use wmi::WMIConnection;
-use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
+use wmi::{AuthLevel, WMIConnection};
 use serde::Deserialize;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -135,7 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let wmi_con = WMIConnection::with_namespace_path(
         "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
     )?;
-    wmi_con.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+    wmi_con.set_proxy_blanket(AuthLevel::PktPrivacy)?;
 
     #[derive(Deserialize, Debug)]
     #[serde(rename = "Win32_EncryptableVolume")]

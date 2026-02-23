@@ -226,21 +226,20 @@
 //! which maps directly to the Windows [`CoSetProxyBlanket`] function.
 //!
 //! **Default Behavior**:
-//! - Local connections: `RPC_C_AUTHN_LEVEL_CALL` (message authentication)
-//! - Remote connections: `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` (packet encryption)
+//! - Local connections: [`AuthLevel::Call`] (message authentication)
+//! - Remote connections: [`AuthLevel::PktPrivacy`] (packet encryption)
 //!
 //! ```no_run
 //! # use wmi::*;
-//! # fn main() -> WMIResult<()> {
-//! use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
 //! use serde::Deserialize;
 //!
+//! # fn main() -> WMIResult<()> {
 //! // Access BitLocker data, which requires packet-level encryption.
 //! // Note: admin privileges are required for BitLocker queries.
 //! let wmi_con = WMIConnection::with_namespace_path(
 //!     "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
 //! )?;
-//! wmi_con.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+//! wmi_con.set_proxy_blanket(AuthLevel::PktPrivacy)?;
 //!
 //! #[derive(Deserialize, Debug)]
 //! #[serde(rename = "Win32_EncryptableVolume")]
@@ -339,7 +338,7 @@ mod notification;
 #[cfg(any(test, feature = "test"))]
 pub mod tests;
 
-pub use connection::WMIConnection;
+pub use connection::{AuthLevel, WMIConnection};
 
 #[cfg(feature = "chrono")]
 pub use datetime::WMIDateTime;

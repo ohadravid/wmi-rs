@@ -5,10 +5,9 @@ use std::marker::PhantomData;
 use windows::Win32::Foundation::{CO_E_NOTINITIALIZED, RPC_E_TOO_LATE};
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, CoCreateInstance, CoIncrementMTAUsage, CoSetProxyBlanket,
-    RPC_C_AUTHN_LEVEL, RPC_C_AUTHN_LEVEL_CALL,
-};
-use windows::Win32::System::Com::{
-    CoInitializeSecurity, EOAC_NONE, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
+    CoInitializeSecurity, EOAC_NONE, RPC_C_AUTHN_LEVEL, RPC_C_AUTHN_LEVEL_CALL,
+    RPC_C_AUTHN_LEVEL_CONNECT, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_AUTHN_LEVEL_NONE,
+    RPC_C_AUTHN_LEVEL_PKT, RPC_C_AUTHN_LEVEL_PKT_INTEGRITY, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
     RPC_C_IMP_LEVEL_IMPERSONATE,
 };
 use windows::Win32::System::Rpc::{RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE};
@@ -16,6 +15,43 @@ use windows::Win32::System::Wmi::{
     IWbemContext, IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT, WbemLocator,
 };
 use windows::core::BSTR;
+
+/// Authentication level for a WMI connection proxy, passed to [`CoSetProxyBlanket`].
+///
+/// These variants correspond directly to the Windows `RPC_C_AUTHN_LEVEL_*` constants.
+///
+/// [`CoSetProxyBlanket`]: https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cosetproxyblanket
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthLevel {
+    /// `RPC_C_AUTHN_LEVEL_DEFAULT` – COM chooses the authentication level.
+    Default,
+    /// `RPC_C_AUTHN_LEVEL_NONE` – No authentication.
+    None,
+    /// `RPC_C_AUTHN_LEVEL_CONNECT` – Authenticate on connection.
+    Connect,
+    /// `RPC_C_AUTHN_LEVEL_CALL` – Authenticate at the beginning of each remote call.
+    Call,
+    /// `RPC_C_AUTHN_LEVEL_PKT` – Authenticate each packet.
+    Pkt,
+    /// `RPC_C_AUTHN_LEVEL_PKT_INTEGRITY` – Authenticate and verify that packet data is not modified.
+    PktIntegrity,
+    /// `RPC_C_AUTHN_LEVEL_PKT_PRIVACY` – Authenticate, verify, and encrypt each packet.
+    PktPrivacy,
+}
+
+impl From<AuthLevel> for RPC_C_AUTHN_LEVEL {
+    fn from(level: AuthLevel) -> Self {
+        match level {
+            AuthLevel::Default => RPC_C_AUTHN_LEVEL_DEFAULT,
+            AuthLevel::None => RPC_C_AUTHN_LEVEL_NONE,
+            AuthLevel::Connect => RPC_C_AUTHN_LEVEL_CONNECT,
+            AuthLevel::Call => RPC_C_AUTHN_LEVEL_CALL,
+            AuthLevel::Pkt => RPC_C_AUTHN_LEVEL_PKT,
+            AuthLevel::PktIntegrity => RPC_C_AUTHN_LEVEL_PKT_INTEGRITY,
+            AuthLevel::PktPrivacy => RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
+        }
+    }
+}
 
 fn init_security() -> windows_core::Result<()> {
     unsafe {
@@ -91,7 +127,7 @@ impl WMIConnection {
             ctx,
         };
 
-        this.set_proxy_blanket(RPC_C_AUTHN_LEVEL_CALL)?;
+        this.set_proxy_blanket(AuthLevel::Call)?;
         Ok(this)
     }
 
@@ -101,25 +137,25 @@ impl WMIConnection {
     /// the proxy security settings on the WMI service interface.
     ///
     /// Some WMI namespaces require elevated authentication levels to access sensitive data.
-    /// For example, `Win32_EncryptableVolume` (BitLocker) requires `RPC_C_AUTHN_LEVEL_PKT_PRIVACY`
+    /// For example, `Win32_EncryptableVolume` (BitLocker) requires [`AuthLevel::PktPrivacy`]
     /// to ensure packet-level encryption during communication.
     ///
     /// # Example
     ///
     /// ```no_run
     /// # use wmi::*;
-    /// # use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
     /// # fn main() -> WMIResult<()> {
     /// let wmi_con = WMIConnection::with_namespace_path(
     ///     "ROOT\\CIMV2\\Security\\MicrosoftVolumeEncryption"
     /// )?;
-    /// wmi_con.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+    /// wmi_con.set_proxy_blanket(AuthLevel::PktPrivacy)?;
     /// # Ok(())
     /// # }
     /// ```
     ///
     /// [`CoSetProxyBlanket`]: https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cosetproxyblanket
-    pub fn set_proxy_blanket(&self, auth_level: RPC_C_AUTHN_LEVEL) -> WMIResult<()> {
+    pub fn set_proxy_blanket(&self, auth_level: AuthLevel) -> WMIResult<()> {
+        let auth_level = RPC_C_AUTHN_LEVEL::from(auth_level);
         debug!("Calling CoSetProxyBlanket with auth_level={}", auth_level.0);
 
         unsafe {
@@ -200,7 +236,7 @@ impl WMIConnection {
             ctx,
         };
 
-        this.set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)?;
+        this.set_proxy_blanket(AuthLevel::PktPrivacy)?;
         Ok(this)
     }
 }
@@ -276,13 +312,11 @@ mod tests {
 
     #[test]
     fn it_can_set_proxy_blanket() {
-        use windows::Win32::System::Com::RPC_C_AUTHN_LEVEL_PKT_PRIVACY;
-
         let wmi_con = WMIConnection::new().expect("Failed to create WMI connection");
 
         // CoSetProxyBlanket doesn't require admin; calling it should always succeed.
         wmi_con
-            .set_proxy_blanket(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            .set_proxy_blanket(AuthLevel::PktPrivacy)
             .expect("set_proxy_blanket should succeed");
     }
 
