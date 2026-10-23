@@ -579,7 +579,7 @@ impl TryFrom<Variant> for () {
             Variant::Empty => Ok(()),
             other => Err(WMIError::ConvertVariantError(format!(
                 "Variant {:?} cannot be turned into a {}",
-                &other,
+                other,
                 stringify!(())
             ))),
         }
