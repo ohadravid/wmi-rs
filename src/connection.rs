@@ -265,6 +265,8 @@ fn create_locator_or_init() -> windows_core::Result<IWbemLocator> {
     use windows::Win32::Foundation::RPC_E_TOO_LATE;
     use windows::Win32::System::Com::CoIncrementMTAUsage;
 
+    hold_implicit_mta()?;
+
     let loc_res = create_locator();
     match loc_res {
         // If COM is not initialized, initialize it and try again.
@@ -285,6 +287,33 @@ fn create_locator_or_init() -> windows_core::Result<IWbemLocator> {
         }
         loc_res => loc_res,
     }
+}
+
+#[cfg(not(target_vendor = "win7"))]
+fn hold_implicit_mta() -> windows_core::Result<()> {
+    use std::sync::OnceLock;
+    use windows::Win32::System::Com::{
+        APTTYPE, APTTYPEQUALIFIER, APTTYPEQUALIFIER_IMPLICIT_MTA, CoGetApartmentType,
+        CoIncrementMTAUsage,
+    };
+
+    // A thread that never initialized COM is in the implicit MTA, which only exists while some
+    // other thread keeps the MTA alive. If that thread calls `CoUninitialize`, the MTA is torn
+    // down under any connection created here, so take our own (process-lifetime) MTA reference.
+    static MTA_USAGE: OnceLock<windows_core::Result<()>> = OnceLock::new();
+
+    let mut apt_type = APTTYPE::default();
+    let mut apt_qualifier = APTTYPEQUALIFIER::default();
+    let in_implicit_mta = unsafe { CoGetApartmentType(&mut apt_type, &mut apt_qualifier) }.is_ok()
+        && apt_qualifier == APTTYPEQUALIFIER_IMPLICIT_MTA;
+
+    if !in_implicit_mta {
+        return Ok(());
+    }
+
+    MTA_USAGE
+        .get_or_init(|| unsafe { CoIncrementMTAUsage() }.map(|_cookie| ()))
+        .clone()
 }
 
 fn create_services(
@@ -377,6 +406,35 @@ mod tests {
             });
 
             thread.join().unwrap();
+        }
+
+        #[test]
+        fn it_survives_another_thread_uninitializing_com() {
+            use std::sync::mpsc;
+            use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx, CoUninitialize};
+
+            let (held_tx, held_rx) = mpsc::channel();
+            let (release_tx, release_rx) = mpsc::channel::<()>();
+
+            // Another thread holds the MTA, so this thread (which never initialized COM)
+            // uses it implicitly when creating the connection.
+            let holder = std::thread::spawn(move || {
+                unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok().unwrap();
+                held_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                unsafe { CoUninitialize() };
+            });
+            held_rx.recv().unwrap();
+
+            let wmi_con = WMIConnection::new().unwrap();
+
+            release_tx.send(()).unwrap();
+            holder.join().unwrap();
+
+            let results: Vec<std::collections::HashMap<String, crate::Variant>> = wmi_con
+                .raw_query("SELECT Caption FROM Win32_OperatingSystem")
+                .unwrap();
+            assert_eq!(results.len(), 1);
         }
     }
 }
