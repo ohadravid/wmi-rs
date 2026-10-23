@@ -225,7 +225,7 @@ impl Iterator for QueryResultEnumerator {
 
         trace!(
             "Got enumerator {:?} and obj {:?}",
-            self.p_enumerator, &objs[0]
+            self.p_enumerator, objs[0]
         );
 
         let [obj] = objs;
